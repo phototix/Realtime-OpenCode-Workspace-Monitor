@@ -579,6 +579,22 @@
   .desk-card .desk-active-dot.active { background: var(--green); animation: pulse 1.5s infinite; }
   .desk-card .desk-active-dot.idle { background: var(--text-dim); }
 
+  /* Discussion Desk */
+  .discussion-desk { background: var(--surface); border: 1px solid var(--border);
+    border-left: 3px solid var(--yellow); border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 16px; }
+  .discussion-item { display: flex; align-items: flex-start; gap: 10px;
+    padding: 6px 0; }
+  .discussion-item + .discussion-item { border-top: 1px solid var(--border);
+    margin-top: 6px; padding-top: 10px; }
+  .discussion-item .di-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+  .discussion-item .di-body { flex: 1; min-width: 0; }
+  .discussion-item .di-title { font-size: 12px; font-weight: 600; }
+  .discussion-item .di-meta { font-size: 10px; color: var(--text-dim); }
+  .discussion-item .di-staff { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+  .discussion-item .di-staff span { font-size: 9px; background: var(--surface2);
+    padding: 2px 6px; border-radius: 4px; color: var(--text-dim); }
+
   .rest-room-grid { display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 8px; align-items: start; }
   .rest-card { background: var(--surface2); border: 1px solid var(--border);
@@ -721,6 +737,10 @@
       <!-- Office floor -->
       <div class="section-label" style="margin-bottom:8px">Staff <span class="count" id="staffLabel"></span></div>
       <div class="office-floor" id="officeFloor"></div>
+
+      <!-- Discussion Desk -->
+      <div class="section-label" id="discussionLabel" style="display:none;margin-top:16px">💬 Discussion Desk <span class="count" id="discussionCount"></span></div>
+      <div class="discussion-desk" id="discussionDesk" style="display:none"></div>
 
       <!-- Sessions grid -->
       <div class="section-label" id="sessionsLabel" style="margin-top:16px">Sessions <span class="count" id="sessionsCount"></span></div>
@@ -934,14 +954,19 @@ function renderDashboard(data) {
     }
   });
 
-  // Resting pool = virtual workers + placeholders + real workers who didn't get a desk
   const deskPids = new Set(desks.filter(d => d).map(d => d.pid));
-  const restingPool = allWorkers.filter(w => w.virtual || w.placeholder || !deskPids.has(w.pid));
+
+  // Split virtual workers: discussing (thinking/running-tools) vs resting
+  const virtuals = allWorkers.filter(w => w.virtual);
+  const discussingPool = virtuals.filter(w => w.sessionState === 'thinking' || w.sessionState === 'running-tools');
+  const restingVirtuals = virtuals.filter(w => w.sessionState !== 'thinking' && w.sessionState !== 'running-tools');
+
+  const restingPool = [...restingVirtuals, ...allWorkers.filter(w => w.placeholder || (!w.virtual && !deskPids.has(w.pid)))];
 
   const officeFloor = document.getElementById('officeFloor');
   officeFloor.innerHTML = '';
   const occupied = deskTaken.size;
-  document.getElementById('staffLabel').textContent = `${occupied} working · ${restingPool.length} relaxing`;
+  document.getElementById('staffLabel').textContent = `${occupied} working · ${discussingPool.length} discussing · ${restingPool.length} relaxing`;
 
   desks.forEach((worker, idx) => {
     const deskNum = idx + 1;
@@ -976,21 +1001,60 @@ function renderDashboard(data) {
     officeFloor.appendChild(card);
   });
 
+  // ── DISCUSSION DESK ──
+  const discussionDesk = document.getElementById('discussionDesk');
+  const discussionLabel = document.getElementById('discussionLabel');
+  discussionDesk.innerHTML = '';
+
+  // Group discussing staff by session title
+  const discussionGroups = {};
+  discussingPool.forEach(w => {
+    const key = w.sessionTitle || 'Unknown';
+    if (!discussionGroups[key]) discussionGroups[key] = [];
+    discussionGroups[key].push(w);
+  });
+
+  const groupKeys = Object.keys(discussionGroups);
+  if (groupKeys.length > 0) {
+    discussionLabel.style.display = 'block';
+    discussionDesk.style.display = 'block';
+    discussionLabel.innerHTML = '💬 Discussion Desk <span class="count">(' + discussingPool.length + ' staff)</span>';
+
+    groupKeys.forEach(sessionTitle => {
+      const staff = discussionGroups[sessionTitle];
+      const stateStyle = STATE_STYLE[staff[0].sessionState] || STATE_STYLE[''];
+      const staffList = staff.map(w => '<span>' + w.name + '</span>').join('');
+      const div = document.createElement('div');
+      div.className = 'discussion-item';
+      div.innerHTML = `
+        <div class="di-icon">💬</div>
+        <div class="di-body">
+          <div class="di-title">${sessionTitle}</div>
+          <div class="di-meta" style="color:${stateStyle.color}">${stateStyle.label}</div>
+          <div class="di-staff">${staffList}</div>
+        </div>
+      `;
+      discussionDesk.appendChild(div);
+    });
+  } else {
+    discussionLabel.style.display = 'none';
+    discussionDesk.style.display = 'none';
+  }
+
   // ── REST ROOM ──
-  // 12 fixed activity spots (6-column grid). Unassigned staff occupy them randomly.
   const restRoomLayout = [
-    { emoji: '🛌', label: 'power nap' },
-    { emoji: '🎮', label: 'gaming' },
-    { emoji: '☕', label: 'sipping coffee' },
-    { emoji: '📱', label: 'scrolling phone' },
-    { emoji: '📰', label: 'reading news' },
-    { emoji: '🍿', label: 'snacking' },
-    { emoji: '🎵', label: 'listening to music' },
-    { emoji: '🧘', label: 'meditating' },
-    { emoji: '🎯', label: 'playing darts' },
-    { emoji: '🌿', label: 'watering plants' },
-    { emoji: '🏓', label: 'ping pong' },
-    { emoji: '📖', label: 'reading a book' },
+    { emoji: '🛌', label: 'power nap', states: ['power nap', 'snoring softly', 'dreaming big', 'waking up'] },
+    { emoji: '🎮', label: 'gaming', states: ['gaming', 'winning!', 'rage quitting', 'leveling up'] },
+    { emoji: '☕', label: 'sipping coffee', states: ['sipping coffee', 'stirring sugar', 'refilling cup', 'blowing on steam'] },
+    { emoji: '📱', label: 'scrolling phone', states: ['scrolling', 'laughing at memes', 'typing reply', 'double-tapping'] },
+    { emoji: '📰', label: 'reading news', states: ['reading news', 'shocking headline!', 'scrolling feed', 'saving article'] },
+    { emoji: '🍿', label: 'snacking', states: ['snacking', 'grabbing more', 'crunching loudly', 'sharing snacks'] },
+    { emoji: '🎵', label: 'listening to music', states: ['listening', 'humming along', 'air drumming', 'changing song'] },
+    { emoji: '🧘', label: 'meditating', states: ['meditating', 'deep breaths', 'finding zen', 'stretching'] },
+    { emoji: '🎯', label: 'playing darts', states: ['playing darts', 'bullseye!', 'close miss', 'retrieving darts'] },
+    { emoji: '🌿', label: 'watering plants', states: ['watering plants', 'pruning leaves', 'repotting', 'admiring growth'] },
+    { emoji: '🏓', label: 'ping pong', states: ['ping pong', 'intense rally', 'smashed it!', 'chasing ball'] },
+    { emoji: '📖', label: 'reading a book', states: ['reading', 'page turner!', 'dog-earing page', 'checking chapter count'] },
   ];
 
   const restGrid = document.getElementById('restRoomGrid');
@@ -1015,8 +1079,11 @@ function renderDashboard(data) {
   restLabel.style.display = 'block';
   restLabel.innerHTML = '☕ Rest Room <span class="count">(' + occupiedRestCount + ' resting)</span>';
 
+  const stateCycleMs = 2000;
   restRoomLayout.forEach((layout, idx) => {
     const worker = assigned[idx] || null;
+    const stateIdx = Math.floor(Date.now() / stateCycleMs) % (layout.states || [layout.label]).length;
+    const currentLabel = (layout.states || [layout.label])[stateIdx];
     const card = document.createElement('div');
     card.className = 'rest-card';
     if (worker) {
@@ -1025,13 +1092,13 @@ function renderDashboard(data) {
       card.innerHTML = `
         <div class="rc-emoji">${layout.emoji}</div>
         <div class="rc-desk">${isPlaceholder ? 'Staff' : (worker.name || '?')}</div>
-        <div class="rc-label">${layout.label}${worker.virtual ? ' (virtual)' : isPlaceholder ? ' (idle)' : ''}</div>
+        <div class="rc-label">${currentLabel}${worker.virtual ? ' (virtual)' : isPlaceholder ? ' (idle)' : ''}</div>
       `;
     } else {
       card.style.opacity = '0.4';
       card.innerHTML = `
         <div class="rc-emoji">${layout.emoji}</div>
-        <div class="rc-label" style="color:var(--text-dim)">${layout.label}</div>
+        <div class="rc-label" style="color:var(--text-dim)">${currentLabel}</div>
       `;
     }
     restGrid.appendChild(card);
