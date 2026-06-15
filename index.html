@@ -1014,10 +1014,11 @@ function renderDashboard(data) {
     discussionGroups[key].push(w);
   });
 
+  discussionLabel.style.display = 'block';
+  discussionDesk.style.display = 'block';
+
   const groupKeys = Object.keys(discussionGroups);
   if (groupKeys.length > 0) {
-    discussionLabel.style.display = 'block';
-    discussionDesk.style.display = 'block';
     discussionLabel.innerHTML = '💬 Discussion Desk <span class="count">(' + discussingPool.length + ' staff)</span>';
 
     groupKeys.forEach(sessionTitle => {
@@ -1037,8 +1038,11 @@ function renderDashboard(data) {
       discussionDesk.appendChild(div);
     });
   } else {
-    discussionLabel.style.display = 'none';
-    discussionDesk.style.display = 'none';
+    discussionLabel.innerHTML = '💬 Discussion Desk <span class="count">(vacant)</span>';
+    const emptyMsg = document.createElement('div');
+    emptyMsg.style.cssText = 'font-size:11px;color:var(--text-dim);text-align:center;padding:8px 0';
+    emptyMsg.textContent = 'No discussions in progress';
+    discussionDesk.appendChild(emptyMsg);
   }
 
   // ── REST ROOM ──
