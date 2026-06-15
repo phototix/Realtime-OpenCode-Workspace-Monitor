@@ -655,7 +655,7 @@ for a in agent_list:
     'parent': parent_name or str(ppid)
   })
 
-total_cost = sum(s.get('cost', 0) for s in sessions)
+total_cost = sum(cached.get('cost', 0) for cached in detail_cache.values())
 
 # Count real workers: session agents + standalone (non-virtual, non-engine)
 worker_pids = set()
