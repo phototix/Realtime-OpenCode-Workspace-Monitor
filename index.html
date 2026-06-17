@@ -1708,71 +1708,6 @@ setInterval(poll, POLL_INTERVAL);
         <div id="sessionsTabContent"><div style="font-size:12px;color:var(--text-dim)">Loading cases...</div></div>
       </div>
 
-      <!-- Session View Modal (metadata only) -->
-      <div class="modal-overlay" id="sessionViewModal" style="display:none">
-        <div class="login-modal" style="width:600px;max-height:80vh;overflow-y:auto">
-          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-            <h2 style="font-size:18px">Case Details</h2>
-            <button class="admin-close" onclick="document.getElementById('sessionViewModal').style.display='none'">&times;</button>
-          </div>
-          <div id="sessionViewBody"></div>
-        </div>
-      </div>
-
-      <!-- Session Continue Modal -->
-      <div class="modal-overlay" id="sessionContinueModal" style="display:none">
-        <div class="login-modal" style="width:680px;max-height:85vh;overflow-y:auto">
-          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-            <h2 style="font-size:18px" id="continueModalTitle">Continue Case</h2>
-            <button class="admin-close" onclick="document.getElementById('sessionContinueModal').style.display='none'">&times;</button>
-          </div>
-          <div id="continueModalBody"></div>
-        </div>
-      </div>
-
-      <!-- New Session Modal -->
-      <div class="modal-overlay" id="newSessionModal" style="display:none">
-        <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
-          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-            <h2 style="font-size:18px">+ New Case</h2>
-            <button class="admin-close" onclick="document.getElementById('newSessionModal').style.display='none'">&times;</button>
-          </div>
-          <div id="newSessionModalBody">
-            <div class="form-group">
-              <label>Title (optional)</label>
-              <input type="text" id="newSessionTitle" placeholder="Case title">
-            </div>
-            <div class="form-group">
-              <label>Instructions</label>
-              <textarea id="newSessionMessage" placeholder="Describe what you want to accomplish..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:80px;font-family:inherit"></textarea>
-            </div>
-            <div style="display:flex;gap:12px;flex-wrap:wrap">
-              <div class="form-group" style="flex:1;min-width:180px">
-                <label>Mode</label>
-                <select id="newSessionMode" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
-                  <option value="build">Build</option>
-                  <option value="plan">Plan</option>
-                </select>
-              </div>
-              <div class="form-group" style="flex:2;min-width:220px">
-                <label>Model</label>
-                <select id="newSessionModel" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
-                  <option value="">Loading models...</option>
-                </select>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Workspace</label>
-              <select id="newSessionWorkspace" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
-                <option value="">Default (home)</option>
-              </select>
-            </div>
-            <button class="btn btn-primary" onclick="startNewSession()" style="width:100%;margin-top:8px">Start Case</button>
-            <div class="form-error" id="newSessionError" style="margin-top:8px"></div>
-          </div>
-        </div>
-      </div>
-
       <!-- System Tab -->
       <div class="tab-content" id="tab-system">
         <h3>🖥 System</h3>
@@ -1864,6 +1799,71 @@ setInterval(poll, POLL_INTERVAL);
           <div style="color:var(--text-dim)">Loading logs...</div>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Session View Modal (metadata only) -->
+<div class="modal-overlay" id="sessionViewModal" style="display:none">
+  <div class="login-modal" style="width:600px;max-height:80vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:18px">Case Details</h2>
+      <button class="admin-close" onclick="document.getElementById('sessionViewModal').style.display='none'">&times;</button>
+    </div>
+    <div id="sessionViewBody"></div>
+  </div>
+</div>
+
+<!-- Session Continue Modal -->
+<div class="modal-overlay" id="sessionContinueModal" style="display:none">
+  <div class="login-modal" style="width:680px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:18px" id="continueModalTitle">Continue Case</h2>
+      <button class="admin-close" onclick="document.getElementById('sessionContinueModal').style.display='none'>&times;</button>
+    </div>
+    <div id="continueModalBody"></div>
+  </div>
+</div>
+
+<!-- New Session Modal -->
+<div class="modal-overlay" id="newSessionModal" style="display:none">
+  <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:18px">+ New Case</h2>
+      <button class="admin-close" onclick="document.getElementById('newSessionModal').style.display='none'>&times;</button>
+    </div>
+    <div id="newSessionModalBody">
+      <div class="form-group">
+        <label>Title (optional)</label>
+        <input type="text" id="newSessionTitle" placeholder="Case title">
+      </div>
+      <div class="form-group">
+        <label>Instructions</label>
+        <textarea id="newSessionMessage" placeholder="Describe what you want to accomplish..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:80px;font-family:inherit"></textarea>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div class="form-group" style="flex:1;min-width:180px">
+          <label>Mode</label>
+          <select id="newSessionMode" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+            <option value="build">Build</option>
+            <option value="plan">Plan</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:2;min-width:220px">
+          <label>Model</label>
+          <select id="newSessionModel" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+            <option value="">Loading models...</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Workspace</label>
+        <select id="newSessionWorkspace" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+          <option value="">Default (home)</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="startNewSession()" style="width:100%;margin-top:8px">Start Case</button>
+      <div class="form-error" id="newSessionError" style="margin-top:8px"></div>
     </div>
   </div>
 </div>
