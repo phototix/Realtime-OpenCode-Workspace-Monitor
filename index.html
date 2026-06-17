@@ -2168,7 +2168,7 @@ async function renderCasesTab() {
             questionBadge(s) +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\')">Stop</button>' : '') +
-            (s.state === 'complete' ? ' <button class="send-btn" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
+            (s.state === 'complete' ? ' <button class="send-btn" data-sid="' + s.id + '" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
           '</td>' +
         '</tr>';
       });
