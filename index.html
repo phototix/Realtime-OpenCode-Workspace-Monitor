@@ -1115,6 +1115,26 @@ function humanAgo(ts) {
   return Math.floor(day / 365) + 'y ago';
 }
 
+function formatUptime(raw) {
+  if (!raw || raw === 'N/A') return '';
+  const parts = raw.split('-');
+  let days = 0, time = parts[parts.length - 1];
+  if (parts.length > 1) days = parseInt(parts[0]);
+  const timeParts = time.split(':');
+  let h = 0, m = 0, s = 0;
+  if (timeParts.length === 3) {
+    h = parseInt(timeParts[0]); m = parseInt(timeParts[1]); s = parseInt(timeParts[2]);
+  } else if (timeParts.length === 2) {
+    m = parseInt(timeParts[0]); s = parseInt(timeParts[1]);
+  }
+  const segs = [];
+  if (days > 0) segs.push(days + 'd');
+  if (h > 0) segs.push(h + 'h');
+  if (m > 0) segs.push(m + 'm');
+  if (s > 0 && days === 0 && h === 0) segs.push(s + 's');
+  return segs.join(' ') || raw;
+}
+
 function switchContentTab(tab) {
   document.querySelectorAll('.content-tab').forEach(t => t.classList.toggle('active', t.dataset.panel === tab));
   document.querySelectorAll('.content-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + tab));
@@ -1147,8 +1167,9 @@ function renderDashboard(data) {
   document.getElementById('diskBar').style.width = Math.min(diskNum, 100) + '%';
 
   const uptimeContainer = document.getElementById('uptimeRowContainer');
-  if (s.uptime && s.uptime !== 'N/A') {
-    document.getElementById('uptimeRow').textContent = s.uptime;
+  const uptimeFmt = formatUptime(s.uptime);
+  if (uptimeFmt) {
+    document.getElementById('uptimeRow').textContent = uptimeFmt;
     uptimeContainer.style.display = '';
   } else {
     uptimeContainer.style.display = 'none';
@@ -1192,7 +1213,7 @@ function renderDashboard(data) {
           <div class="avatar engine">${TYPE_ICONS.engine || '?'}</div>
           <div class="info">
             <div class="name">Brandon</div>
-            <div class="meta">NodeService Engine · PID ${brandon.pid} · ${s.uptime || 'N/A'}</div>
+            <div class="meta">NodeService Engine · PID ${brandon.pid} · ${formatUptime(s.uptime) || 'N/A'}</div>
           </div>
           <div class="type-badge engine">boss</div>
           <button class="manage-btn" onclick="openLoginModal()">Manage</button>
@@ -2293,7 +2314,7 @@ async function renderSystemTab() {
     const resp = await fetch('data/status.json?_=' + Date.now());
     const data = await resp.json();
     const s = data.summary || {};
-    document.getElementById('sysUptime').textContent = s.uptime || '—';
+    document.getElementById('sysUptime').textContent = formatUptime(s.uptime) || '—';
     document.getElementById('sysCpuCores').textContent = s.cpu_core_count || '—';
     document.getElementById('sysMemory').textContent = (s.total_mem_mb || 0) + ' MB / ' + (s.mem_total_gb || '?') + ' GB';
     document.getElementById('sysDisk').textContent = s.disk_free + ' free / ' + s.disk_total + ' total';
