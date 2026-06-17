@@ -572,6 +572,7 @@
     display: flex; justify-content: center; gap: 6px;
     font-size: 9px; color: var(--text-dim); margin-top: 3px;
   }
+  .desk-card .desk-img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; }
   .desk-card .desk-active-dot {
     position: absolute; top: 8px; right: 8px;
     width: 6px; height: 6px; border-radius: 50%;
@@ -1370,7 +1371,7 @@ function renderDashboard(data) {
     card.innerHTML = `
       <div class="desk-number">#${deskNum}</div>
       ${isOccupied ? `<div class="desk-active-dot ${isActive ? 'active' : 'idle'}"></div>` : ''}
-      <div class="desk-avatar ${isOccupied ? 'occupied' : 'vacant'}">${isOccupied ? (isVirt ? '\u{1F4AC}' : isActive ? '\u269B' : '\u{1F5A5}\uFE0F') : '\u{1F5A5}\uFE0F'}</div>
+      <div class="desk-avatar ${isOccupied ? 'occupied' : 'vacant'}">${isOccupied ? (isVirt ? '\u{1F4AC}' : isActive ? '\u269B' : '<img src=\"assets/working-staff-loop.gif\" class=\"desk-img\" alt=\"working\">') : '<img src=\"assets/working-desk-empty.png\" class=\"desk-img\" alt=\"vacant\">'}</div>
       <div class="desk-name">${isOccupied ? (isVirt ? sessionLabel.slice(0, 14) + (sessionLabel.length > 14 ? '...' : '') : worker.name) : 'Vacant'}</div>
       ${isOccupied ? `
         <div class="desk-session" style="background:${stateStyle.color}22;color:${stateStyle.color}">${isVirt ? (isActive ? '\u{1F4AD}' : '\u2713') + ' ' + stateStyle.label : sessionLabel.length > 20 ? sessionLabel.slice(0,18)+'...' : sessionLabel}</div>
