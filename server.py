@@ -98,7 +98,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 cwd = directory or None
                 attach = get_attach_url()
                 password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
-                cmd = ['opencode', 'run', '-s', sid, '--fork', '--attach', attach]
+                cmd = ['opencode', 'run', '-s', sid, '--attach', attach]
                 if password:
                     cmd.extend(['-p', password])
                 if model:
@@ -115,7 +115,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                     # If model was the problem, retry without model
                     if model and ('Model not found' in err_text or 'UnknownError' in err_text):
                         log(f"Admin: retrying session {sid} without model")
-                        cmd2 = ['opencode', 'run', '-s', sid, '--fork', '--attach', attach]
+                        cmd2 = ['opencode', 'run', '-s', sid, '--attach', attach]
                         if password:
                             cmd2.extend(['-p', password])
                         if mode_val:
