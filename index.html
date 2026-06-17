@@ -2117,7 +2117,7 @@ async function renderCasesTab() {
         '<span style="font-size:9px;color:var(--text-dim);margin-left:4px;opacity:0.6">' + dir + '</span>' +
       '</div>';
 
-      html += '<table class="admin-table"><colgroup><col style="width:25%"><col style="width:10%"><col style="width:15%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:20%"></colgroup><thead><tr><th>Title</th><th>State</th><th>Model</th><th>Cost</th><th>Tokens</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
+      html += '<table class="admin-table"><colgroup><col style="width:22%"><col style="width:8%"><col style="width:8%"><col style="width:15%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:23%"></colgroup><thead><tr><th>Title</th><th>State</th><th>Mode</th><th>Model</th><th>Cost</th><th>Tokens</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
       group.forEach(s => {
         const agoStr = humanAgo(s.updated);
         const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
@@ -2127,6 +2127,7 @@ async function renderCasesTab() {
         html += '<tr>' +
           '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (s.title||'').replace(/"/g,'&quot;') + '">' + (s.title||'?').slice(0,28) + '</td>' +
           '<td><span style="color:' + stateColor + '">' + (s.state || 'active') + '</span></td>' +
+          '<td>' + (s.last_mode ? '<span style="font-size:10px;padding:1px 6px;border-radius:3px;font-weight:500;background:' + (s.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33') + ';color:' + (s.last_mode === 'plan' ? '#bc8cff' : '#58a6ff') + '">' + s.last_mode + '</span>' : '—') + '</td>' +
           '<td style="font-size:10px;color:var(--text-dim)">' + (s.model_id || '—') + '</td>' +
           '<td>$' + (s.cost||0).toFixed(4) + '</td>' +
           '<td>' + ((s.tokens||0).toLocaleString()) + '</td>' +
