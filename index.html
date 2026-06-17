@@ -876,6 +876,14 @@
     font-size: 12px; color: var(--blue); font-weight: 600;
   }
 
+  .comment-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 14px; line-height: 1; opacity: 0.4;
+    padding: 2px 4px; border-radius: 4px; transition: all 0.2s;
+    margin-left: auto; margin-right: 4px; flex-shrink: 0;
+  }
+  .comment-btn:hover { opacity: 1; background: var(--surface2); }
+
   .toast {
     position: fixed; bottom: 24px; right: 24px; z-index: 2000;
     padding: 12px 16px; border-radius: 8px;
@@ -1466,6 +1474,8 @@ function renderDashboard(data) {
   document.getElementById('sessionsLabel').style.display = sessions.length > 0 ? 'block' : 'none';
   document.getElementById('sessionsCount').textContent = sessions.length > 0 ? '(' + sessions.length + ')' : '';
 
+  const loggedIn = !!getAuth();
+
   sessions.forEach(ss => {
     const state = STATE_STYLE[ss.state] || STATE_STYLE[''];
     const agoStr = humanAgo(ss.updated);
@@ -1493,6 +1503,7 @@ function renderDashboard(data) {
           <div class="sc-meta">${ss.slug ? ss.slug + ' · ' : ''}${ss.last_mode ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:${ss.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33'};color:${ss.last_mode === 'plan' ? '#bc8cff' : '#58a6ff'}">${ss.last_mode}</span> ` : ''}${ss.agent_type || ''} ${ss.model_id ? '· ' + ss.model_id : ''}</div>
         </div>
         <div class="sc-state-badge ${ss.state || '\\30'}">${state.label}</div>
+        ${loggedIn ? `<button class="comment-btn" onclick="event.stopPropagation();continueSession('${ss.id}')" title="Quick instruction">\u{1F4AC}</button>` : ''}
         <div class="sc-status-dot ${ss.state || '\\30'}"></div>
       </div>
       ${ss.last_user_prompt ? `<div style="margin-top:4px;padding:4px 6px;background:#58a6ff11;border-left:2px solid var(--blue);border-radius:4px;font-size:10px;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${ss.last_user_prompt.replace(/"/g,'&quot;')}">${ss.last_user_prompt.slice(0,60)}${ss.last_user_prompt.length > 60 ? '...' : ''}</div>` : ''}
