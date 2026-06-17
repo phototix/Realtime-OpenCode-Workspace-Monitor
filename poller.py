@@ -741,15 +741,7 @@ try:
       line = line.strip()
       if line and '/' in line:
         available_models.append({'id': line, 'provider': 'opencode'})
-  # Also fetch Ollama models
-  try:
-    rr = subprocess.run(['curl', '-s', '--max-time', '5', 'https://ollama.brandon.my/api/tags'], capture_output=True, text=True, timeout=10)
-    if rr.returncode == 0:
-      ollama_data = json.loads(rr.stdout)
-      for m in ollama_data.get('models', []):
-        available_models.append({'id': m['name'], 'provider': 'ollama'})
-  except:
-    pass
+  # Ollama models are not included because no Ollama provider is configured in opencode
 except:
   pass
 

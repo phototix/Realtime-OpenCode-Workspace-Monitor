@@ -13,6 +13,12 @@ PID_FILE = os.path.join(DATA_DIR, 'daemon.pid')
 ACTIVITY_FILE = os.path.join(DATA_DIR, 'activity.log')
 STATIC_DIR = os.path.expanduser('~/.opencode-dashboard')
 
+import re
+_ansi_re = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+
+def strip_ansi(s):
+    return _ansi_re.sub('', s)
+
 def log(msg):
     try:
         ts = __import__('datetime').datetime.now().strftime('%H:%M:%S')
@@ -102,7 +108,21 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                     log(f"Admin: instructed session {sid}")
                     self._json({'ok': True, 'message': 'Instruction sent'})
                 else:
-                    self._json({'ok': False, 'message': (r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]}, 500)
+                    err_text = strip_ansi(r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]
+                    # If model was the problem, retry without model
+                    if 'Model not found' in err_text and model:
+                        log(f"Admin: retrying session {sid} without model")
+                        cmd2 = ['opencode', 'run', '-s', sid, '--fork', '--attach', attach]
+                        if mode_val:
+                            cmd2.extend(['--agent', mode_val])
+                        cmd2.append(message)
+                        r2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=15, cwd=cwd)
+                        if r2.returncode == 0:
+                            log(f"Admin: instructed session {sid} (retry without model)")
+                            self._json({'ok': True, 'message': 'Instruction sent (model ignored, using default)'})
+                            return
+                        err_text = strip_ansi(r2.stderr.strip() or r2.stdout.strip()[:200] or 'Unknown error')[:200]
+                    self._json({'ok': False, 'message': err_text}, 500)
             except subprocess.TimeoutExpired:
                 self._json({'ok': False, 'message': 'Timeout sending instruction'}, 500)
             except Exception as e:

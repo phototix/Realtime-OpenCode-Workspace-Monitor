@@ -1095,7 +1095,7 @@ const TYPE_ICONS = {
   helper: '\u2692'
 };
 
-let prevAgentCount = -1;
+let prevSessions = [];
 
 const expandedTexts = new Set();
 
@@ -1197,12 +1197,25 @@ function renderDashboard(data) {
   const dot = document.getElementById('statusDot');
   dot.className = 'status-dot ' + (s.agent_count > 0 ? 'online' : 'offline');
 
-  if (prevAgentCount >= 0 && s.agent_count > prevAgentCount) {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('New agent detected', { body: s.agent_count + ' agents running', silent: true });
-    }
+  const currentSessions = data.sessions || [];
+  if (prevSessions.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
+    const prevMap = {};
+    prevSessions.forEach(ps => { prevMap[ps.id] = ps; });
+    currentSessions.forEach(cs => {
+      const prev = prevMap[cs.id];
+      if (prev && prev.state !== cs.state) {
+        new Notification('Case updated', {
+          body: (cs.title || '?') + ' · ' + (prev.state || 'active') + ' → ' + (cs.state || 'active'),
+          silent: true
+        });
+      } else if (!prev && cs.state === 'complete') {
+        new Notification('Case completed', { body: cs.title || '?', silent: true });
+      } else if (!prev) {
+        new Notification('New case', { body: cs.title || '?', silent: true });
+      }
+    });
   }
-  prevAgentCount = s.agent_count;
+  prevSessions = JSON.parse(JSON.stringify(currentSessions));
 
   const agents = data.agents || [];
   const agentMap = {};
