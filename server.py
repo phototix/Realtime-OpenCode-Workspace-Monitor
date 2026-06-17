@@ -113,7 +113,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 else:
                     err_text = strip_ansi(r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]
                     # If model was the problem, retry without model
-                    if 'Model not found' in err_text and model:
+                    if model and ('Model not found' in err_text or 'UnknownError' in err_text):
                         log(f"Admin: retrying session {sid} without model")
                         cmd2 = ['opencode', 'run', '-s', sid, '--fork', '--attach', attach]
                         if password:
@@ -127,10 +127,13 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                             self._json({'ok': True, 'message': 'Instruction sent (model ignored, using default)'})
                             return
                         err_text = strip_ansi(r2.stderr.strip() or r2.stdout.strip()[:200] or 'Unknown error')[:200]
+                    log(f"Admin: instruct failed: {err_text[:100]}")
                     self._json({'ok': False, 'message': err_text}, 500)
             except subprocess.TimeoutExpired:
+                log("Admin: instruct timeout")
                 self._json({'ok': False, 'message': 'Timeout sending instruction'}, 500)
             except Exception as e:
+                log(f"Admin: instruct unexpected error: {str(e)[:200]}")
                 self._json({'ok': False, 'message': str(e)[:200]}, 500)
 
         elif path == '/api/session-answer':
