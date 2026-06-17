@@ -388,7 +388,7 @@ if needs_refresh and not export_running:
       state = 'thinking'
     elif finish == 'tool-calls':
       state = 'running-tools'
-    elif finish == 'stop':
+    elif finish == 'stop' or finish == 'length':
       state = 'complete'
     elif finish == 'error':
       state = 'error'
