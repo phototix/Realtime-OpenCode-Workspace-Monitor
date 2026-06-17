@@ -5,7 +5,7 @@ import os
 import random
 import time
 import multiprocessing
-from datetime import datetime
+from datetime import datetime, timezone
 
 data_dir = os.path.expanduser('~/.opencode-dashboard/data')
 activity_file = os.path.join(data_dir, 'activity.log')
@@ -28,7 +28,7 @@ def log_activity_py(msg):
     except:
         pass
 
-timestamp = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 # Load previous agent PIDs to detect short-lived agents
 skip_utils = {'find', 'sort', 'head', 'du', 'ps', 'sleep', 'cat', 'curl', 'wc', 'rg', 'awk', 'sed', 'echo', 'printf', 'mkdir', 'touch', 'rm', 'mv', 'cp', 'tr', 'cut', 'xargs', 'comm', 'diff', 'patch', 'tar', 'gzip', 'gunzip', 'zip', 'unzip', 'git'}

@@ -641,6 +641,234 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+
+  /* ── MODAL OVERLAY ── */
+  .modal-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px);
+  }
+
+  /* ── LOGIN MODAL ── */
+  .login-modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    width: 400px;
+    max-width: 90vw;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+  }
+  .login-modal h2 {
+    font-size: 20px; font-weight: 600; margin-bottom: 4px;
+  }
+  .login-modal .sub {
+    font-size: 12px; color: var(--text-dim); margin-bottom: 24px;
+  }
+  .form-group {
+    margin-bottom: 16px;
+  }
+  .form-group label {
+    display: block; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-dim); margin-bottom: 6px;
+  }
+  .form-group input {
+    width: 100%; padding: 10px 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-size: 14px;
+    outline: none; transition: border-color 0.2s;
+  }
+  .form-group input:focus { border-color: var(--blue); }
+  .form-group input::placeholder { color: var(--text-dim); opacity: 0.5; }
+  .btn {
+    padding: 10px 20px; border: none; border-radius: 8px;
+    font-size: 13px; font-weight: 600; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .btn-primary {
+    background: var(--blue); color: #fff;
+  }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-danger {
+    background: var(--red); color: #fff;
+  }
+  .btn-danger:hover { opacity: 0.85; }
+  .btn-sm {
+    padding: 5px 12px; font-size: 11px;
+  }
+  .form-error {
+    color: var(--red); font-size: 12px; margin-top: 8px; display: none;
+  }
+  .form-success {
+    color: var(--green); font-size: 12px; margin-top: 8px; display: none;
+  }
+
+  /* ── ADMIN MODAL (full-screen) ── */
+  .admin-modal {
+    background: var(--bg);
+    width: 100vw; height: 100vh;
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  .admin-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .admin-header h2 {
+    font-size: 18px; font-weight: 600;
+  }
+  .admin-header .user-info {
+    display: flex; align-items: center; gap: 12px;
+    font-size: 12px; color: var(--text-dim);
+  }
+  .admin-header .user-info .role-badge {
+    font-size: 10px; text-transform: uppercase;
+    padding: 2px 8px; border-radius: 4px;
+    font-weight: 600;
+  }
+  .admin-header .user-info .role-badge.admin { background: #bc8cff33; color: var(--purple); }
+  .admin-header .user-info .role-badge.user { background: #58a6ff33; color: var(--blue); }
+  .admin-close {
+    background: none; border: none; color: var(--text-dim);
+    font-size: 24px; cursor: pointer; padding: 4px 8px;
+    border-radius: 6px; transition: all 0.2s;
+  }
+  .admin-close:hover { background: var(--surface2); color: var(--text); }
+
+  /* ── TAB BAR ── */
+  .admin-tabs {
+    display: flex; gap: 2px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 16px;
+    flex-shrink: 0;
+    overflow-x: auto;
+  }
+  .admin-tab {
+    padding: 12px 20px;
+    font-size: 12px; font-weight: 500;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+    user-select: none;
+  }
+  .admin-tab:hover { color: var(--text); }
+  .admin-tab.active {
+    color: var(--blue);
+    border-bottom-color: var(--blue);
+  }
+  .admin-tab.admin-only {
+    position: relative;
+  }
+  .admin-tab.admin-only::after {
+    content: 'admin'; font-size: 8px; color: var(--purple);
+    margin-left: 4px; opacity: 0.6;
+  }
+
+  /* ── TAB CONTENT ── */
+  .admin-body {
+    flex: 1; overflow-y: auto;
+    padding: 24px;
+  }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+  .tab-content h3 {
+    font-size: 15px; font-weight: 600; margin-bottom: 16px;
+  }
+  .tab-content .desc {
+    font-size: 12px; color: var(--text-dim); margin-bottom: 16px;
+  }
+
+  /* ── ADMIN TABLE ── */
+  .admin-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12px;
+  }
+  .admin-table th {
+    text-align: left; padding: 8px 10px;
+    color: var(--text-dim); font-weight: 500;
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;
+  }
+  .admin-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(48,54,61,0.4);
+    vertical-align: middle;
+  }
+  .admin-table tr:hover td { background: rgba(88,166,255,0.03); }
+
+  /* ── CARD INSIDE ADMIN ── */
+  .admin-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+  .admin-card h4 {
+    font-size: 13px; font-weight: 600; margin-bottom: 12px;
+  }
+  .admin-card .row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; font-size: 12px;
+    border-bottom: 1px solid rgba(48,54,61,0.3);
+  }
+  .admin-card .row:last-child { border-bottom: none; }
+  .admin-card .row .label { color: var(--text-dim); }
+  .admin-card .row .value { color: var(--text); font-weight: 500; }
+
+  .inline-form {
+    display: flex; gap: 8px; align-items: center;
+    margin-top: 12px;
+  }
+  .inline-form input {
+    padding: 8px 10px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 12px; outline: none;
+    flex: 1;
+  }
+  .inline-form input:focus { border-color: var(--blue); }
+
+  .settings-group {
+    margin-bottom: 20px;
+  }
+  .settings-group label {
+    display: block; font-size: 12px; color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .settings-group input[type="range"] {
+    width: 100%; margin: 6px 0;
+    accent-color: var(--blue);
+  }
+  .settings-group .range-val {
+    font-size: 12px; color: var(--blue); font-weight: 600;
+  }
+
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; z-index: 2000;
+    padding: 12px 20px; border-radius: 8px;
+    font-size: 12px; font-weight: 500;
+    background: var(--surface); border: 1px solid var(--border);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    display: none; animation: fadeIn 0.2s ease;
+  }
+  .toast.success { border-left: 3px solid var(--green); color: var(--green); }
+  .toast.error { border-left: 3px solid var(--red); color: var(--red); }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  .stop-btn {
+    font-size: 10px; padding: 3px 10px; border: none; border-radius: 4px;
+    cursor: pointer; font-weight: 500; transition: all 0.2s;
+    background: #f8514933; color: var(--red);
+  }
+  .stop-btn:hover { background: var(--red); color: #fff; }
+  .stop-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 </style>
 </head>
 <body>
@@ -714,6 +942,14 @@
     <div class="sidebar-section">
       <h3>Sessions</h3>
       <div id="sessionList"></div>
+    </div>
+
+    <div class="sidebar-section" id="adminLoginBtn" onclick="openLoginModal()" style="border-top:1px solid var(--border);cursor:pointer">
+      <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--blue)">
+        <span style="font-size:16px">🔑</span>
+        <span>Admin Panel</span>
+        <span id="loginIndicator" style="margin-left:auto;font-size:10px;background:var(--surface2);padding:1px 6px;border-radius:4px;color:var(--text-dim);display:none">logged in</span>
+      </div>
     </div>
 
     <div class="sidebar-section" style="border-bottom:none">
@@ -1263,6 +1499,622 @@ if ('Notification' in window && Notification.permission === 'default') {
 
 poll();
 setInterval(poll, POLL_INTERVAL);
+</script>
+
+<!-- LOGIN MODAL -->
+<div class="modal-overlay" id="loginModal" style="display:none">
+  <div class="login-modal">
+    <h2>Admin Login</h2>
+    <div class="sub">Sign in to access dashboard controls and settings</div>
+    <div class="form-group">
+      <label>Email</label>
+      <input type="email" id="loginEmail" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="loginPassword" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password">
+    </div>
+    <div class="form-error" id="loginError">Invalid email or password</div>
+    <button class="btn btn-primary" onclick="handleLogin()" id="loginBtn" style="width:100%;margin-top:8px">Sign In</button>
+    <div style="margin-top:16px;text-align:center;font-size:10px;color:var(--text-dim)">
+      <span onclick="closeLoginModal()" style="cursor:pointer;text-decoration:underline">Cancel</span>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN MODAL (full-screen) -->
+<div class="modal-overlay" id="adminModal" style="display:none">
+  <div class="admin-modal">
+    <div class="admin-header">
+      <h2>⚙ Admin Panel</h2>
+      <div class="user-info">
+        <span id="adminUserName"></span>
+        <span class="role-badge" id="adminUserRole"></span>
+        <button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="handleLogout()">Logout</button>
+        <button class="admin-close" onclick="closeAdminModal()">&times;</button>
+      </div>
+    </div>
+
+    <div class="admin-tabs" id="adminTabs">
+      <div class="admin-tab active" data-tab="sessions" onclick="switchTab('sessions')">📋 Sessions</div>
+      <div class="admin-tab" data-tab="system" onclick="switchTab('system')">🖥 System</div>
+      <div class="admin-tab admin-only" data-tab="users" onclick="switchTab('users')">👥 Users</div>
+      <div class="admin-tab" data-tab="settings" onclick="switchTab('settings')">⚙ Settings</div>
+      <div class="admin-tab" data-tab="security" onclick="switchTab('security')">🔒 Security</div>
+      <div class="admin-tab" data-tab="logs" onclick="switchTab('logs')">📄 Logs</div>
+    </div>
+
+    <div class="admin-body" id="adminBody">
+      <!-- Sessions Tab -->
+      <div class="tab-content active" id="tab-sessions">
+        <h3>📋 Sessions</h3>
+        <div class="desc">Manage active and recent sessions. <span id="sessionsTabCount" style="color:var(--text-dim)"></span></div>
+        <div class="inline-form" style="margin-bottom:12px">
+          <input type="text" id="sessionSearch" placeholder="Search sessions..." oninput="renderSessionsTab()" style="max-width:300px">
+        </div>
+        <div id="sessionsTabContent"><div style="font-size:12px;color:var(--text-dim)">Loading sessions...</div></div>
+      </div>
+
+      <!-- System Tab -->
+      <div class="tab-content" id="tab-system">
+        <h3>🖥 System</h3>
+        <div class="desc">Dashboard system status and controls</div>
+        <div class="admin-card" id="systemStatusCard">
+          <h4>Daemon Status</h4>
+          <div class="row"><span class="label">Status</span><span class="value" id="sysDaemonStatus">Checking...</span></div>
+          <div class="row"><span class="label">Uptime</span><span class="value" id="sysUptime">—</span></div>
+          <div class="row"><span class="label">CPU Cores</span><span class="value" id="sysCpuCores">—</span></div>
+          <div class="row"><span class="label">Memory</span><span class="value" id="sysMemory">—</span></div>
+          <div class="row"><span class="label">Disk</span><span class="value" id="sysDisk">—</span></div>
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button class="btn btn-sm btn-primary" onclick="restartDaemon()">Restart Daemon</button>
+            <button class="btn btn-sm btn-danger" onclick="killDaemon()">Kill Daemon</button>
+          </div>
+          <div class="form-success" id="sysMsg" style="margin-top:8px"></div>
+          <div class="form-error" id="sysErr" style="margin-top:8px"></div>
+        </div>
+      </div>
+
+      <!-- Users Tab (admin only) -->
+      <div class="tab-content" id="tab-users">
+        <h3>👥 Users</h3>
+        <div class="desc">Manage dashboard users. Admin role required.</div>
+        <div id="usersTabContent">
+          <div style="font-size:12px;color:var(--text-dim)">Loading users...</div>
+        </div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div class="tab-content" id="tab-settings">
+        <h3>⚙ Settings</h3>
+        <div class="desc">Dashboard preferences (stored in browser)</div>
+        <div class="admin-card">
+          <div class="settings-group">
+            <label>Poll Interval <span class="range-val" id="pollIntervalVal">2000</span>ms</label>
+            <input type="range" min="500" max="10000" step="500" value="2000" id="pollIntervalRange" oninput="updateSettingPreview('pollInterval')">
+          </div>
+          <div class="settings-group">
+            <label>Session Retention <span class="range-val" id="retentionVal">30</span> min</label>
+            <input type="range" min="5" max="120" step="5" value="30" id="retentionRange" oninput="updateSettingPreview('retention')">
+          </div>
+          <div class="settings-group">
+            <label>Max Activity Log Lines <span class="range-val" id="logLinesVal">100</span></label>
+            <input type="range" min="20" max="500" step="10" value="100" id="logLinesRange" oninput="updateSettingPreview('logLines')">
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="saveSettings()">Save Settings</button>
+          <div class="form-success" id="settingsMsg" style="margin-top:8px"></div>
+        </div>
+      </div>
+
+      <!-- Security Tab -->
+      <div class="tab-content" id="tab-security">
+        <h3>🔒 Security</h3>
+        <div class="desc">Change your password and manage login sessions</div>
+        <div class="admin-card">
+          <h4>Change Password</h4>
+          <div class="form-group">
+            <label>Current Password</label>
+            <input type="password" id="secCurrentPw" placeholder="Current password">
+          </div>
+          <div class="form-group">
+            <label>New Password</label>
+            <input type="password" id="secNewPw" placeholder="New password (min 6 chars)">
+          </div>
+          <div class="form-group">
+            <label>Confirm New Password</label>
+            <input type="password" id="secConfirmPw" placeholder="Confirm new password">
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="changePassword()">Update Password</button>
+          <div class="form-success" id="secMsg" style="margin-top:8px"></div>
+          <div class="form-error" id="secErr" style="margin-top:8px"></div>
+        </div>
+        <div class="admin-card">
+          <h4>Active Sessions</h4>
+          <div style="font-size:12px;color:var(--text-dim)" id="secSessionsInfo">Only one admin session at a time (browser tab)</div>
+        </div>
+      </div>
+
+      <!-- Logs Tab -->
+      <div class="tab-content" id="tab-logs">
+        <h3>📄 Activity Logs</h3>
+        <div class="desc">Full activity log from the dashboard daemon</div>
+        <div class="inline-form" style="margin-bottom:12px">
+          <input type="text" id="logSearch" placeholder="Search logs..." oninput="renderLogsTab()" style="max-width:300px">
+          <button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="refreshLogs()">Refresh</button>
+        </div>
+        <div id="logsTabContent" style="font-size:11px;font-family:monospace;line-height:1.6">
+          <div style="color:var(--text-dim)">Loading logs...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── SHA-256 ──
+async function sha256(str) {
+  const buf = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+// ── USER MANAGEMENT ──
+const USERS_KEY = 'dashboard_users';
+const AUTH_KEY = 'dashboard_auth';
+const ADMIN_PORT = 5001;
+
+function getUsers() {
+  try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch { return []; }
+}
+function saveUsers(users) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
+function getAuth() {
+  try { return JSON.parse(sessionStorage.getItem(AUTH_KEY)); } catch { return null; }
+}
+function setAuth(auth) {
+  sessionStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+}
+function clearAuth() {
+  sessionStorage.removeItem(AUTH_KEY);
+}
+
+async function initDefaultUsers() {
+  let users = getUsers();
+  if (users.length === 0) {
+    const hash = await sha256('#Quidents64#');
+    users = [{ email: 'brandon@kkbuddy.com', passwordHash: hash, role: 'admin', created: Date.now() }];
+    saveUsers(users);
+  }
+}
+initDefaultUsers();
+
+// ── AUTH UI ──
+function openLoginModal() {
+  const auth = getAuth();
+  if (auth) {
+    openAdminModal();
+    return;
+  }
+  document.getElementById('loginModal').style.display = 'flex';
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('loginPassword').value = '';
+  setTimeout(() => document.getElementById('loginEmail').focus(), 100);
+}
+function closeLoginModal() {
+  document.getElementById('loginModal').style.display = 'none';
+}
+function closeAdminModal() {
+  document.getElementById('adminModal').style.display = 'none';
+}
+
+async function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const pw = document.getElementById('loginPassword').value;
+  const err = document.getElementById('loginError');
+  const btn = document.getElementById('loginBtn');
+
+  if (!email || !pw) { err.textContent = 'Please enter email and password'; err.style.display = 'block'; return; }
+
+  btn.disabled = true; btn.textContent = 'Signing in...';
+  const hash = await sha256(pw);
+  const users = getUsers();
+  const user = users.find(u => u.email === email && u.passwordHash === hash);
+
+  if (user) {
+    setAuth({ email: user.email, role: user.role });
+    closeLoginModal();
+    openAdminModal();
+  } else {
+    err.textContent = 'Invalid email or password';
+    err.style.display = 'block';
+  }
+  btn.disabled = false; btn.textContent = 'Sign In';
+}
+
+function handleLogout() {
+  clearAuth();
+  closeAdminModal();
+  updateLoginIndicator();
+  showToast('Logged out', 'success');
+}
+
+function updateLoginIndicator() {
+  const auth = getAuth();
+  const ind = document.getElementById('loginIndicator');
+  if (auth) {
+    ind.style.display = 'inline';
+  } else {
+    ind.style.display = 'none';
+  }
+}
+updateLoginIndicator();
+
+// Enter key to submit login
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('loginModal').style.display === 'flex') {
+    handleLogin();
+  }
+});
+
+// ── ADMIN MODAL ──
+function openAdminModal() {
+  const auth = getAuth();
+  if (!auth) { openLoginModal(); return; }
+  const modal = document.getElementById('adminModal');
+  document.getElementById('adminUserName').textContent = auth.email;
+  const roleBadge = document.getElementById('adminUserRole');
+  roleBadge.textContent = auth.role;
+  roleBadge.className = 'role-badge ' + auth.role;
+
+  // Show/hide admin-only tabs
+  document.querySelectorAll('.admin-tab.admin-only').forEach(t => {
+    t.style.display = auth.role === 'admin' ? '' : 'none';
+  });
+
+  // If user (not admin) is on a restricted tab, switch to sessions
+  if (auth.role !== 'admin') {
+    const activeTab = document.querySelector('.tab-content.active');
+    if (activeTab && activeTab.id === 'tab-users') {
+      switchTab('sessions');
+    }
+  }
+
+  modal.style.display = 'flex';
+  renderSessionsTab();
+  renderSystemTab();
+  renderUsersTab();
+  renderLogsTab();
+}
+
+// ── TABS ──
+let currentTab = 'sessions';
+
+function switchTab(tabId) {
+  currentTab = tabId;
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + tabId));
+
+  // Lazy render
+  if (tabId === 'sessions') renderSessionsTab();
+  if (tabId === 'system') renderSystemTab();
+  if (tabId === 'users') renderUsersTab();
+  if (tabId === 'logs') renderLogsTab();
+}
+
+// ── SESSIONS TAB ──
+async function renderSessionsTab() {
+  const el = document.getElementById('sessionsTabContent');
+  const query = (document.getElementById('sessionSearch').value || '').toLowerCase();
+  try {
+    const resp = await fetch('data/status.json?_=' + Date.now());
+    const data = await resp.json();
+    const sessions = data.sessions || [];
+    document.getElementById('sessionsTabCount').textContent = '(' + sessions.length + ' total)';
+
+    if (sessions.length === 0) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No sessions found</div>';
+      return;
+    }
+
+    let html = '<table class="admin-table"><thead><tr><th>Title</th><th>State</th><th>Model</th><th>Cost</th><th>Tokens</th><th>Updated</th><th></th></tr></thead><tbody>';
+    sessions.filter(s => !query || (s.title||'').toLowerCase().includes(query) || (s.slug||'').toLowerCase().includes(query)).forEach(s => {
+      const ago = s.updated ? Math.floor((Date.now() - s.updated) / 60000) : '?';
+      const agoStr = ago === 0 ? '<1m' : ago + 'm ago';
+      const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
+      html += '<tr>' +
+        '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (s.title||'').replace(/"/g,'&quot;') + '">' + (s.title||'?').slice(0,35) + '</td>' +
+        '<td><span style="color:' + stateColor + '">' + (s.state || 'active') + '</span></td>' +
+        '<td style="font-size:10px;color:var(--text-dim)">' + (s.model_id || '—') + '</td>' +
+        '<td>$' + (s.cost||0).toFixed(4) + '</td>' +
+        '<td>' + ((s.tokens||0).toLocaleString()) + '</td>' +
+        '<td style="font-size:10px;color:var(--text-dim)">' + agoStr + '</td>' +
+        '<td>' +
+          (s.state === 'thinking' || s.state === 'running-tools' || s.state === '' ?
+            '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + (s.directory||'').replace(/'/g,"\\'") + '\')">Stop</button>' : '') +
+        '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--red)">Error loading sessions: ' + e.message + '</div>';
+  }
+}
+
+async function stopSession(id, dir) {
+  const btn = event.target; btn.disabled = true; btn.textContent = 'Stopping...';
+  try {
+    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/stop-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, directory: dir || '' })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      showToast('Session stopped', 'success');
+      renderSessionsTab();
+    } else {
+      showToast('Error: ' + data.message, 'error');
+      btn.disabled = false; btn.textContent = 'Stop';
+    }
+  } catch (e) {
+    showToast('Failed to connect to admin API', 'error');
+    btn.disabled = false; btn.textContent = 'Stop';
+  }
+}
+
+// ── SYSTEM TAB ──
+async function renderSystemTab() {
+  try {
+    const resp = await fetch('data/status.json?_=' + Date.now());
+    const data = await resp.json();
+    const s = data.summary || {};
+    document.getElementById('sysUptime').textContent = s.uptime || '—';
+    document.getElementById('sysCpuCores').textContent = s.cpu_core_count || '—';
+    document.getElementById('sysMemory').textContent = (s.total_mem_mb || 0) + ' MB / ' + (s.mem_total_gb || '?') + ' GB';
+    document.getElementById('sysDisk').textContent = s.disk_free + ' free / ' + s.disk_total + ' total';
+  } catch {}
+
+  try {
+    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/ping');
+    const data = await resp.json();
+    document.getElementById('sysDaemonStatus').innerHTML = data.daemon_alive
+      ? '<span style="color:var(--green)">● Running</span>'
+      : '<span style="color:var(--red)">● Stopped</span>';
+  } catch {
+    document.getElementById('sysDaemonStatus').innerHTML = '<span style="color:var(--yellow)">● Unknown</span>';
+  }
+}
+
+async function restartDaemon() {
+  const msg = document.getElementById('sysMsg');
+  const err = document.getElementById('sysErr');
+  msg.style.display = 'none'; err.style.display = 'none';
+  try {
+    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/restart-daemon', { method: 'POST' });
+    const data = await resp.json();
+    if (data.ok) {
+      msg.textContent = 'Daemon restarted successfully'; msg.style.display = 'block';
+      setTimeout(() => renderSystemTab(), 2000);
+    } else {
+      err.textContent = data.message; err.style.display = 'block';
+    }
+  } catch (e) {
+    err.textContent = 'Failed to connect: ' + e.message; err.style.display = 'block';
+  }
+}
+
+async function killDaemon() {
+  const msg = document.getElementById('sysMsg');
+  const err = document.getElementById('sysErr');
+  msg.style.display = 'none'; err.style.display = 'none';
+  if (!confirm('Kill the dashboard daemon? It will stop updating.')) return;
+  try {
+    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/kill-daemon', { method: 'POST' });
+    const data = await resp.json();
+    if (data.ok) {
+      msg.textContent = 'Daemon killed'; msg.style.display = 'block';
+      renderSystemTab();
+    } else {
+      err.textContent = data.message; err.style.display = 'block';
+    }
+  } catch (e) {
+    err.textContent = 'Failed to connect: ' + e.message; err.style.display = 'block';
+  }
+}
+
+// ── USERS TAB ──
+function renderUsersTab() {
+  const el = document.getElementById('usersTabContent');
+  const auth = getAuth();
+  if (!auth || auth.role !== 'admin') {
+    el.innerHTML = '<div style="font-size:12px;color:var(--red)">Admin access required</div>';
+    return;
+  }
+
+  const users = getUsers();
+  let html = '<table class="admin-table"><thead><tr><th>Email</th><th>Role</th><th>Created</th><th></th></tr></thead><tbody>';
+  users.forEach(u => {
+    const created = u.created ? new Date(u.created).toLocaleDateString() : '—';
+    html += '<tr>' +
+      '<td>' + u.email + '</td>' +
+      '<td><span style="color:' + (u.role === 'admin' ? 'var(--purple)' : 'var(--blue)') + '">' + u.role + '</span></td>' +
+      '<td style="font-size:10px;color:var(--text-dim)">' + created + '</td>' +
+      '<td>' +
+        (users.length > 1 ? '<button class="stop-btn" onclick="deleteUser(\'' + u.email.replace(/'/g,"\\'") + '\')">Delete</button>' : '') +
+      '</td>' +
+    '</tr>';
+  });
+  html += '</tbody></table>';
+
+  html += '<div class="admin-card" style="margin-top:16px"><h4>Add User</h4>';
+  html += '<div class="inline-form">' +
+    '<input type="email" id="newUserEmail" placeholder="Email">' +
+    '<input type="password" id="newUserPw" placeholder="Password">' +
+    '<select id="newUserRole" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">' +
+      '<option value="user">User</option><option value="admin">Admin</option>' +
+    '</select>' +
+    '<button class="btn btn-sm btn-primary" onclick="addUser()">Add</button>' +
+  '</div>';
+  html += '<div class="form-error" id="usersErr" style="margin-top:8px"></div>';
+  html += '<div class="form-success" id="usersMsg" style="margin-top:8px"></div></div>';
+
+  el.innerHTML = html;
+}
+
+async function addUser() {
+  const email = document.getElementById('newUserEmail').value.trim().toLowerCase();
+  const pw = document.getElementById('newUserPw').value;
+  const role = document.getElementById('newUserRole').value;
+  const err = document.getElementById('usersErr');
+  const msg = document.getElementById('usersMsg');
+  err.style.display = 'none'; msg.style.display = 'none';
+
+  if (!email || !pw) { err.textContent = 'Email and password required'; err.style.display = 'block'; return; }
+  if (pw.length < 6) { err.textContent = 'Password must be at least 6 characters'; err.style.display = 'block'; return; }
+
+  const users = getUsers();
+  if (users.find(u => u.email === email)) {
+    err.textContent = 'User already exists'; err.style.display = 'block'; return;
+  }
+
+  const hash = await sha256(pw);
+  users.push({ email, passwordHash: hash, role, created: Date.now() });
+  saveUsers(users);
+  msg.textContent = 'User added successfully'; msg.style.display = 'block';
+  document.getElementById('newUserEmail').value = '';
+  document.getElementById('newUserPw').value = '';
+  renderUsersTab();
+}
+
+function deleteUser(email) {
+  if (!confirm('Delete user ' + email + '?')) return;
+  let users = getUsers();
+  if (users.length <= 1) { showToast('Cannot delete last admin', 'error'); return; }
+  users = users.filter(u => u.email !== email);
+  saveUsers(users);
+  showToast('User deleted', 'success');
+  renderUsersTab();
+}
+
+// ── SETTINGS TAB ──
+function updateSettingPreview(id) {
+  if (id === 'pollInterval') document.getElementById('pollIntervalVal').textContent = document.getElementById('pollIntervalRange').value;
+  if (id === 'retention') document.getElementById('retentionVal').textContent = document.getElementById('retentionRange').value;
+  if (id === 'logLines') document.getElementById('logLinesVal').textContent = document.getElementById('logLinesRange').value;
+}
+
+function saveSettings() {
+  const settings = {
+    pollInterval: parseInt(document.getElementById('pollIntervalRange').value),
+    retention: parseInt(document.getElementById('retentionRange').value),
+    logLines: parseInt(document.getElementById('logLinesRange').value)
+  };
+  localStorage.setItem('dashboard_settings', JSON.stringify(settings));
+  const msg = document.getElementById('settingsMsg');
+  msg.textContent = 'Settings saved (poll interval will apply on next page load)';
+  msg.style.display = 'block';
+  setTimeout(() => msg.style.display = 'none', 3000);
+}
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('dashboard_settings'));
+    if (s) {
+      if (s.pollInterval) { document.getElementById('pollIntervalRange').value = s.pollInterval; document.getElementById('pollIntervalVal').textContent = s.pollInterval; }
+      if (s.retention) { document.getElementById('retentionRange').value = s.retention; document.getElementById('retentionVal').textContent = s.retention; }
+      if (s.logLines) { document.getElementById('logLinesRange').value = s.logLines; document.getElementById('logLinesVal').textContent = s.logLines; }
+    }
+  } catch {}
+}
+loadSettings();
+
+// ── SECURITY TAB ──
+async function changePassword() {
+  const current = document.getElementById('secCurrentPw').value;
+  const newPw = document.getElementById('secNewPw').value;
+  const confirm = document.getElementById('secConfirmPw').value;
+  const msg = document.getElementById('secMsg');
+  const err = document.getElementById('secErr');
+  msg.style.display = 'none'; err.style.display = 'none';
+
+  const auth = getAuth();
+  if (!auth) { err.textContent = 'Not logged in'; err.style.display = 'block'; return; }
+
+  const users = getUsers();
+  const user = users.find(u => u.email === auth.email);
+  if (!user) { err.textContent = 'User not found'; err.style.display = 'block'; return; }
+
+  const curHash = await sha256(current);
+  if (curHash !== user.passwordHash) {
+    err.textContent = 'Current password is incorrect'; err.style.display = 'block'; return;
+  }
+  if (newPw.length < 6) { err.textContent = 'New password must be at least 6 characters'; err.style.display = 'block'; return; }
+  if (newPw !== confirm) { err.textContent = 'Passwords do not match'; err.style.display = 'block'; return; }
+
+  user.passwordHash = await sha256(newPw);
+  saveUsers(users);
+  msg.textContent = 'Password updated successfully'; msg.style.display = 'block';
+  document.getElementById('secCurrentPw').value = '';
+  document.getElementById('secNewPw').value = '';
+  document.getElementById('secConfirmPw').value = '';
+}
+
+// ── LOGS TAB ──
+async function renderLogsTab() {
+  const el = document.getElementById('logsTabContent');
+  const query = (document.getElementById('logSearch').value || '').toLowerCase();
+  try {
+    const resp = await fetch('data/activity.log?_=' + Date.now());
+    const text = await resp.text();
+    const lines = text.split('\n').filter(l => l.trim()).reverse().slice(0, 200);
+
+    if (lines.length === 0) {
+      el.innerHTML = '<div style="color:var(--text-dim)">No log entries</div>';
+      return;
+    }
+
+    const filtered = query ? lines.filter(l => l.toLowerCase().includes(query)) : lines;
+    el.innerHTML = filtered.map(l => {
+      const match = l.match(/^\[(\d{2}:\d{2}:\d{2})\]\s*(.*)/);
+      if (match) {
+        return '<div><span style="color:var(--text-dim)">[' + match[1] + ']</span> ' + escapeHtml(match[2]) + '</div>';
+      }
+      return '<div>' + escapeHtml(l) + '</div>';
+    }).join('');
+  } catch {
+    el.innerHTML = '<div style="color:var(--red)">Error loading logs</div>';
+  }
+}
+
+function refreshLogs() {
+  document.getElementById('logSearch').value = '';
+  renderLogsTab();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ── TOAST ──
+function showToast(message, type) {
+  const t = document.getElementById('toast');
+  t.textContent = message;
+  t.className = 'toast ' + type;
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 3000);
+}
+
+// Initial auth check on page load
+document.addEventListener('DOMContentLoaded', () => {
+  updateLoginIndicator();
+});
 </script>
 </body>
 </html>
