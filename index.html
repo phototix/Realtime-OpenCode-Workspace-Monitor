@@ -1313,7 +1313,7 @@ function renderDashboard(data) {
   while (allWorkers.length < totalStaff) {
     const pid = placeholderBase - allWorkers.length;
     allWorkers.push({
-      name: 'Available', pid: pid, cpu: 0, mem_mb: 0,
+      name: '', pid: pid, cpu: 0, mem_mb: 0,
       ppid: 0, command: '',
       sessionTitle: '', sessionState: '', sessionMode: '',
       sessionUpdated: 0, placeholder: true
@@ -1479,7 +1479,7 @@ function renderDashboard(data) {
       const isPlaceholder = worker.placeholder;
       card.innerHTML = `
         ${isSleeping ? `<img src="assets/rest-room/sleeping-${imgName}.png" class="rc-img" alt="${currentLabel}">` : `<div class="rc-emoji">${layout.emoji}</div>`}
-        <div class="rc-desk">${worker.name || '?'}</div>
+        <div class="rc-desk">${worker.name}</div>
         <div class="rc-label">${currentLabel}${worker.virtual ? ' (virtual)' : ''}</div>
       `;
     } else {
