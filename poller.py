@@ -405,10 +405,10 @@ if needs_refresh and not export_running:
       elif p.get('type') == 'tool' and not tool_name:
         tool_name = p.get('name') or p.get('tool') or ''
 
-    # Extract pending questions from question tool
+    # Extract pending questions from question tool — search all messages, not just last
     pending_questions = []
-    if tool_name == 'question':
-      for p in reversed(last_parts):
+    for m in reversed(msgs):
+      for p in reversed(m.get('parts', [])):
         if p.get('type') == 'tool' and (p.get('name') or p.get('tool')) == 'question':
           inp = p.get('state', {}).get('input', {})
           questions = inp.get('questions', [])
@@ -422,6 +422,8 @@ if needs_refresh and not export_running:
               'answered': already_answered
             })
           break
+      if pending_questions:
+        break
 
     # Extract last user prompt
     last_user_prompt = ''
