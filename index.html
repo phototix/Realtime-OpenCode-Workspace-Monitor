@@ -2155,9 +2155,14 @@ function viewSession(id) {
 }
 
 function continueSession(id) {
-  const modal = document.getElementById('sessionContinueModal');
-  const body = document.getElementById('continueModalBody');
-  const titleEl = document.getElementById('continueModalTitle');
+  let modal = document.getElementById('sessionContinueModal');
+  let body = document.getElementById('continueModalBody');
+  let titleEl = document.getElementById('continueModalTitle');
+  if (!modal || !body) {
+    modal = document.querySelector('#sessionContinueModal');
+    body = document.querySelector('#continueModalBody');
+    titleEl = document.querySelector('#continueModalTitle');
+  }
   if (!modal || !body) { showToast('Continue modal not available', 'error'); return; }
   fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
     const s = (data.all_sessions || data.sessions || []).find(x => x.id === id);
