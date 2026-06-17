@@ -1896,7 +1896,7 @@ async function renderSessionsTab() {
         '<span style="font-size:9px;color:var(--text-dim);margin-left:4px;opacity:0.6">' + dir + '</span>' +
       '</div>';
 
-      html += '<table class="admin-table"><thead><tr><th>Title</th><th>State</th><th>Model</th><th>Cost</th><th>Tokens</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
+      html += '<table class="admin-table"><colgroup><col style="width:25%"><col style="width:10%"><col style="width:15%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:20%"></colgroup><thead><tr><th>Title</th><th>State</th><th>Model</th><th>Cost</th><th>Tokens</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
       group.forEach(s => {
         const ago = s.updated ? Math.floor((Date.now() - s.updated) / 60000) : '?';
         const agoStr = ago === 0 ? '<1m' : ago + 'm ago';
