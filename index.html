@@ -1855,7 +1855,7 @@ async function renderSessionsTab() {
   try {
     const resp = await fetch('data/status.json?_=' + Date.now());
     const data = await resp.json();
-    const sessions = data.sessions || [];
+    const sessions = data.all_sessions || data.sessions || [];
     document.getElementById('sessionsTabCount').textContent = '(' + sessions.length + ' total)';
 
     // Build workspace filter options
@@ -1954,7 +1954,7 @@ function viewSession(id) {
   const titleEl = document.getElementById('sessionViewTitle');
   // Find session from latest status.json data
   fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
-    const s = (data.sessions || []).find(x => x.id === id);
+    const s = (data.all_sessions || data.sessions || []).find(x => x.id === id);
     if (!s) {
       body.innerHTML = '<div style="font-size:12px;color:var(--red)">Session not found</div>';
       modal.style.display = 'flex';

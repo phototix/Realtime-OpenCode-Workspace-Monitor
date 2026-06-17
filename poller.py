@@ -471,6 +471,34 @@ for s in sessions:
   s['agent_type'] = cached.get('agent_type', '')
   s['model_id'] = cached.get('model_id', '')
 
+# Enrich all_sessions with cache for admin panel (include every session, all states)
+known_sids = {s['id'] for s in sessions}
+all_sessions_enriched = []
+for s in all_sessions:
+  sid = s.get('id', '')
+  cached = detail_cache.get(sid, {})
+  enriched = {
+    'id': sid,
+    'title': s.get('title', ''),
+    'updated': s.get('updated', 0),
+    'directory': s.get('directory', ''),
+    'agent': s.get('agent', ''),
+    'slug': cached.get('slug', ''),
+    'state': cached.get('state', ''),
+    'last_user_prompt': cached.get('last_user_prompt', ''),
+    'last_text': cached.get('last_text', ''),
+    'tool_name': cached.get('tool_name', ''),
+    'last_role': cached.get('last_role', ''),
+    'last_mode': cached.get('last_mode', ''),
+    'tokens': cached.get('tokens', 0),
+    'cost': cached.get('cost', 0),
+    'files_changed': cached.get('files_changed', 0),
+    'agent_type': cached.get('agent_type', ''),
+    'model_id': cached.get('model_id', ''),
+    'active': sid in known_sids,
+  }
+  all_sessions_enriched.append(enriched)
+
 # Remove completed sessions idle >5 min
 now_ms = int(datetime.now().timestamp() * 1000)
 five_min_ms = 5 * 60 * 1000
@@ -706,6 +734,7 @@ payload = {
   'processes': proc_list,
   'tree_root': tree_root,
   'sessions': sessions,
+  'all_sessions': all_sessions_enriched,
   'activity_log': activities
 }
 
