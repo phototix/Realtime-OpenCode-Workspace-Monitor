@@ -173,22 +173,23 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 cwd = directory or None
                 attach = get_attach_url()
-                # Find a completed session to fork from
                 status_file = os.path.join(DATA_DIR, 'status.json')
-                fork_sid = None
+                last_sid = None
                 if os.path.exists(status_file):
                     try:
                         with open(status_file) as f:
                             sd = json.load(f)
-                        for s in sd.get('all_sessions', []):
+                        for s in sd.get('sessions', []):
                             if s.get('state') == 'complete':
-                                fork_sid = s['id']
+                                last_sid = s['id']
                                 break
                     except:
                         pass
                 cmd = ['opencode', 'run']
-                if fork_sid:
-                    cmd.extend(['-s', fork_sid, '--fork', '--attach', attach])
+                if last_sid:
+                    cmd.extend(['-s', last_sid, '--attach', attach])
+                else:
+                    cmd.extend(['-c', '--attach', attach])
                 if title:
                     cmd.extend(['--title', title])
                 if model:
