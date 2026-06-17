@@ -1429,6 +1429,20 @@ function renderDashboard(data) {
   }
 
   // ── REST ROOM ──
+  const restRoomImages = {
+    sleeping: {
+      'power nap': 'sleeping-power-nap.png',
+      'snoring softly': 'sleeping-snoring-softly.png',
+      'dreaming big': 'sleeping-dreaming-big.png',
+      'waking up': 'sleeping-waking-up.png',
+    },
+    gaming: {
+      'gaming': 'gaming-gaming.png',
+      'winning!': 'gaming-winning.png',
+      'rage quitting': 'gaming-rage-quiting.png',
+      'leveling up': 'gaming-leveling-up.png',
+    },
+  };
   const restRoomLayout = [
     { emoji: '🛌', label: 'power nap', states: ['power nap', 'snoring softly', 'dreaming big', 'waking up'] },
     { emoji: '🎮', label: 'gaming', states: ['gaming', 'winning!', 'rage quitting', 'leveling up'] },
@@ -1473,19 +1487,17 @@ function renderDashboard(data) {
     const currentLabel = (layout.states || [layout.label])[stateIdx];
     const card = document.createElement('div');
     card.className = 'rest-card';
-    const isSleeping = idx === 0;
-    const imgName = isSleeping ? currentLabel.replace(/ /g, '-') : '';
+    const imgFile = restRoomImages[layout.label] ? restRoomImages[layout.label][currentLabel] : null;
     if (worker) {
-      const isPlaceholder = worker.placeholder;
       card.innerHTML = `
-        ${isSleeping ? `<img src="assets/rest-room/sleeping-${imgName}.png" class="rc-img" alt="${currentLabel}">` : `<div class="rc-emoji">${layout.emoji}</div>`}
+        ${imgFile ? `<img src="assets/rest-room/${imgFile}" class="rc-img" alt="${currentLabel}">` : `<div class="rc-emoji">${layout.emoji}</div>`}
         <div class="rc-desk">${worker.name}</div>
         <div class="rc-label">${currentLabel}${worker.virtual ? ' (virtual)' : ''}</div>
       `;
     } else {
       card.style.opacity = '0.4';
       card.innerHTML = `
-        ${isSleeping ? `<img src="assets/rest-room/sleeping-${imgName}.png" class="rc-img" alt="${currentLabel}" style="opacity:0.4">` : `<div class="rc-emoji">${layout.emoji}</div>`}
+        ${imgFile ? `<img src="assets/rest-room/${imgFile}" class="rc-img" alt="${currentLabel}" style="opacity:0.4">` : `<div class="rc-emoji">${layout.emoji}</div>`}
         <div class="rc-label" style="color:var(--text-dim)">${currentLabel}</div>
       `;
     }
