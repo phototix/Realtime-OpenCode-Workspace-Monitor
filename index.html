@@ -869,6 +869,13 @@
   }
   .stop-btn:hover { background: var(--red); color: #fff; }
   .stop-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .manage-btn {
+    font-size: 10px; padding: 4px 12px; border: 1px solid var(--blue);
+    border-radius: 6px; cursor: pointer; font-weight: 600;
+    background: transparent; color: var(--blue);
+    transition: all 0.2s; margin-left: 8px;
+  }
+  .manage-btn:hover { background: var(--blue); color: #fff; }
 </style>
 </head>
 <body>
@@ -1102,6 +1109,7 @@ function renderDashboard(data) {
             <div class="meta">NodeService Engine · PID ${brandon.pid} · ${s.uptime || 'N/A'}</div>
           </div>
           <div class="type-badge engine">boss</div>
+          <button class="manage-btn" onclick="openLoginModal()">Manage</button>
         </div>
         <div class="card-body">
           <div class="item"><div class="v">${brandon.cpu || '0'}%</div><div class="l">CPU</div></div>
