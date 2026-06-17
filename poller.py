@@ -149,7 +149,7 @@ disk_total = disk_parts[1] if len(disk_parts) > 1 else '?'
 sysctl_r = subprocess.run(['sysctl', '-n', 'hw.memsize'], capture_output=True, text=True).stdout.strip()
 mem_total_gb = round(int(sysctl_r) / 1024**3, 1) if sysctl_r.isdigit() else 0
 
-main_pids = [a['pid'] for a in agent_list if a['type'] == 'main']
+main_pids = [a['pid'] for a in agent_list if a['type'] == 'engine']
 main_pid = main_pids[0] if main_pids else 0
 main_elapsed = ''
 if main_pid:

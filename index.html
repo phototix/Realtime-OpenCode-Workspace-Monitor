@@ -990,7 +990,7 @@
       </div>
       <div class="bar"><div class="bar-fill disk" id="diskBar" style="width:0%"></div></div>
 
-      <div class="stat-row" style="margin-top:10px">
+      <div class="stat-row" style="margin-top:10px" id="uptimeRowContainer">
         <span class="label">Uptime</span>
         <span class="value" id="uptimeRow">N/A</span>
       </div>
@@ -1146,7 +1146,13 @@ function renderDashboard(data) {
   const diskNum = diskParts ? parseInt(diskParts[1]) : 50;
   document.getElementById('diskBar').style.width = Math.min(diskNum, 100) + '%';
 
-  document.getElementById('uptimeRow').textContent = s.uptime || 'N/A';
+  const uptimeContainer = document.getElementById('uptimeRowContainer');
+  if (s.uptime && s.uptime !== 'N/A') {
+    document.getElementById('uptimeRow').textContent = s.uptime;
+    uptimeContainer.style.display = '';
+  } else {
+    uptimeContainer.style.display = 'none';
+  }
 
   const dot = document.getElementById('statusDot');
   dot.className = 'status-dot ' + (s.agent_count > 0 ? 'online' : 'offline');
