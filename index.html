@@ -2023,9 +2023,13 @@ function continueSession(id) {
         ${s.last_text ? `<h4>Last Response</h4><div style="font-size:11px;color:var(--text-dim);line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow-y:auto;margin-bottom:16px">${escapeHtml(s.last_text)}</div><hr style="border:none;border-top:1px solid var(--border);margin:12px 0">` : ''}
         <h4>New Instruction</h4>
         <textarea id="instruct-${escId}" placeholder="Enter your instruction to continue this session..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:80px;font-family:inherit" onkeydown="if(event.key==='Enter'&&event.shiftKey)event.preventDefault()"></textarea>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
-          <select id="model-${escId}" style="flex:1;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+        <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+          <select id="model-${escId}" style="flex:1;min-width:180px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
             <option value="">Loading models...</option>
+          </select>
+          <select id="mode-${escId}" style="width:130px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+            <option value="build">Build</option>
+            <option value="plan">Plan</option>
           </select>
           <button class="btn btn-primary btn-sm" onclick="sessionInstructView('${s.id}','${dirEsc}')">Send</button>
         </div>
@@ -2073,6 +2077,7 @@ async function sessionInstructView(id, dir) {
   const escId = id.replace(/[^a-zA-Z0-9]/g,'_');
   const input = document.getElementById('instruct-' + escId);
   const modelSel = document.getElementById('model-' + escId);
+  const modeSel = document.getElementById('mode-' + escId);
   const message = input ? input.value.trim() : '';
   if (!message) { showToast('Please enter an instruction', 'error'); return; }
 
@@ -2082,7 +2087,12 @@ async function sessionInstructView(id, dir) {
     const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/session-instruct', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, message, model: modelSel ? modelSel.value : '', directory: dir || '' })
+      body: JSON.stringify({
+        id, message,
+        model: modelSel ? modelSel.value : '',
+        mode: modeSel ? modeSel.value : '',
+        directory: dir || ''
+      })
     });
     const data = await resp.json();
     if (data.ok) {
@@ -2094,7 +2104,7 @@ async function sessionInstructView(id, dir) {
       showToast('Error: ' + data.message, 'error');
     }
   } catch (e) {
-    showToast('Failed to connect to admin API', 'error');
+    showToast('Error: ' + e.message, 'error');
   }
   if (btn) { btn.disabled = false; btn.textContent = 'Send'; }
 }

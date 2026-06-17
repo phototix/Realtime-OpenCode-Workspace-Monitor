@@ -93,6 +93,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
             message = body.get('message', '')
             directory = body.get('directory', '')
             model = body.get('model', '')
+            mode_val = body.get('mode', '')
             if not sid or not message:
                 self._json({'ok': False, 'message': 'Missing session id or message'}, 400)
                 return
@@ -101,6 +102,8 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 cmd = ['opencode', 'run', '-s', sid]
                 if model:
                     cmd.extend(['-m', model])
+                if mode_val:
+                    cmd.extend(['--agent', mode_val])
                 cmd.append(message)
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
                 if r.returncode == 0:
