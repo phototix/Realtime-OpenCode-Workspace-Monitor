@@ -895,7 +895,6 @@
   .send-btn:hover { background: var(--green); color: #fff; }
   .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  .instruct-inline { display: inline-flex; align-items: center; gap: 3px; }
 </style>
 </head>
 <body>
@@ -1904,6 +1903,7 @@ async function renderSessionsTab() {
         const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
         const isActive = s.state === 'thinking' || s.state === 'running-tools' || s.state === '';
         const jsonDir = (s.directory || '').replace(/'/g,"\\'");
+        const escId = s.id.replace(/[^a-zA-Z0-9]/g,'_');
         html += '<tr>' +
           '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (s.title||'').replace(/"/g,'&quot;') + '">' + (s.title||'?').slice(0,28) + '</td>' +
           '<td><span style="color:' + stateColor + '">' + (s.state || 'active') + '</span></td>' +
@@ -1914,7 +1914,7 @@ async function renderSessionsTab() {
           '<td style="white-space:nowrap">' +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\')">Stop</button>' : '') +
-            (s.state === 'complete' ? ' <span class="instruct-inline"><input type="text" id="instruct-' + s.id.replace(/[^a-zA-Z0-9]/g,'_') + '" placeholder="New instruction..." style="padding:3px 6px;width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:10px;outline:none" onkeydown="if(event.key===\'Enter\')sessionInstruct(\'' + s.id + '\',\'' + jsonDir + '\')"> <button class="send-btn" onclick="sessionInstruct(\'' + s.id + '\',\'' + jsonDir + '\')">Send</button></span>' : '') +
+            (s.state === 'complete' ? ' <button class="send-btn" onclick="viewSession(\'' + s.id + '\')">Continue</button>' : '') +
           '</td>' +
         '</tr>';
       });
@@ -1978,6 +1978,16 @@ function viewSession(id) {
       ${s.last_user_prompt ? `<div class="admin-card"><h4>Last User Prompt</h4><div style="font-size:11px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word">${escapeHtml(s.last_user_prompt)}</div></div>` : ''}
       ${s.last_text ? `<div class="admin-card"><h4>Last Response</h4><div style="font-size:11px;color:var(--text-dim);line-height:1.5;white-space:pre-wrap;word-break:break-word">${escapeHtml(s.last_text)}</div></div>` : ''}
       ${!s.last_user_prompt && !s.last_text ? '<div style="font-size:12px;color:var(--text-dim)">No details available for this session</div>' : ''}
+      ${s.state === 'complete' ? `
+        <div class="admin-card">
+          <h4>Continue Session</h4>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input type="text" id="instruct-${s.id.replace(/[^a-zA-Z0-9]/g,'_')}" placeholder="Enter new instruction..." style="flex:1;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none" onkeydown="if(event.key==='Enter')sessionInstructView('${s.id}','${(s.directory||'').replace(/'/g,"\\'")}')">
+            <button class="btn btn-primary btn-sm" onclick="sessionInstructView('${s.id}','${(s.directory||'').replace(/'/g,"\\'")}')">Send</button>
+          </div>
+          <div style="font-size:10px;color:var(--text-dim);margin-top:6px">Sends a new instruction to continue this session</div>
+        </div>
+      ` : ''}
     `;
     modal.style.display = 'flex';
   }).catch(() => {
@@ -1990,13 +2000,14 @@ function closeSessionView() {
   document.getElementById('sessionViewModal').style.display = 'none';
 }
 
-async function sessionInstruct(id, dir) {
+async function sessionInstructView(id, dir) {
   const inputId = 'instruct-' + id.replace(/[^a-zA-Z0-9]/g,'_');
   const input = document.getElementById(inputId);
   const message = input ? input.value.trim() : '';
   if (!message) { showToast('Please enter an instruction', 'error'); return; }
 
-  const btn = event.target; btn.disabled = true; btn.textContent = 'Sending...';
+  const btn = document.querySelector('#sessionViewModal .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
   try {
     const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/session-instruct', {
       method: 'POST',
@@ -2007,6 +2018,7 @@ async function sessionInstruct(id, dir) {
     if (data.ok) {
       showToast('Instruction sent — session continued', 'success');
       if (input) input.value = '';
+      closeSessionView();
       renderSessionsTab();
     } else {
       showToast('Error: ' + data.message, 'error');
@@ -2014,7 +2026,7 @@ async function sessionInstruct(id, dir) {
   } catch (e) {
     showToast('Failed to connect to admin API', 'error');
   }
-  btn.disabled = false; btn.textContent = 'Send';
+  if (btn) { btn.disabled = false; btn.textContent = 'Send'; }
 }
 
 // ── SYSTEM TAB ──
