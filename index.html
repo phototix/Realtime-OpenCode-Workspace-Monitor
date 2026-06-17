@@ -2157,7 +2157,7 @@ async function stopSession(id, dir) {
     });
     const data = await resp.json();
     if (data.ok) {
-      showToast('Case stopped', 'success');
+      showToast('Case stopped (deleted)', 'success');
       renderCasesTab();
     } else {
       showToast('Error: ' + data.message, 'error');

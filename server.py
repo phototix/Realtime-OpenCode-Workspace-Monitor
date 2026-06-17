@@ -74,10 +74,10 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 return
             try:
                 cwd = body.get('directory') or None
-                r = subprocess.run(['opencode', 'session', 'stop', sid], capture_output=True, text=True, timeout=15, cwd=cwd)
+                r = subprocess.run(['opencode', 'session', 'delete', sid], capture_output=True, text=True, timeout=15, cwd=cwd)
                 if r.returncode == 0:
-                    log(f"Admin: stopped session {sid}")
-                    self._json({'ok': True, 'message': 'Session stopped'})
+                    log(f"Admin: deleted session {sid}")
+                    self._json({'ok': True, 'message': 'Session deleted'})
                 else:
                     self._json({'ok': False, 'message': r.stderr.strip() or 'Unknown error'}, 500)
             except subprocess.TimeoutExpired:
