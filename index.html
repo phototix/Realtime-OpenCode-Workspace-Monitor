@@ -1231,7 +1231,7 @@ function renderDashboard(data) {
         <div class="card-header">
           <div class="avatar engine">${TYPE_ICONS.engine || '?'}</div>
           <div class="info">
-            <div class="name">Brandon</div>
+            <div class="name">${getBossName()}</div>
             <div class="meta">NodeService Engine · PID ${brandon.pid} · ${formatUptime(s.uptime) || 'N/A'}</div>
           </div>
           <div class="type-badge engine">boss</div>
@@ -1766,6 +1766,10 @@ setInterval(poll, POLL_INTERVAL);
             <label>Max Activity Log Lines <span class="range-val" id="logLinesVal">100</span></label>
             <input type="range" min="20" max="500" step="10" value="100" id="logLinesRange" oninput="updateSettingPreview('logLines')">
           </div>
+          <div class="settings-group">
+            <label>Boss Name</label>
+            <input type="text" id="bossNameInput" placeholder="Brandon" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+          </div>
           <button class="btn btn-sm btn-primary" onclick="saveSettings()">Save Settings</button>
           <div class="form-success" id="settingsMsg" style="margin-top:8px"></div>
         </div>
@@ -1914,6 +1918,10 @@ function saveUsers(users) {
 }
 function getAuth() {
   try { return JSON.parse(sessionStorage.getItem(AUTH_KEY)); } catch { return null; }
+}
+
+function getBossName() {
+  try { return localStorage.getItem('dashboard_boss_name') || 'Brandon'; } catch { return 'Brandon'; }
 }
 function setAuth(auth) {
   sessionStorage.setItem(AUTH_KEY, JSON.stringify(auth));
@@ -2603,6 +2611,8 @@ function updateSettingPreview(id) {
 }
 
 function saveSettings() {
+  const bossName = document.getElementById('bossNameInput').value.trim();
+  if (bossName) localStorage.setItem('dashboard_boss_name', bossName);
   const settings = {
     pollInterval: parseInt(document.getElementById('pollIntervalRange').value),
     retention: parseInt(document.getElementById('retentionRange').value),
@@ -2610,7 +2620,7 @@ function saveSettings() {
   };
   localStorage.setItem('dashboard_settings', JSON.stringify(settings));
   const msg = document.getElementById('settingsMsg');
-  msg.textContent = 'Settings saved (poll interval will apply on next page load)';
+  msg.textContent = 'Settings saved';
   msg.style.display = 'block';
   setTimeout(() => msg.style.display = 'none', 3000);
 }
@@ -2623,6 +2633,7 @@ function loadSettings() {
       if (s.retention) { document.getElementById('retentionRange').value = s.retention; document.getElementById('retentionVal').textContent = s.retention; }
       if (s.logLines) { document.getElementById('logLinesRange').value = s.logLines; document.getElementById('logLinesVal').textContent = s.logLines; }
     }
+    document.getElementById('bossNameInput').value = getBossName();
   } catch {}
 }
 loadSettings();

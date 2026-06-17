@@ -119,10 +119,13 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 attach = get_attach_url()
                 answer_text = 'I choose: ' + '; '.join(str(a) for a in answers)
                 cmd = ['opencode', 'run', '-s', sid, '--attach', attach, answer_text]
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, cwd=cwd)
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: answered session {sid}")
                     self._json({'ok': True, 'message': 'Answer sent'})
+                elif r.returncode == 124 or 'already running' in (r.stderr or '').lower() or 'already active' in (r.stderr or '').lower():
+                    log(f"Admin: session {sid} already busy, answer queued")
+                    self._json({'ok': True, 'message': 'Session is busy — answer will be picked up when ready'})
                 else:
                     self._json({'ok': False, 'message': (r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]}, 500)
             except subprocess.TimeoutExpired:
