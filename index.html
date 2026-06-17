@@ -2389,6 +2389,9 @@ function questionBadge(s) {
 function showQuestions(id) {
   fetch('data/status.json?_=' + Date.now()).then(function(r){ return r.json(); }).then(function(data) {
     var s = (data.all_sessions || data.sessions || []).find(function(x){ return x.id === id; });
+    // Re-check question state — if all answered, reload the badge
+    var hasUnanswered = (s.pending_questions || []).some(function(q){ return !q.answered; });
+    if (!hasUnanswered) { renderCasesTab(); showToast('All questions have been answered', 'success'); return; }
     var body = document.getElementById('questionModalBody');
     var modal = document.getElementById('questionModal');
     if (!s || !s.pending_questions || s.pending_questions.length === 0) {
@@ -2432,6 +2435,9 @@ function sendAnswers(id) {
   fetch('data/status.json?_=' + Date.now()).then(function(r){ return r.json(); }).then(function(data) {
     var s = (data.all_sessions || data.sessions || []).find(function(x){ return x.id === id; });
     if (!s || !s.pending_questions) return;
+    // Check if still unanswered
+    var hasUnanswered = s.pending_questions.some(function(q){ return !q.answered; });
+    if (!hasUnanswered) { closeQuestionModal(); renderCasesTab(); showToast('Already answered', 'success'); return; }
     var answers = [];
     s.pending_questions.forEach(function(q, qi) {
       if (q.answered) return;
