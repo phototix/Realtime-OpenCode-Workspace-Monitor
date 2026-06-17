@@ -27,11 +27,7 @@ def log(msg):
     except:
         pass
 
-_attach_url = None
 def get_attach_url():
-    global _attach_url
-    if _attach_url:
-        return _attach_url
     try:
         r = subprocess.run(['lsof', '-i', '-P', '-n'], capture_output=True, text=True, timeout=5)
         for line in r.stdout.split('\n'):
@@ -41,14 +37,12 @@ def get_attach_url():
                     if ':' in p and len(p.split(':')[1]) == 5:
                         try:
                             port = int(p.split(':')[1])
-                            _attach_url = f'http://127.0.0.1:{port}'
-                            return _attach_url
+                            return f'http://127.0.0.1:{port}'
                         except:
                             pass
     except:
         pass
-    _attach_url = 'http://127.0.0.1:51384'
-    return _attach_url
+    return 'http://127.0.0.1:51384'
 
 class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
