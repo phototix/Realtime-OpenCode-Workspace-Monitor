@@ -774,6 +774,29 @@
     margin-left: 4px; opacity: 0.6;
   }
 
+  /* ── CONTENT TABS (Active Nodes) ── */
+  .content-tabs {
+    display: flex; gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+  .content-tab {
+    padding: 10px 24px;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .content-tab:hover { color: var(--text); background: rgba(255,255,255,0.02); }
+  .content-tab.active {
+    color: var(--blue);
+    border-bottom-color: var(--blue);
+  }
+  .content-panel { display: none; }
+  .content-panel.active { display: block; }
+
   /* ── TAB CONTENT ── */
   .admin-body {
     flex: 1; overflow-y: auto;
@@ -996,25 +1019,37 @@
       <!-- Brandon (full-width) -->
       <div id="brandonSection" style="margin-bottom:16px"></div>
 
-      <!-- Sessions grid -->
-      <div class="section-label" id="sessionsLabel" style="margin-top:16px">Sessions <span class="count" id="sessionsCount"></span></div>
-      <div class="nodes-grid" id="sessionsGrid"></div>
+      <!-- Content Tabs -->
+      <div class="content-tabs" id="contentTabs">
+        <div class="content-tab active" data-panel="sessions" onclick="switchContentTab('sessions')">Sessions</div>
+        <div class="content-tab" data-panel="office" onclick="switchContentTab('office')">Virtual Office</div>
+        <div class="content-tab" data-panel="others" onclick="switchContentTab('others')">Others</div>
+      </div>
 
-      <!-- Office floor -->
-      <div class="section-label" style="margin-bottom:8px;margin-top:16px">Staff <span class="count" id="staffLabel"></span></div>
-      <div class="office-floor" id="officeFloor"></div>
+      <!-- Sessions Panel -->
+      <div class="content-panel active" id="panel-sessions">
+        <div class="section-label" id="sessionsLabel" style="margin-top:0">Sessions <span class="count" id="sessionsCount"></span></div>
+        <div class="nodes-grid" id="sessionsGrid"></div>
+      </div>
 
-      <!-- Discussion Desk -->
-      <div class="section-label" id="discussionLabel" style="display:none;margin-top:16px">💬 Discussion Desk <span class="count" id="discussionCount"></span></div>
-      <div class="discussion-desk" id="discussionDesk" style="display:none"></div>
+      <!-- Virtual Office Panel -->
+      <div class="content-panel" id="panel-office">
+        <div class="section-label" style="margin-bottom:8px">Staff <span class="count" id="staffLabel"></span></div>
+        <div class="office-floor" id="officeFloor"></div>
 
-      <!-- Rest Room -->
-      <div class="section-label" id="restRoomLabel" style="display:none;margin-top:16px">☕ Rest Room <span class="count" id="restRoomCount"></span></div>
-      <div class="rest-room-grid" id="restRoomGrid"></div>
+        <div class="section-label" id="discussionLabel" style="display:none;margin-top:20px">💬 Discussion Desk <span class="count" id="discussionCount"></span></div>
+        <div class="discussion-desk" id="discussionDesk" style="display:none"></div>
 
-      <div class="empty-state" id="emptyState" style="display:none">
-        <div class="icon">&#9673;</div>
-        <div class="text">No agents running</div>
+        <div class="section-label" id="restRoomLabel" style="display:none;margin-top:20px">☕ Rest Room <span class="count" id="restRoomCount"></span></div>
+        <div class="rest-room-grid" id="restRoomGrid"></div>
+      </div>
+
+      <!-- Others Panel -->
+      <div class="content-panel" id="panel-others">
+        <div class="empty-state" id="emptyState" style="display:flex">
+          <div class="icon">&#9673;</div>
+          <div class="text">No additional nodes</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1070,6 +1105,11 @@ function humanAgo(ts) {
   return Math.floor(day / 365) + 'y ago';
 }
 
+function switchContentTab(tab) {
+  document.querySelectorAll('.content-tab').forEach(t => t.classList.toggle('active', t.dataset.panel === tab));
+  document.querySelectorAll('.content-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + tab));
+}
+
 function renderDashboard(data) {
   if (!data) return;
 
@@ -1108,16 +1148,9 @@ function renderDashboard(data) {
   }
   prevAgentCount = s.agent_count;
 
-  const empty = document.getElementById('emptyState');
   const agents = data.agents || [];
   const agentMap = {};
   agents.forEach(a => { agentMap[a.pid] = a; });
-
-  if (agents.length === 0) {
-    empty.style.display = 'flex';
-    return;
-  }
-  empty.style.display = 'none';
 
   const SKIP_NAMES = ['find', 'sort', 'head', 'du', 'ps', 'sleep', 'cat', 'curl', 'wc', 'mkdir', 'touch', 'rm', 'mv', 'cp', 'zsh', 'bash', 'sh', 'rg', 'grep', 'awk', 'sed', 'echo', 'printf'];
   function isRealAgent(a) { return !SKIP_NAMES.includes((a.name||'').toLowerCase()); }
