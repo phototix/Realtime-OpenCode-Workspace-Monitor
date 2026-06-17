@@ -91,7 +91,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 cwd = directory or None
                 attach = get_attach_url()
-                cmd = ['opencode', 'run', '-s', sid, '--fork', '--attach', attach]
+                cmd = ['opencode', 'run', '-s', sid, '--attach', attach]
                 if model:
                     cmd.extend(['-m', model])
                 if mode_val:
