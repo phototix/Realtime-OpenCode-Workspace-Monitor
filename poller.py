@@ -400,7 +400,7 @@ if needs_refresh and not export_running:
     tool_name = ''
     for p in reversed(last_parts):
       if p.get('type') == 'text' and p.get('text', '').strip():
-        last_text = p.get('text', '').strip()[:200]
+        last_text = p.get('text', '').strip()
         break
       elif p.get('type') == 'tool' and not tool_name:
         tool_name = p.get('name') or p.get('tool') or ''
@@ -411,7 +411,7 @@ if needs_refresh and not export_running:
       if m.get('info', {}).get('role') == 'user':
         for p in m.get('parts', []):
           if p.get('type') == 'text' and p.get('text', '').strip():
-            last_user_prompt = p.get('text', '').strip()[:200]
+            last_user_prompt = p.get('text', '').strip()
             break
         if last_user_prompt:
           break
