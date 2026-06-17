@@ -1630,14 +1630,14 @@ setInterval(poll, POLL_INTERVAL);
             <option value="">All Workspaces</option>
           </select>
         </div>
-        <div id="sessionsTabContent"><div style="font-size:12px;color:var(--text-dim)">Loading sessions...</div></div>
+        <div id="sessionsTabContent"><div style="font-size:12px;color:var(--text-dim)">Loading cases...</div></div>
       </div>
 
       <!-- Session View Modal (metadata only) -->
       <div class="modal-overlay" id="sessionViewModal" style="display:none">
         <div class="login-modal" style="width:600px;max-height:80vh;overflow-y:auto">
           <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-            <h2 style="font-size:18px">Session Details</h2>
+            <h2 style="font-size:18px">Case Details</h2>
             <button class="admin-close" onclick="document.getElementById('sessionViewModal').style.display='none'">&times;</button>
           </div>
           <div id="sessionViewBody"></div>
@@ -1648,7 +1648,7 @@ setInterval(poll, POLL_INTERVAL);
       <div class="modal-overlay" id="sessionContinueModal" style="display:none">
         <div class="login-modal" style="width:680px;max-height:85vh;overflow-y:auto">
           <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-            <h2 style="font-size:18px" id="continueModalTitle">Continue Session</h2>
+            <h2 style="font-size:18px" id="continueModalTitle">Continue Case</h2>
             <button class="admin-close" onclick="document.getElementById('sessionContinueModal').style.display='none'">&times;</button>
           </div>
           <div id="continueModalBody"></div>
@@ -1926,7 +1926,7 @@ async function renderCasesTab() {
     if (curVal) filterEl.value = curVal;
 
     if (sessions.length === 0) {
-      el.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No sessions found</div>';
+      el.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No cases found</div>';
       return;
     }
 
@@ -1951,7 +1951,7 @@ async function renderCasesTab() {
       html += '<div style="margin-bottom:16px">';
       html += '<div style="font-size:11px;color:var(--yellow);margin-bottom:6px;display:flex;align-items:center;gap:6px">' +
         '<span>📁</span><span>' + shortDir + '</span>' +
-        '<span style="font-size:10px;color:var(--text-dim)">(' + group.length + ' sessions)</span>' +
+        '<span style="font-size:10px;color:var(--text-dim)">(' + group.length + ' cases)</span>' +
         '<span style="font-size:9px;color:var(--text-dim);margin-left:4px;opacity:0.6">' + dir + '</span>' +
       '</div>';
 
@@ -1980,7 +1980,7 @@ async function renderCasesTab() {
     }
     el.innerHTML = html;
   } catch (e) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--red)">Error loading sessions: ' + e.message + '</div>';
+    el.innerHTML = '<div style="font-size:12px;color:var(--red)">Error loading cases: ' + e.message + '</div>';
   }
 }
 
@@ -1994,7 +1994,7 @@ async function stopSession(id, dir) {
     });
     const data = await resp.json();
     if (data.ok) {
-      showToast('Session stopped', 'success');
+      showToast('Case stopped', 'success');
       renderCasesTab();
     } else {
       showToast('Error: ' + data.message, 'error');
@@ -2012,7 +2012,7 @@ function viewSession(id) {
   fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
     const s = (data.all_sessions || data.sessions || []).find(x => x.id === id);
     if (!s) {
-      body.innerHTML = '<div style="font-size:12px;color:var(--red)">Session not found</div>';
+      body.innerHTML = '<div style="font-size:12px;color:var(--red)">Case not found</div>';
       modal.style.display = 'flex';
       return;
     }
@@ -2043,11 +2043,11 @@ function continueSession(id) {
   fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
     const s = (data.all_sessions || data.sessions || []).find(x => x.id === id);
     if (!s) {
-      body.innerHTML = '<div style="font-size:12px;color:var(--red)">Session not found</div>';
+      body.innerHTML = '<div style="font-size:12px;color:var(--red)">Case not found</div>';
       modal.style.display = 'flex';
       return;
     }
-    titleEl.textContent = 'Continue Session \u2014 ' + (s.title || '?');
+    titleEl.textContent = 'Continue Case \u2014 ' + (s.title || '?');
     const escId = s.id.replace(/[^a-zA-Z0-9]/g,'_');
     const dirEsc = (s.directory || '').replace(/'/g,"\\'");
     body.innerHTML = `
@@ -2055,7 +2055,7 @@ function continueSession(id) {
       <div class="admin-card">
         ${s.last_text ? `<h4>Last Response</h4><div style="font-size:11px;color:var(--text-dim);line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow-y:auto;margin-bottom:16px">${escapeHtml(s.last_text)}</div><hr style="border:none;border-top:1px solid var(--border);margin:12px 0">` : ''}
         <h4>New Instruction</h4>
-        <textarea id="instruct-${escId}" placeholder="Enter your instruction to continue this session..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:80px;font-family:inherit" onkeydown="if(event.key==='Enter'&&event.shiftKey)event.preventDefault()"></textarea>
+        <textarea id="instruct-${escId}" placeholder="Enter your instruction to continue this case..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:80px;font-family:inherit" onkeydown="if(event.key==='Enter'&&event.shiftKey)event.preventDefault()"></textarea>
         <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
           <select id="model-${escId}" style="flex:1;min-width:180px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
             <option value="">Loading models...</option>
@@ -2066,7 +2066,7 @@ function continueSession(id) {
           </select>
           <button class="btn btn-primary btn-sm" onclick="sessionInstructView('${s.id}','${dirEsc}')">Send</button>
         </div>
-        <div style="font-size:10px;color:var(--text-dim);margin-top:6px">Press Send to continue this session with the instruction above</div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:6px">Press Send to continue this case with the instruction above</div>
       </div>
     `;
     modal.style.display = 'flex';
@@ -2129,7 +2129,7 @@ async function sessionInstructView(id, dir) {
     });
     const data = await resp.json();
     if (data.ok) {
-      showToast('Instruction sent \u2014 session continued', 'success');
+      showToast('Instruction sent \u2014 case continued', 'success');
       if (input) input.value = '';
       document.getElementById('sessionContinueModal').style.display = 'none';
       renderCasesTab();
