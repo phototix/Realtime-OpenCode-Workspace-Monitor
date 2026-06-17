@@ -879,6 +879,23 @@
     transition: all 0.2s; margin-left: 8px;
   }
   .manage-btn:hover { background: var(--blue); color: #fff; }
+
+  .view-btn {
+    font-size: 10px; padding: 3px 10px; border: none; border-radius: 4px;
+    cursor: pointer; font-weight: 500; transition: all 0.2s;
+    background: #58a6ff33; color: var(--blue);
+  }
+  .view-btn:hover { background: var(--blue); color: #fff; }
+
+  .send-btn {
+    font-size: 10px; padding: 3px 10px; border: none; border-radius: 4px;
+    cursor: pointer; font-weight: 500; transition: all 0.2s;
+    background: #3fb95033; color: var(--green);
+  }
+  .send-btn:hover { background: var(--green); color: #fff; }
+  .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .instruct-inline { display: inline-flex; align-items: center; gap: 3px; }
 </style>
 </head>
 <body>
@@ -1560,10 +1577,24 @@ setInterval(poll, POLL_INTERVAL);
       <div class="tab-content active" id="tab-sessions">
         <h3>📋 Sessions</h3>
         <div class="desc">Manage active and recent sessions. <span id="sessionsTabCount" style="color:var(--text-dim)"></span></div>
-        <div class="inline-form" style="margin-bottom:12px">
-          <input type="text" id="sessionSearch" placeholder="Search sessions..." oninput="renderSessionsTab()" style="max-width:300px">
+        <div class="inline-form" style="margin-bottom:12px;flex-wrap:wrap">
+          <input type="text" id="sessionSearch" placeholder="Search sessions..." oninput="renderSessionsTab()" style="max-width:250px">
+          <select id="workspaceFilter" onchange="renderSessionsTab()" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;max-width:250px">
+            <option value="">All Workspaces</option>
+          </select>
         </div>
         <div id="sessionsTabContent"><div style="font-size:12px;color:var(--text-dim)">Loading sessions...</div></div>
+      </div>
+
+      <!-- Session View Modal -->
+      <div class="modal-overlay" id="sessionViewModal" style="display:none">
+        <div class="login-modal" style="width:600px;max-height:80vh;overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+            <h2 style="font-size:18px" id="sessionViewTitle">Session Details</h2>
+            <button class="admin-close" onclick="closeSessionView()">&times;</button>
+          </div>
+          <div id="sessionViewBody"></div>
+        </div>
       </div>
 
       <!-- System Tab -->
@@ -1820,36 +1851,75 @@ function switchTab(tabId) {
 async function renderSessionsTab() {
   const el = document.getElementById('sessionsTabContent');
   const query = (document.getElementById('sessionSearch').value || '').toLowerCase();
+  const workspaceFilter = document.getElementById('workspaceFilter').value;
   try {
     const resp = await fetch('data/status.json?_=' + Date.now());
     const data = await resp.json();
     const sessions = data.sessions || [];
     document.getElementById('sessionsTabCount').textContent = '(' + sessions.length + ' total)';
 
+    // Build workspace filter options
+    const workspaces = [...new Set((sessions.map(s => s.directory || '(default)')))].
+      filter(Boolean).sort();
+    const filterEl = document.getElementById('workspaceFilter');
+    const curVal = filterEl.value;
+    filterEl.innerHTML = '<option value="">All Workspaces</option>' +
+      workspaces.map(w => '<option value="' + w.replace(/"/g,'&quot;') + '">' + w.split('/').pop() || w + '</option>').join('');
+    if (curVal) filterEl.value = curVal;
+
     if (sessions.length === 0) {
       el.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No sessions found</div>';
       return;
     }
 
-    let html = '<table class="admin-table"><thead><tr><th>Title</th><th>State</th><th>Model</th><th>Cost</th><th>Tokens</th><th>Updated</th><th></th></tr></thead><tbody>';
-    sessions.filter(s => !query || (s.title||'').toLowerCase().includes(query) || (s.slug||'').toLowerCase().includes(query)).forEach(s => {
-      const ago = s.updated ? Math.floor((Date.now() - s.updated) / 60000) : '?';
-      const agoStr = ago === 0 ? '<1m' : ago + 'm ago';
-      const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
-      html += '<tr>' +
-        '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (s.title||'').replace(/"/g,'&quot;') + '">' + (s.title||'?').slice(0,35) + '</td>' +
-        '<td><span style="color:' + stateColor + '">' + (s.state || 'active') + '</span></td>' +
-        '<td style="font-size:10px;color:var(--text-dim)">' + (s.model_id || '—') + '</td>' +
-        '<td>$' + (s.cost||0).toFixed(4) + '</td>' +
-        '<td>' + ((s.tokens||0).toLocaleString()) + '</td>' +
-        '<td style="font-size:10px;color:var(--text-dim)">' + agoStr + '</td>' +
-        '<td>' +
-          (s.state === 'thinking' || s.state === 'running-tools' || s.state === '' ?
-            '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + (s.directory||'').replace(/'/g,"\\'") + '\')">Stop</button>' : '') +
-        '</td>' +
-      '</tr>';
+    // Group by workspace
+    const grouped = {};
+    sessions.filter(s => {
+      if (query && !(s.title||'').toLowerCase().includes(query) && !(s.slug||'').toLowerCase().includes(query)) return false;
+      if (workspaceFilter) {
+        const dir = s.directory || '(default)';
+        if (dir !== workspaceFilter) return false;
+      }
+      return true;
+    }).forEach(s => {
+      const key = s.directory || '(default)';
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(s);
     });
-    html += '</tbody></table>';
+
+    let html = '';
+    for (const [dir, group] of Object.entries(grouped)) {
+      const shortDir = dir === '(default)' ? 'Default' : dir.split('/').pop() || dir;
+      html += '<div style="margin-bottom:16px">';
+      html += '<div style="font-size:11px;color:var(--yellow);margin-bottom:6px;display:flex;align-items:center;gap:6px">' +
+        '<span>📁</span><span>' + shortDir + '</span>' +
+        '<span style="font-size:10px;color:var(--text-dim)">(' + group.length + ' sessions)</span>' +
+        '<span style="font-size:9px;color:var(--text-dim);margin-left:4px;opacity:0.6">' + dir + '</span>' +
+      '</div>';
+
+      html += '<table class="admin-table"><thead><tr><th>Title</th><th>State</th><th>Model</th><th>Cost</th><th>Tokens</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
+      group.forEach(s => {
+        const ago = s.updated ? Math.floor((Date.now() - s.updated) / 60000) : '?';
+        const agoStr = ago === 0 ? '<1m' : ago + 'm ago';
+        const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
+        const isActive = s.state === 'thinking' || s.state === 'running-tools' || s.state === '';
+        const jsonDir = (s.directory || '').replace(/'/g,"\\'");
+        html += '<tr>' +
+          '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (s.title||'').replace(/"/g,'&quot;') + '">' + (s.title||'?').slice(0,28) + '</td>' +
+          '<td><span style="color:' + stateColor + '">' + (s.state || 'active') + '</span></td>' +
+          '<td style="font-size:10px;color:var(--text-dim)">' + (s.model_id || '—') + '</td>' +
+          '<td>$' + (s.cost||0).toFixed(4) + '</td>' +
+          '<td>' + ((s.tokens||0).toLocaleString()) + '</td>' +
+          '<td style="font-size:10px;color:var(--text-dim)">' + agoStr + '</td>' +
+          '<td style="white-space:nowrap">' +
+            '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
+            (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\')">Stop</button>' : '') +
+            (s.state === 'complete' ? ' <span class="instruct-inline"><input type="text" id="instruct-' + s.id.replace(/[^a-zA-Z0-9]/g,'_') + '" placeholder="New instruction..." style="padding:3px 6px;width:120px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:10px;outline:none" onkeydown="if(event.key===\'Enter\')sessionInstruct(\'' + s.id + '\',\'' + jsonDir + '\')"> <button class="send-btn" onclick="sessionInstruct(\'' + s.id + '\',\'' + jsonDir + '\')">Send</button></span>' : '') +
+          '</td>' +
+        '</tr>';
+      });
+      html += '</tbody></table></div>';
+    }
     el.innerHTML = html;
   } catch (e) {
     el.innerHTML = '<div style="font-size:12px;color:var(--red)">Error loading sessions: ' + e.message + '</div>';
@@ -1876,6 +1946,75 @@ async function stopSession(id, dir) {
     showToast('Failed to connect to admin API', 'error');
     btn.disabled = false; btn.textContent = 'Stop';
   }
+}
+
+function viewSession(id) {
+  const modal = document.getElementById('sessionViewModal');
+  const body = document.getElementById('sessionViewBody');
+  const titleEl = document.getElementById('sessionViewTitle');
+  // Find session from latest status.json data
+  fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
+    const s = (data.sessions || []).find(x => x.id === id);
+    if (!s) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--red)">Session not found</div>';
+      modal.style.display = 'flex';
+      return;
+    }
+    titleEl.textContent = s.title || 'Session Details';
+    const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
+    const ago = s.updated ? Math.floor((Date.now() - s.updated) / 60000) : '?';
+    const agoStr = ago === 0 ? '<1m' : ago + 'm ago';
+    body.innerHTML = `
+      <div class="admin-card" style="margin-bottom:12px">
+        <div class="row"><span class="label">State</span><span class="value" style="color:${stateColor}">${s.state || 'active'}</span></div>
+        <div class="row"><span class="label">Slug</span><span class="value">${s.slug || '—'}</span></div>
+        <div class="row"><span class="label">Model</span><span class="value">${s.model_id || '—'}</span></div>
+        <div class="row"><span class="label">Cost</span><span class="value">$${(s.cost||0).toFixed(4)}</span></div>
+        <div class="row"><span class="label">Tokens</span><span class="value">${(s.tokens||0).toLocaleString()}</span></div>
+        <div class="row"><span class="label">Updated</span><span class="value">${agoStr}</span></div>
+        <div class="row"><span class="label">Directory</span><span class="value" style="font-size:10px">${s.directory || '—'}</span></div>
+        ${s.last_mode ? `<div class="row"><span class="label">Last Mode</span><span class="value">${s.last_mode}</span></div>` : ''}
+      </div>
+      ${s.last_user_prompt ? `<div class="admin-card"><h4>Last User Prompt</h4><div style="font-size:11px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word">${escapeHtml(s.last_user_prompt)}</div></div>` : ''}
+      ${s.last_text ? `<div class="admin-card"><h4>Last Response</h4><div style="font-size:11px;color:var(--text-dim);line-height:1.5;white-space:pre-wrap;word-break:break-word">${escapeHtml(s.last_text)}</div></div>` : ''}
+      ${!s.last_user_prompt && !s.last_text ? '<div style="font-size:12px;color:var(--text-dim)">No details available for this session</div>' : ''}
+    `;
+    modal.style.display = 'flex';
+  }).catch(() => {
+    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load session data</div>';
+    modal.style.display = 'flex';
+  });
+}
+
+function closeSessionView() {
+  document.getElementById('sessionViewModal').style.display = 'none';
+}
+
+async function sessionInstruct(id, dir) {
+  const inputId = 'instruct-' + id.replace(/[^a-zA-Z0-9]/g,'_');
+  const input = document.getElementById(inputId);
+  const message = input ? input.value.trim() : '';
+  if (!message) { showToast('Please enter an instruction', 'error'); return; }
+
+  const btn = event.target; btn.disabled = true; btn.textContent = 'Sending...';
+  try {
+    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/session-instruct', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, message, directory: dir || '' })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      showToast('Instruction sent — session continued', 'success');
+      if (input) input.value = '';
+      renderSessionsTab();
+    } else {
+      showToast('Error: ' + data.message, 'error');
+    }
+  } catch (e) {
+    showToast('Failed to connect to admin API', 'error');
+  }
+  btn.disabled = false; btn.textContent = 'Send';
 }
 
 // ── SYSTEM TAB ──

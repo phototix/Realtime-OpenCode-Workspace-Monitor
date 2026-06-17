@@ -88,6 +88,29 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({'ok': False, 'message': str(e)}, 500)
 
+        elif path == '/api/session-instruct':
+            sid = body.get('id', '')
+            message = body.get('message', '')
+            directory = body.get('directory', '')
+            if not sid or not message:
+                self._json({'ok': False, 'message': 'Missing session id or message'}, 400)
+                return
+            try:
+                cwd = directory or None
+                r = subprocess.run(
+                    ['opencode', 'run', '-s', sid, message],
+                    capture_output=True, text=True, timeout=60, cwd=cwd
+                )
+                if r.returncode == 0:
+                    log(f"Admin: instructed session {sid}")
+                    self._json({'ok': True, 'message': 'Instruction sent'})
+                else:
+                    self._json({'ok': False, 'message': r.stderr.strip()[:200] or 'Unknown error'}, 500)
+            except subprocess.TimeoutExpired:
+                self._json({'ok': False, 'message': 'Timeout sending instruction'}, 500)
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
         elif path == '/api/ping':
             daemon_alive = False
             if os.path.exists(PID_FILE):
