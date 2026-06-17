@@ -938,7 +938,7 @@
         </div>
         <div class="stat-card">
           <div class="value" id="sessionCount">0</div>
-          <div class="label">Sessions</div>
+          <div class="label">Cases</div>
         </div>
         <div class="stat-card">
           <div class="value" id="cpuTotal">0%</div>
@@ -989,7 +989,7 @@
     </div>
 
     <div class="sidebar-section">
-      <h3>Sessions</h3>
+      <h3>Cases</h3>
       <div id="sessionList"></div>
     </div>
 
@@ -1021,14 +1021,14 @@
 
       <!-- Content Tabs -->
       <div class="content-tabs" id="contentTabs">
-        <div class="content-tab active" data-panel="sessions" onclick="switchContentTab('sessions')">Sessions</div>
+        <div class="content-tab active" data-panel="sessions" onclick="switchContentTab('sessions')">Cases</div>
         <div class="content-tab" data-panel="office" onclick="switchContentTab('office')">Virtual Office</div>
         <div class="content-tab" data-panel="others" onclick="switchContentTab('others')">Others</div>
       </div>
 
-      <!-- Sessions Panel -->
+      <!-- Cases Panel -->
       <div class="content-panel active" id="panel-sessions">
-        <div class="section-label" id="sessionsLabel" style="margin-top:0">Sessions <span class="count" id="sessionsCount"></span></div>
+        <div class="section-label" id="sessionsLabel" style="margin-top:0">Cases <span class="count" id="sessionsCount"></span></div>
         <div class="nodes-grid" id="sessionsGrid"></div>
       </div>
 
@@ -1486,13 +1486,13 @@ function renderDashboard(data) {
     grid.appendChild(card);
   });
 
-  // Sessions list (only active sessions)
+  // Cases list (only active sessions)
   const sl = document.getElementById('sessionList');
   sl.innerHTML = '';
-  const allSessions = data.sessions || [];
-  const activeSessions = allSessions.filter(s => s.active);
-  if (activeSessions.length === 0) {
-    sl.innerHTML = '<div style="font-size:11px;color:var(--text-dim)">No active sessions</div>';
+  const allCases = data.sessions || [];
+  const activeCases = allCases.filter(s => s.active);
+  if (activeCases.length === 0) {
+    sl.innerHTML = '<div style="font-size:11px;color:var(--text-dim)">No active cases</div>';
   } else {
     // State badge styling
     const STATE_STYLE = {
@@ -1504,7 +1504,7 @@ function renderDashboard(data) {
       '': { color: '#8b949e', label: 'In Progress', dot: 'pulse' },
     };
 
-    activeSessions.slice(0, 8).forEach(ss => {
+    activeCases.slice(0, 8).forEach(ss => {
       const div = document.createElement('div');
       div.style.cssText = 'font-size:11px;padding:6px 0;border-bottom:1px solid rgba(48,54,61,0.3)';
 
@@ -1611,7 +1611,7 @@ setInterval(poll, POLL_INTERVAL);
     </div>
 
     <div class="admin-tabs" id="adminTabs">
-      <div class="admin-tab active" data-tab="sessions" onclick="switchTab('sessions')">📋 Sessions</div>
+      <div class="admin-tab active" data-tab="sessions" onclick="switchTab('sessions')">📋 Cases</div>
       <div class="admin-tab" data-tab="system" onclick="switchTab('system')">🖥 System</div>
       <div class="admin-tab admin-only" data-tab="users" onclick="switchTab('users')">👥 Users</div>
       <div class="admin-tab" data-tab="settings" onclick="switchTab('settings')">⚙ Settings</div>
@@ -1620,13 +1620,13 @@ setInterval(poll, POLL_INTERVAL);
     </div>
 
     <div class="admin-body" id="adminBody">
-      <!-- Sessions Tab -->
+      <!-- Cases Tab -->
       <div class="tab-content active" id="tab-sessions">
-        <h3>📋 Sessions</h3>
-        <div class="desc">Manage active and recent sessions. <span id="sessionsTabCount" style="color:var(--text-dim)"></span></div>
+        <h3>📋 Cases</h3>
+        <div class="desc">Manage active and recent cases. <span id="sessionsTabCount" style="color:var(--text-dim)"></span></div>
         <div class="inline-form" style="margin-bottom:12px;flex-wrap:wrap">
-          <input type="text" id="sessionSearch" placeholder="Search sessions..." oninput="renderSessionsTab()" style="max-width:250px">
-          <select id="workspaceFilter" onchange="renderSessionsTab()" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;max-width:250px">
+          <input type="text" id="sessionSearch" placeholder="Search cases..." oninput="renderCasesTab()" style="max-width:250px">
+          <select id="workspaceFilter" onchange="renderCasesTab()" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;max-width:250px">
             <option value="">All Workspaces</option>
           </select>
         </div>
@@ -1729,8 +1729,8 @@ setInterval(poll, POLL_INTERVAL);
           <div class="form-error" id="secErr" style="margin-top:8px"></div>
         </div>
         <div class="admin-card">
-          <h4>Active Sessions</h4>
-          <div style="font-size:12px;color:var(--text-dim)" id="secSessionsInfo">Only one admin session at a time (browser tab)</div>
+          <h4>Active Cases</h4>
+          <div style="font-size:12px;color:var(--text-dim)" id="secCasesInfo">Only one admin session at a time (browser tab)</div>
         </div>
       </div>
 
@@ -1884,7 +1884,7 @@ function openAdminModal() {
   }
 
   modal.style.display = 'flex';
-  renderSessionsTab();
+  renderCasesTab();
   renderSystemTab();
   renderUsersTab();
   renderLogsTab();
@@ -1899,14 +1899,14 @@ function switchTab(tabId) {
   document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + tabId));
 
   // Lazy render
-  if (tabId === 'sessions') renderSessionsTab();
+  if (tabId === 'sessions') renderCasesTab();
   if (tabId === 'system') renderSystemTab();
   if (tabId === 'users') renderUsersTab();
   if (tabId === 'logs') renderLogsTab();
 }
 
 // ── SESSIONS TAB ──
-async function renderSessionsTab() {
+async function renderCasesTab() {
   const el = document.getElementById('sessionsTabContent');
   const query = (document.getElementById('sessionSearch').value || '').toLowerCase();
   const workspaceFilter = document.getElementById('workspaceFilter').value;
@@ -1995,7 +1995,7 @@ async function stopSession(id, dir) {
     const data = await resp.json();
     if (data.ok) {
       showToast('Session stopped', 'success');
-      renderSessionsTab();
+      renderCasesTab();
     } else {
       showToast('Error: ' + data.message, 'error');
       btn.disabled = false; btn.textContent = 'Stop';
@@ -2132,7 +2132,7 @@ async function sessionInstructView(id, dir) {
       showToast('Instruction sent \u2014 session continued', 'success');
       if (input) input.value = '';
       document.getElementById('sessionContinueModal').style.display = 'none';
-      renderSessionsTab();
+      renderCasesTab();
     } else {
       showToast('Error: ' + data.message, 'error');
     }
