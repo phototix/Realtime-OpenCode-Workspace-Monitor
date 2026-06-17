@@ -1629,6 +1629,7 @@ setInterval(poll, POLL_INTERVAL);
           <select id="workspaceFilter" onchange="renderCasesTab()" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;max-width:250px">
             <option value="">All Workspaces</option>
           </select>
+          <button class="btn btn-sm btn-primary" onclick="openNewSessionModal()" style="margin-left:auto">+ New Case</button>
         </div>
         <div id="sessionsTabContent"><div style="font-size:12px;color:var(--text-dim)">Loading cases...</div></div>
       </div>
@@ -1652,6 +1653,49 @@ setInterval(poll, POLL_INTERVAL);
             <button class="admin-close" onclick="document.getElementById('sessionContinueModal').style.display='none'">&times;</button>
           </div>
           <div id="continueModalBody"></div>
+        </div>
+      </div>
+
+      <!-- New Session Modal -->
+      <div class="modal-overlay" id="newSessionModal" style="display:none">
+        <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+            <h2 style="font-size:18px">+ New Case</h2>
+            <button class="admin-close" onclick="document.getElementById('newSessionModal').style.display='none'">&times;</button>
+          </div>
+          <div id="newSessionModalBody">
+            <div class="form-group">
+              <label>Title (optional)</label>
+              <input type="text" id="newSessionTitle" placeholder="Case title">
+            </div>
+            <div class="form-group">
+              <label>Instructions</label>
+              <textarea id="newSessionMessage" placeholder="Describe what you want to accomplish..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:80px;font-family:inherit"></textarea>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap">
+              <div class="form-group" style="flex:1;min-width:180px">
+                <label>Mode</label>
+                <select id="newSessionMode" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+                  <option value="build">Build</option>
+                  <option value="plan">Plan</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex:2;min-width:220px">
+                <label>Model</label>
+                <select id="newSessionModel" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+                  <option value="">Loading models...</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Workspace</label>
+              <select id="newSessionWorkspace" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+                <option value="">Default (home)</option>
+              </select>
+            </div>
+            <button class="btn btn-primary" onclick="startNewSession()" style="width:100%;margin-top:8px">Start Case</button>
+            <div class="form-error" id="newSessionError" style="margin-top:8px"></div>
+          </div>
         </div>
       </div>
 
@@ -2075,6 +2119,65 @@ function continueSession(id) {
     body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load session data</div>';
     modal.style.display = 'flex';
   });
+}
+
+function openNewSessionModal() {
+  const modal = document.getElementById('newSessionModal');
+  document.getElementById('newSessionTitle').value = '';
+  document.getElementById('newSessionMessage').value = '';
+  document.getElementById('newSessionMode').value = 'build';
+  document.getElementById('newSessionError').style.display = 'none';
+  modal.style.display = 'flex';
+  // Populate models
+  const modelSel = document.getElementById('newSessionModel');
+  modelSel.innerHTML = '<option value="">Loading models...</option>';
+  loadModels('newSessionModel', '');
+  // Populate workspaces
+  const wsSel = document.getElementById('newSessionWorkspace');
+  wsSel.innerHTML = '<option value="">Default (home)</option>';
+  fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
+    const dirs = [...new Set((data.all_sessions || []).map(s => s.directory).filter(Boolean))].sort();
+    dirs.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = d.split('/').pop() || d;
+      opt.title = d;
+      wsSel.appendChild(opt);
+    });
+  }).catch(() => {});
+}
+
+async function startNewSession() {
+  const title = document.getElementById('newSessionTitle').value.trim();
+  const message = document.getElementById('newSessionMessage').value.trim();
+  const mode = document.getElementById('newSessionMode').value;
+  const model = document.getElementById('newSessionModel').value;
+  const directory = document.getElementById('newSessionWorkspace').value;
+  const err = document.getElementById('newSessionError');
+  err.style.display = 'none';
+
+  if (!message) { err.textContent = 'Please enter instructions'; err.style.display = 'block'; return; }
+
+  const btn = document.querySelector('#newSessionModal .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting...'; }
+  try {
+    const resp = await fetch('/api/new-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, message, mode, model, directory })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      showToast('Case started', 'success');
+      document.getElementById('newSessionModal').style.display = 'none';
+      renderCasesTab();
+    } else {
+      err.textContent = data.message; err.style.display = 'block';
+    }
+  } catch (e) {
+    err.textContent = e.message; err.style.display = 'block';
+  }
+  if (btn) { btn.disabled = false; btn.textContent = 'Start Case'; }
 }
 
 async function loadModels(selectId, selected) {

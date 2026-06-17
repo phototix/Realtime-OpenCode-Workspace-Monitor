@@ -140,6 +140,39 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({'ok': False, 'message': str(e)[:200]}, 500)
 
+        elif path == '/api/new-session':
+            title = body.get('title', '')
+            message = body.get('message', '')
+            directory = body.get('directory', '')
+            model = body.get('model', '')
+            mode_val = body.get('mode', '')
+            if not message:
+                self._json({'ok': False, 'message': 'Missing message'}, 400)
+                return
+            try:
+                cwd = directory or None
+                attach = get_attach_url()
+                cmd = ['opencode', 'run', '--attach', attach]
+                if title:
+                    cmd.extend(['--title', title])
+                if model:
+                    cmd.extend(['-m', model])
+                if mode_val:
+                    cmd.extend(['--agent', mode_val])
+                if directory:
+                    cmd.extend(['--dir', directory])
+                cmd.append(message)
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, cwd=cwd)
+                if r.returncode == 0:
+                    log(f"Admin: new session started \"{title or message[:40]}\"")
+                    self._json({'ok': True, 'message': 'Session started'})
+                else:
+                    self._json({'ok': False, 'message': (r.stderr.strip()[:200] or r.stdout.strip()[:200] or 'Unknown error')[:200]}, 500)
+            except subprocess.TimeoutExpired:
+                self._json({'ok': False, 'message': 'Timeout starting session'}, 500)
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
         elif path == '/api/models':
             try:
                 # Fetch opencode models
