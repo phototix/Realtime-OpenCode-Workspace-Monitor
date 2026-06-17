@@ -1046,9 +1046,11 @@
 
       <!-- Others Panel -->
       <div class="content-panel" id="panel-others">
-        <div class="empty-state" id="emptyState" style="display:flex">
+        <div class="section-label" style="margin-bottom:8px">Standalone Processes <span class="count" id="standaloneCount"></span></div>
+        <div id="standaloneGrid" class="nodes-grid"></div>
+        <div class="empty-state" id="emptyState" style="display:none">
           <div class="icon">&#9673;</div>
-          <div class="text">No additional nodes</div>
+          <div class="text">No unassigned processes</div>
         </div>
       </div>
     </div>
@@ -1553,6 +1555,32 @@ function renderDashboard(data) {
       }
       log.appendChild(div);
     });
+  }
+
+  // ── STANDALONE (Others panel) ──
+  const standaloneGrid = document.getElementById('standaloneGrid');
+  const standaloneCount = document.getElementById('standaloneCount');
+  const emptyState = document.getElementById('emptyState');
+  const standaloneList = data.standalone || [];
+  standaloneGrid.innerHTML = '';
+  if (standaloneList.length > 0) {
+    emptyState.style.display = 'none';
+    standaloneCount.textContent = '(' + standaloneList.length + ')';
+    standaloneList.slice(0, 12).forEach(w => {
+      const card = document.createElement('div');
+      card.className = 'proc-card';
+      card.innerHTML = `
+        <div class="pc-icon">\u269B</div>
+        <div class="pc-info">
+          <div class="pc-name">${w.name || '?'}</div>
+          <div class="pc-meta">PID ${w.pid} · CPU ${w.cpu || 0}% · ${w.mem_mb || 0}MB · ${w.elapsed || '?'}</div>
+        </div>
+      `;
+      standaloneGrid.appendChild(card);
+    });
+  } else {
+    emptyState.style.display = 'flex';
+    standaloneCount.textContent = '(0)';
   }
 }
 
