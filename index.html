@@ -604,6 +604,7 @@
     min-height: 90px; }
   .rest-card:hover { border-color: var(--blue); transform: translateY(-1px); }
   .rest-card .rc-emoji { font-size: 24px; }
+  .rest-card .rc-img { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; }
   .rest-card .rc-desk { font-size: 10px; color: var(--text-dim); font-weight: 500; }
   .rest-card .rc-label { font-size: 11px; color: var(--text-dim); }
 
@@ -1472,18 +1473,19 @@ function renderDashboard(data) {
     const currentLabel = (layout.states || [layout.label])[stateIdx];
     const card = document.createElement('div');
     card.className = 'rest-card';
+    const isSleeping = idx === 0;
+    const imgName = isSleeping ? currentLabel.replace(/ /g, '-') : '';
     if (worker) {
-      const isActive = worker.sessionState === 'thinking' || worker.sessionState === 'running-tools';
       const isPlaceholder = worker.placeholder;
       card.innerHTML = `
-        <div class="rc-emoji">${layout.emoji}</div>
-        <div class="rc-desk">${isPlaceholder ? 'Staff' : (worker.name || '?')}</div>
-        <div class="rc-label">${currentLabel}${worker.virtual ? ' (virtual)' : isPlaceholder ? ' (idle)' : ''}</div>
+        ${isSleeping ? `<img src="assets/rest-room/sleeping-${imgName}.png" class="rc-img" alt="${currentLabel}">` : `<div class="rc-emoji">${layout.emoji}</div>`}
+        <div class="rc-desk">${worker.name || '?'}</div>
+        <div class="rc-label">${currentLabel}${worker.virtual ? ' (virtual)' : ''}</div>
       `;
     } else {
       card.style.opacity = '0.4';
       card.innerHTML = `
-        <div class="rc-emoji">${layout.emoji}</div>
+        ${isSleeping ? `<img src="assets/rest-room/sleeping-${imgName}.png" class="rc-img" alt="${currentLabel}" style="opacity:0.4">` : `<div class="rc-emoji">${layout.emoji}</div>`}
         <div class="rc-label" style="color:var(--text-dim)">${currentLabel}</div>
       `;
     }
