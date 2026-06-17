@@ -2234,8 +2234,8 @@ function continueSession(id) {
             <option value="">Loading models...</option>
           </select>
           <select id="mode-${escId}" style="width:130px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
-            <option value="build">Build</option>
-            <option value="plan">Plan</option>
+            <option value="build"${s.last_mode === 'plan' ? '' : ' selected'}>Build</option>
+            <option value="plan"${s.last_mode === 'plan' ? ' selected' : ''}>Plan</option>
           </select>
           <button class="btn btn-primary btn-sm" onclick="sessionInstructView('${s.id}','${dirEsc}')">Send</button>
         </div>
