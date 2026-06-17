@@ -1730,7 +1730,7 @@ async function sha256(str) {
 // ── USER MANAGEMENT ──
 const USERS_KEY = 'dashboard_users';
 const AUTH_KEY = 'dashboard_auth';
-const ADMIN_PORT = 5001;
+const ADMIN_PORT = '';
 
 function getUsers() {
   try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch { return []; }
@@ -1954,7 +1954,7 @@ async function renderSessionsTab() {
 async function stopSession(id, dir) {
   const btn = event.target; btn.disabled = true; btn.textContent = 'Stopping...';
   try {
-    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/stop-session', {
+    const resp = await fetch('/api/stop-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id, directory: dir || '' })
@@ -2084,7 +2084,7 @@ async function sessionInstructView(id, dir) {
   const btn = document.querySelector('#sessionContinueModal .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
   try {
-    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/session-instruct', {
+    const resp = await fetch('/api/session-instruct', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2122,7 +2122,7 @@ async function renderSystemTab() {
   } catch {}
 
   try {
-    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/ping');
+    const resp = await fetch('/api/ping');
     const data = await resp.json();
     document.getElementById('sysDaemonStatus').innerHTML = data.daemon_alive
       ? '<span style="color:var(--green)">● Running</span>'
@@ -2137,7 +2137,7 @@ async function restartDaemon() {
   const err = document.getElementById('sysErr');
   msg.style.display = 'none'; err.style.display = 'none';
   try {
-    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/restart-daemon', { method: 'POST' });
+    const resp = await fetch('/api/restart-daemon', { method: 'POST' });
     const data = await resp.json();
     if (data.ok) {
       msg.textContent = 'Daemon restarted successfully'; msg.style.display = 'block';
@@ -2156,7 +2156,7 @@ async function killDaemon() {
   msg.style.display = 'none'; err.style.display = 'none';
   if (!confirm('Kill the dashboard daemon? It will stop updating.')) return;
   try {
-    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/kill-daemon', { method: 'POST' });
+    const resp = await fetch('/api/kill-daemon', { method: 'POST' });
     const data = await resp.json();
     if (data.ok) {
       msg.textContent = 'Daemon killed'; msg.style.display = 'block';

@@ -17,16 +17,6 @@ log_activity "Dashboard daemon started"
 
 SCRIPT_DIR="$HOME/.opencode-dashboard"
 
-# Start admin API on port 5001 if not already running
-ADMIN_PORT=5001
-if ! lsof -i:$ADMIN_PORT >/dev/null 2>&1; then
-  python3 "$SCRIPT_DIR/admin_api.py" "$ADMIN_PORT" &
-  ADMIN_PID=$!
-  log_activity "Admin API started on port $ADMIN_PORT (PID: $ADMIN_PID)"
-else
-  ADMIN_PID=""
-fi
-
 while true; do
   python3 "$SCRIPT_DIR/poller.py"
   sleep 2
