@@ -878,14 +878,22 @@
 
   .toast {
     position: fixed; bottom: 24px; right: 24px; z-index: 2000;
-    padding: 12px 20px; border-radius: 8px;
+    padding: 12px 16px; border-radius: 8px;
     font-size: 12px; font-weight: 500;
     background: var(--surface); border: 1px solid var(--border);
     box-shadow: 0 8px 24px rgba(0,0,0,0.4);
     display: none; animation: fadeIn 0.2s ease;
+    display: none; align-items: center; gap: 12px;
+    max-width: 480px;
   }
   .toast.success { border-left: 3px solid var(--green); color: var(--green); }
   .toast.error { border-left: 3px solid var(--red); color: var(--red); }
+  .toast-close {
+    font-size: 16px; cursor: pointer; opacity: 0.5;
+    flex-shrink: 0; line-height: 1;
+    background: none; border: none; color: inherit; padding: 0;
+  }
+  .toast-close:hover { opacity: 1; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
   .stop-btn {
@@ -1822,7 +1830,7 @@ setInterval(poll, POLL_INTERVAL);
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast"><span id="toastMessage"></span><span class="toast-close" onclick="dismissToast()">&times;</span></div>
 
 <script>
 // ── SHA-256 ──
@@ -2511,10 +2519,13 @@ function escapeHtml(str) {
 // ── TOAST ──
 function showToast(message, type) {
   const t = document.getElementById('toast');
-  t.textContent = message;
+  document.getElementById('toastMessage').textContent = message;
   t.className = 'toast ' + type;
-  t.style.display = 'block';
-  setTimeout(() => { t.style.display = 'none'; }, 3000);
+  t.style.display = 'flex';
+}
+
+function dismissToast() {
+  document.getElementById('toast').style.display = 'none';
 }
 
 // Initial auth check on page load
