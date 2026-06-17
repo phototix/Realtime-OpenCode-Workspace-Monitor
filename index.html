@@ -681,6 +681,9 @@
   }
   .form-group input:focus { border-color: var(--blue); }
   .form-group input::placeholder { color: var(--text-dim); opacity: 0.5; }
+  .form-group textarea:focus { border-color: var(--blue); }
+  .form-group textarea::placeholder { color: var(--text-dim); opacity: 0.5; }
+  .form-group select { width: 100%; }
   .btn {
     padding: 10px 20px; border: none; border-radius: 8px;
     font-size: 13px; font-weight: 600; cursor: pointer;
@@ -1808,7 +1811,7 @@ setInterval(poll, POLL_INTERVAL);
   <div class="login-modal" style="width:600px;max-height:80vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
       <h2 style="font-size:18px">Case Details</h2>
-      <button class="admin-close" onclick="document.getElementById('sessionViewModal').style.display='none'">&times;</button>
+      <button class="admin-close" onclick="closeViewModal()">&times;</button>
     </div>
     <div id="sessionViewBody"></div>
   </div>
@@ -1819,7 +1822,7 @@ setInterval(poll, POLL_INTERVAL);
   <div class="login-modal" style="width:680px;max-height:85vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
       <h2 style="font-size:18px" id="continueModalTitle">Continue Case</h2>
-      <button class="admin-close" onclick="document.getElementById('sessionContinueModal').style.display='none'>&times;</button>
+      <button class="admin-close" onclick="closeContinueModal()">&times;</button>
     </div>
     <div id="continueModalBody"></div>
   </div>
@@ -1830,7 +1833,7 @@ setInterval(poll, POLL_INTERVAL);
   <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
       <h2 style="font-size:18px">+ New Case</h2>
-      <button class="admin-close" onclick="document.getElementById('newSessionModal').style.display='none'>&times;</button>
+      <button class="admin-close" onclick="closeNewSessionModal()">&times;</button>
     </div>
     <div id="newSessionModalBody">
       <div class="form-group">
@@ -2574,6 +2577,21 @@ function showToast(message, type) {
 
 function dismissToast() {
   document.getElementById('toast').style.display = 'none';
+}
+
+function closeViewModal() {
+  const el = document.getElementById('sessionViewModal') || document.querySelector('#sessionViewModal');
+  if (el) el.style.display = 'none';
+}
+
+function closeContinueModal() {
+  const el = document.getElementById('sessionContinueModal') || document.querySelector('#sessionContinueModal');
+  if (el) el.style.display = 'none';
+}
+
+function closeNewSessionModal() {
+  const el = document.getElementById('newSessionModal') || document.querySelector('#newSessionModal');
+  if (el) el.style.display = 'none';
 }
 
 // Initial auth check on page load
