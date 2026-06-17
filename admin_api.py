@@ -19,6 +19,29 @@ def log(msg):
     except:
         pass
 
+_attach_url = None
+def get_attach_url():
+    global _attach_url
+    if _attach_url:
+        return _attach_url
+    try:
+        r = subprocess.run(['lsof', '-i', '-P', '-n'], capture_output=True, text=True, timeout=5)
+        for line in r.stdout.split('\n'):
+            if 'OpenCode' in line and '(LISTEN)' in line:
+                parts = line.split()
+                for p in parts:
+                    if ':' in p and len(p.split(':')[1]) == 5:
+                        try:
+                            port = int(p.split(':')[1])
+                            _attach_url = f'http://127.0.0.1:{port}'
+                            return _attach_url
+                        except:
+                            pass
+    except:
+        pass
+    _attach_url = 'http://127.0.0.1:51384'
+    return _attach_url
+
 class AdminHandler(http.server.BaseHTTPRequestHandler):
     def _cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -99,13 +122,14 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 return
             try:
                 cwd = directory or None
-                cmd = ['opencode', 'run', '-s', sid]
+                attach = get_attach_url()
+                cmd = ['opencode', 'run', '-s', sid, '--fork', '--attach', attach]
                 if model:
                     cmd.extend(['-m', model])
                 if mode_val:
                     cmd.extend(['--agent', mode_val])
                 cmd.append(message)
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: instructed session {sid}")
                     self._json({'ok': True, 'message': 'Instruction sent'})
