@@ -709,6 +709,27 @@ except: pass
 cpu_load_pct = round(system_cpu / cpu_core_count, 1) if cpu_core_count else 0
 active_task_count = len(worker_pids) + len(standalone)
 
+# Fetch available models for admin panel
+available_models = []
+try:
+  r = subprocess.run(['opencode', 'models'], capture_output=True, text=True, timeout=15)
+  if r.returncode == 0:
+    for line in r.stdout.strip().split('\n'):
+      line = line.strip()
+      if line and '/' in line:
+        available_models.append({'id': line, 'provider': 'opencode'})
+  # Also fetch Ollama models
+  try:
+    rr = subprocess.run(['curl', '-s', '--max-time', '5', 'https://ollama.brandon.my/api/tags'], capture_output=True, text=True, timeout=10)
+    if rr.returncode == 0:
+      ollama_data = json.loads(rr.stdout)
+      for m in ollama_data.get('models', []):
+        available_models.append({'id': m['name'], 'provider': 'ollama'})
+  except:
+    pass
+except:
+  pass
+
 payload = {
   'timestamp': timestamp,
   'summary': {
@@ -735,6 +756,7 @@ payload = {
   'tree_root': tree_root,
   'sessions': sessions,
   'all_sessions': all_sessions_enriched,
+  'available_models': available_models,
   'activity_log': activities
 }
 

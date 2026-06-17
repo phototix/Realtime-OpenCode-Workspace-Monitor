@@ -2045,11 +2045,12 @@ async function loadModels(selectId, selected) {
   if (!sel) return;
   sel.innerHTML = '<option value="">Loading models...</option>';
   try {
-    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/models');
+    const resp = await fetch('data/status.json?_=' + Date.now());
     const data = await resp.json();
-    if (!data.ok || !data.models) { sel.innerHTML = '<option value="">No models available</option>'; return; }
+    const models = data.available_models || [];
+    if (models.length === 0) { sel.innerHTML = '<option value="">No models available</option>'; return; }
     const grouped = {};
-    data.models.forEach(m => {
+    models.forEach(m => {
       if (!grouped[m.provider]) grouped[m.provider] = [];
       grouped[m.provider].push(m.id);
     });
@@ -2063,7 +2064,7 @@ async function loadModels(selectId, selected) {
       html += '</optgroup>';
     }
     sel.innerHTML = html;
-  } catch {
+  } catch (e) {
     sel.innerHTML = '<option value="">Failed to load models</option>';
   }
 }
