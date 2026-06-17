@@ -129,7 +129,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 if mode_val:
                     cmd.extend(['--agent', mode_val])
                 cmd.append(message)
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, cwd=cwd)
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: instructed session {sid}")
                     self._json({'ok': True, 'message': 'Instruction sent'})
@@ -162,7 +162,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 if directory:
                     cmd.extend(['--dir', directory])
                 cmd.append(message)
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, cwd=cwd)
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: new session started \"{title or message[:40]}\"")
                     self._json({'ok': True, 'message': 'Session started'})
