@@ -227,6 +227,98 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({'ok': False, 'message': str(e)[:200]}, 500)
 
+        elif path == '/api/providers':
+            providers = []
+            ollama_list = []
+            try:
+                auth_file = os.path.expanduser('~/.local/share/opencode/auth.json')
+                if os.path.exists(auth_file):
+                    with open(auth_file) as f:
+                        auth_data = json.load(f)
+                    for name, info in auth_data.items():
+                        providers.append({'name': name, 'type': info.get('type', 'unknown'), 'status': 'active'})
+                ollama_config = os.path.join(DATA_DIR, 'ollama_config.json')
+                if os.path.exists(ollama_config):
+                    with open(ollama_config) as f:
+                        ollama_list = json.load(f)
+                else:
+                    ollama_list = [{'url': 'https://ollama.brandon.my'}]
+                for o in ollama_list:
+                    try:
+                        rr = subprocess.run(['curl', '-s', '--max-time', '3', o['url'] + '/api/tags'],
+                            capture_output=True, text=True, timeout=5)
+                        if rr.returncode == 0:
+                            o_data = json.loads(rr.stdout)
+                            o['status'] = 'online'
+                            o['models'] = len(o_data.get('models', []))
+                        else:
+                            o['status'] = 'offline'
+                            o['models'] = 0
+                    except:
+                        o['status'] = 'offline'
+                        o['models'] = 0
+                self._json({'ok': True, 'providers': providers, 'ollama': ollama_list})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
+        elif path == '/api/provider-logout':
+            name = body.get('provider', '')
+            if not name:
+                self._json({'ok': False, 'message': 'Missing provider name'}, 400)
+                return
+            try:
+                r = subprocess.run(['opencode', 'providers', 'logout', name], capture_output=True, text=True, timeout=15)
+                log(f"Admin: logged out from {name}")
+                self._json({'ok': True, 'message': 'Logged out'})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
+        elif path == '/api/provider-login':
+            url = body.get('url', '')
+            try:
+                cmd = ['opencode', 'providers', 'login']
+                if url:
+                    cmd.append(url)
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+                log("Admin: provider login initiated")
+                self._json({'ok': True, 'message': 'Login initiated', 'instruction': 'A browser window may have opened to complete login. If not, check the terminal.'})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
+        elif path == '/api/ollama-add':
+            url = body.get('url', '').strip()
+            if not url:
+                self._json({'ok': False, 'message': 'Missing URL'}, 400)
+                return
+            ollama_config = os.path.join(DATA_DIR, 'ollama_config.json')
+            existing = []
+            if os.path.exists(ollama_config):
+                with open(ollama_config) as f:
+                    existing = json.load(f)
+            if any(o['url'] == url for o in existing):
+                self._json({'ok': False, 'message': 'URL already added'}, 400)
+                return
+            existing.append({'url': url})
+            with open(ollama_config, 'w') as f:
+                json.dump(existing, f, indent=2)
+            log(f"Admin: added Ollama URL {url}")
+            self._json({'ok': True, 'message': 'Ollama URL added'})
+
+        elif path == '/api/ollama-remove':
+            url = body.get('url', '').strip()
+            if not url:
+                self._json({'ok': False, 'message': 'Missing URL'}, 400)
+                return
+            ollama_config = os.path.join(DATA_DIR, 'ollama_config.json')
+            if os.path.exists(ollama_config):
+                with open(ollama_config) as f:
+                    existing = json.load(f)
+                existing = [o for o in existing if o['url'] != url]
+                with open(ollama_config, 'w') as f:
+                    json.dump(existing, f, indent=2)
+            log(f"Admin: removed Ollama URL {url}")
+            self._json({'ok': True, 'message': 'Ollama URL removed'})
+
         elif path == '/api/ping':
             daemon_alive = False
             if os.path.exists(PID_FILE):
@@ -245,7 +337,9 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
-        if path == '/api/models':
+        if path == '/api/providers':
+            self.do_POST()
+        elif path == '/api/models':
             self.do_POST()
         elif path == '/api/ping':
             self.do_POST()
