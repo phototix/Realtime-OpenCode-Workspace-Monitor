@@ -405,6 +405,24 @@ if needs_refresh and not export_running:
       elif p.get('type') == 'tool' and not tool_name:
         tool_name = p.get('name') or p.get('tool') or ''
 
+    # Extract pending questions from question tool
+    pending_questions = []
+    if tool_name == 'question':
+      for p in reversed(last_parts):
+        if p.get('type') == 'tool' and (p.get('name') or p.get('tool')) == 'question':
+          inp = p.get('state', {}).get('input', {})
+          questions = inp.get('questions', [])
+          metadata = p.get('state', {}).get('metadata', {})
+          already_answered = bool(metadata.get('answers'))
+          for q in questions:
+            pending_questions.append({
+              'header': q.get('header', ''),
+              'question': q.get('question', ''),
+              'options': [{'label': o.get('label', ''), 'description': o.get('description', '')} for o in q.get('options', [])],
+              'answered': already_answered
+            })
+          break
+
     # Extract last user prompt
     last_user_prompt = ''
     for m in reversed(msgs):
@@ -442,7 +460,8 @@ if needs_refresh and not export_running:
       'cost': cost,
       'files_changed': files_changed,
       'agent_type': agent_type,
-      'model_id': model_id
+      'model_id': model_id,
+      'pending_questions': pending_questions
     }
   except Exception as e:
     pass
@@ -470,6 +489,7 @@ for s in sessions:
   s['files_changed'] = cached.get('files_changed', 0)
   s['agent_type'] = cached.get('agent_type', '')
   s['model_id'] = cached.get('model_id', '')
+  s['pending_questions'] = cached.get('pending_questions', [])
 
 # Enrich all_sessions with cache for admin panel (include every session, all states)
 known_sids = {s['id'] for s in sessions}
@@ -495,6 +515,7 @@ for s in all_sessions:
     'files_changed': cached.get('files_changed', 0),
     'agent_type': cached.get('agent_type', ''),
     'model_id': cached.get('model_id', ''),
+    'pending_questions': cached.get('pending_questions', []),
     'active': sid in known_sids,
   }
   all_sessions_enriched.append(enriched)

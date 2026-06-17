@@ -929,6 +929,14 @@
   }
   .view-btn:hover { background: var(--blue); color: #fff; }
 
+  .question-btn {
+    font-size: 10px; padding: 3px 10px; border: none; border-radius: 4px;
+    cursor: pointer; font-weight: 600; transition: all 0.2s;
+    background: #d2992233; color: var(--yellow);
+  }
+  .question-btn:hover { background: var(--yellow); color: #000; }
+  .question-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
   .send-btn {
     font-size: 10px; padding: 3px 10px; border: none; border-radius: 4px;
     cursor: pointer; font-weight: 500; transition: all 0.2s;
@@ -1829,6 +1837,17 @@ setInterval(poll, POLL_INTERVAL);
   </div>
 </div>
 
+<!-- Session Question Response Modal -->
+<div class="modal-overlay" id="questionModal" style="display:none">
+  <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:18px">❓ Pending Questions</h2>
+      <button class="admin-close" onclick="closeQuestionModal()">&times;</button>
+    </div>
+    <div id="questionModalBody"></div>
+  </div>
+</div>
+
 <!-- New Session Modal -->
 <div class="modal-overlay" id="newSessionModal" style="display:none">
   <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
@@ -2092,9 +2111,10 @@ async function renderCasesTab() {
           '<td>' + ((s.tokens||0).toLocaleString()) + '</td>' +
           '<td style="font-size:10px;color:var(--text-dim)">' + agoStr + '</td>' +
           '<td style="white-space:nowrap">' +
+            questionBadge(s) +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\')">Stop</button>' : '') +
-            (s.state === 'complete' ? ' <button class="send-btn" data-sid="' + s.id + '" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
+            (s.state === 'complete' ? ' <button class="send-btn" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
           '</td>' +
         '</tr>';
       });
@@ -2348,6 +2368,97 @@ async function sessionInstructView(id, dir) {
     showToast('Error: ' + e.message, 'error');
   }
   renderCasesTab();
+}
+
+// ── QUESTION RESPONSE ──
+function questionBadge(s) {
+  const pq = s.pending_questions || [];
+  const unanswered = pq.filter(function(q){ return !q.answered; });
+  if (unanswered.length === 0) return '';
+  return '<button class="question-btn" onclick="showQuestions(\'' + s.id + '\')">\u2753 ' + unanswered.length + '</button> ';
+}
+
+function showQuestions(id) {
+  fetch('data/status.json?_=' + Date.now()).then(function(r){ return r.json(); }).then(function(data) {
+    var s = (data.all_sessions || data.sessions || []).find(function(x){ return x.id === id; });
+    var body = document.getElementById('questionModalBody');
+    var modal = document.getElementById('questionModal');
+    if (!s || !s.pending_questions || s.pending_questions.length === 0) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No pending questions</div>';
+      modal.style.display = 'flex';
+      return;
+    }
+    var selected = {};
+    var html = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:16px">' + (s.title || '?') + '</div>';
+    s.pending_questions.forEach(function(q, qi) {
+      if (q.answered) return;
+      html += '<div class="admin-card" style="margin-bottom:12px">';
+      if (s.pending_questions.length > 1) html += '<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">Question ' + (qi+1) + ' of ' + s.pending_questions.length + '</div>';
+      if (q.header) html += '<div style="font-size:11px;color:var(--yellow);font-weight:600;margin-bottom:4px">' + escapeHtml(q.header) + '</div>';
+      html += '<div style="font-size:13px;color:var(--text);margin-bottom:12px">' + escapeHtml(q.question) + '</div>';
+      q.options.forEach(function(o, oi) {
+        var optId = 'qopt-' + id.replace(/[^a-zA-Z0-9]/g,'_') + '-' + qi + '-' + oi;
+        html += '<div style="display:flex;align-items:flex-start;gap:10px;padding:8px 10px;margin-bottom:6px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer" onclick="selectQuestionOption(\'' + id + '\',' + qi + ',' + oi + ')">' +
+          '<input type="radio" name="q-' + qi + '" id="' + optId + '" style="margin-top:2px;accent-color:var(--blue)">' +
+          '<div><div style="font-size:12px;font-weight:500;color:var(--text)">' + escapeHtml(o.label) + '</div>' +
+          (o.description ? '<div style="font-size:10px;color:var(--text-dim);margin-top:2px">' + escapeHtml(o.description) + '</div>' : '') + '</div></div>';
+      });
+      html += '</div>';
+    });
+    html += '<div style="display:flex;gap:8px;margin-top:8px">' +
+      '<button class="btn btn-primary btn-sm" onclick="sendAnswers(\'' + id + '\')" id="sendAnswersBtn">Send Answers</button>' +
+      '<button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="closeQuestionModal()">Cancel</button>' +
+    '</div>';
+    body.innerHTML = html;
+    modal.style.display = 'flex';
+  });
+}
+
+function selectQuestionOption(id, qi, oi) {
+  var prefix = 'qopt-' + id.replace(/[^a-zA-Z0-9]/g,'_') + '-' + qi + '-';
+  var radio = document.getElementById(prefix + oi);
+  if (radio) radio.checked = true;
+}
+
+function sendAnswers(id) {
+  fetch('data/status.json?_=' + Date.now()).then(function(r){ return r.json(); }).then(function(data) {
+    var s = (data.all_sessions || data.sessions || []).find(function(x){ return x.id === id; });
+    if (!s || !s.pending_questions) return;
+    var answers = [];
+    s.pending_questions.forEach(function(q, qi) {
+      if (q.answered) return;
+      var radios = document.querySelectorAll('input[name="q-' + qi + '"]:checked');
+      radios.forEach(function(r) {
+        var idx = parseInt(r.id.split('-').pop());
+        if (q.options[idx]) answers.push(q.options[idx].label);
+      });
+    });
+    if (answers.length === 0) { showToast('Please select an option for each question', 'error'); return; }
+
+    var btn = document.getElementById('sendAnswersBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+    fetch('/api/session-answer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: id, answers: answers, directory: s.directory || '' })
+    }).then(function(r){ return r.json(); }).then(function(data) {
+      if (data.ok) {
+        showToast('Answers sent', 'success');
+        closeQuestionModal();
+        renderCasesTab();
+      } else {
+        showToast('Error: ' + data.message, 'error');
+        if (btn) { btn.disabled = false; btn.textContent = 'Send Answers'; }
+      }
+    }).catch(function(e) {
+      showToast('Error: ' + e.message, 'error');
+      if (btn) { btn.disabled = false; btn.textContent = 'Send Answers'; }
+    });
+  });
+}
+
+function closeQuestionModal() {
+  document.getElementById('questionModal').style.display = 'none';
 }
 
 // ── SYSTEM TAB ──

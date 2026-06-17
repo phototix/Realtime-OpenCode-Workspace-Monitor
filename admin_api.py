@@ -173,6 +173,28 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({'ok': False, 'message': str(e)[:200]}, 500)
 
+        elif path == '/api/session-answer':
+            sid = body.get('id', '')
+            answers = body.get('answers', [])
+            if not sid or not answers:
+                self._json({'ok': False, 'message': 'Missing session id or answers'}, 400)
+                return
+            try:
+                cwd = body.get('directory') or None
+                attach = get_attach_url()
+                answer_text = 'I choose: ' + '; '.join(str(a) for a in answers)
+                cmd = ['opencode', 'run', '-s', sid, '--attach', attach, answer_text]
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, cwd=cwd)
+                if r.returncode == 0:
+                    log(f"Admin: answered session {sid}")
+                    self._json({'ok': True, 'message': 'Answer sent'})
+                else:
+                    self._json({'ok': False, 'message': (r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]}, 500)
+            except subprocess.TimeoutExpired:
+                self._json({'ok': False, 'message': 'Timeout sending answer'}, 500)
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
         elif path == '/api/models':
             try:
                 # Fetch opencode models
