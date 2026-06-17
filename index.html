@@ -2182,9 +2182,9 @@ function continueSession(id) {
     const escId = s.id.replace(/[^a-zA-Z0-9]/g,'_');
     const dirEsc = (s.directory || '').replace(/'/g,"\\'");
     body.innerHTML = `
-      ${s.last_user_prompt ? `<div class="admin-card"><h4>Last User Prompt</h4><div style="font-size:11px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word">${escapeHtml(s.last_user_prompt)}</div></div>` : ''}
+      ${s.last_user_prompt ? `<div class="admin-card"><h4 style="display:flex;align-items:center;gap:8px">Last User Prompt${s.last_mode ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;font-weight:500;background:${s.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33'};color:${s.last_mode === 'plan' ? '#bc8cff' : '#58a6ff'}">${s.last_mode}</span>` : ''}</h4><div style="font-size:11px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word">${escapeHtml(s.last_user_prompt)}</div></div>` : ''}
       <div class="admin-card">
-        ${s.last_text ? `<h4>Last Response</h4><div style="font-size:11px;color:var(--text-dim);line-height:1.5;white-space:pre-wrap;word-break:break-word;margin-bottom:16px">${escapeHtml(s.last_text)}</div><hr style="border:none;border-top:1px solid var(--border);margin:12px 0">` : ''}
+        ${s.last_text ? `<h4 style="display:flex;align-items:center;gap:8px">Last Response${s.last_mode ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;font-weight:500;background:${s.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33'};color:${s.last_mode === 'plan' ? '#bc8cff' : '#58a6ff'}">${s.last_mode}</span>` : ''}</h4><div style="font-size:11px;color:var(--text-dim);line-height:1.5;white-space:pre-wrap;word-break:break-word;margin-bottom:16px">${escapeHtml(s.last_text)}</div><hr style="border:none;border-top:1px solid var(--border);margin:12px 0">` : ''}
         <h4>New Instruction</h4>
         <textarea id="instruct-${escId}" placeholder="Enter your instruction to continue this case..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:80px;font-family:inherit" onkeydown="if(event.key==='Enter'&&event.shiftKey)event.preventDefault()"></textarea>
         <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
