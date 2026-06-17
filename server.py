@@ -173,7 +173,22 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 cwd = directory or None
                 attach = get_attach_url()
-                cmd = ['opencode', 'run', '--attach', attach]
+                # Find a completed session to fork from
+                status_file = os.path.join(DATA_DIR, 'status.json')
+                fork_sid = None
+                if os.path.exists(status_file):
+                    try:
+                        with open(status_file) as f:
+                            sd = json.load(f)
+                        for s in sd.get('all_sessions', []):
+                            if s.get('state') == 'complete':
+                                fork_sid = s['id']
+                                break
+                    except:
+                        pass
+                cmd = ['opencode', 'run']
+                if fork_sid:
+                    cmd.extend(['-s', fork_sid, '--fork', '--attach', attach])
                 if title:
                     cmd.extend(['--title', title])
                 if model:
@@ -183,7 +198,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 if directory:
                     cmd.extend(['--dir', directory])
                 cmd.append(message)
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: new session started \"{title or message[:40]}\"")
                     self._json({'ok': True, 'message': 'Session started'})
