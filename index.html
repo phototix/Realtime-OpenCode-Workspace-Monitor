@@ -1498,6 +1498,7 @@ function renderDashboard(data) {
 
     const card = document.createElement('div');
     card.className = 'session-card state-' + (ss.state || '');
+    card.dataset.sid = ss.id;
     card.innerHTML = `
       <div class="sc-header">
         <div class="sc-icon ${ss.state || ''}">${state.icon}</div>
@@ -2093,7 +2094,7 @@ async function renderCasesTab() {
           '<td style="white-space:nowrap">' +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\')">Stop</button>' : '') +
-            (s.state === 'complete' ? ' <button class="send-btn" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
+            (s.state === 'complete' ? ' <button class="send-btn" data-sid="' + s.id + '" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
           '</td>' +
         '</tr>';
       });
@@ -2245,8 +2246,10 @@ async function startNewSession() {
 
   if (!message) { err.textContent = 'Please enter instructions'; err.style.display = 'block'; return; }
 
-  const btn = document.querySelector('#newSessionModal .btn-primary');
-  if (btn) { btn.disabled = true; btn.textContent = 'Starting...'; }
+  // Close modal immediately
+  closeNewSessionModal();
+  showToast('Starting new case...', 'success');
+
   try {
     const resp = await fetch('/api/new-session', {
       method: 'POST',
@@ -2254,17 +2257,12 @@ async function startNewSession() {
       body: JSON.stringify({ title, message, mode, model, directory })
     });
     const data = await resp.json();
-    if (data.ok) {
-      showToast('Case started', 'success');
-      document.getElementById('newSessionModal').style.display = 'none';
-      renderCasesTab();
-    } else {
-      err.textContent = data.message; err.style.display = 'block';
+    if (!data.ok) {
+      showToast('Error: ' + data.message, 'error');
     }
   } catch (e) {
-    err.textContent = e.message; err.style.display = 'block';
+    showToast('Error: ' + e.message, 'error');
   }
-  if (btn) { btn.disabled = false; btn.textContent = 'Start Case'; }
 }
 
 async function loadModels(selectId, selected) {
@@ -2304,8 +2302,22 @@ async function sessionInstructView(id, dir) {
   const message = input ? input.value.trim() : '';
   if (!message) { showToast('Please enter an instruction', 'error'); return; }
 
-  const btn = document.querySelector('#sessionContinueModal .btn-primary');
-  if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
+  // Close modal immediately
+  closeContinueModal();
+
+  // Update session card in main dashboard to "Sending..."
+  const card = document.querySelector('.session-card[data-sid="' + CSS.escape(id) + '"]');
+  if (card) {
+    const badge = card.querySelector('.sc-state-badge');
+    if (badge) { badge.textContent = 'Sending...'; badge.style.color = 'var(--yellow)'; badge.style.background = '#d2992233'; }
+    const dot = card.querySelector('.sc-status-dot');
+    if (dot) { dot.style.background = 'var(--yellow)'; }
+  }
+
+  // Update admin table Continue button to "Sending..."
+  const adminBtn = document.querySelector('.send-btn[data-sid="' + CSS.escape(id) + '"]');
+  if (adminBtn) { adminBtn.textContent = 'Sending...'; adminBtn.disabled = true; }
+
   try {
     const resp = await fetch('/api/session-instruct', {
       method: 'POST',
@@ -2321,15 +2333,21 @@ async function sessionInstructView(id, dir) {
     if (data.ok) {
       showToast('Instruction sent \u2014 case continued', 'success');
       if (input) input.value = '';
-      document.getElementById('sessionContinueModal').style.display = 'none';
-      renderCasesTab();
     } else {
+      // Revert UI on error
+      if (card) {
+        const badge = card.querySelector('.sc-state-badge');
+        if (badge) { badge.textContent = 'Complete'; badge.style.color = 'var(--green)'; badge.style.background = '#3fb95033'; }
+        const dot = card.querySelector('.sc-status-dot');
+        if (dot) { dot.style.background = 'var(--green)'; }
+      }
+      if (adminBtn) { adminBtn.textContent = 'Continue'; adminBtn.disabled = false; }
       showToast('Error: ' + data.message, 'error');
     }
   } catch (e) {
     showToast('Error: ' + e.message, 'error');
   }
-  if (btn) { btn.disabled = false; btn.textContent = 'Send'; }
+  renderCasesTab();
 }
 
 // ── SYSTEM TAB ──
