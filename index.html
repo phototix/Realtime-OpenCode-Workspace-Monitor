@@ -1915,7 +1915,7 @@ async function renderSessionsTab() {
       group.forEach(s => {
         const agoStr = humanAgo(s.updated);
         const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
-        const isActive = s.state === 'thinking' || s.state === 'running-tools' || s.state === '';
+        const isActive = s.state === 'thinking' || s.state === 'running-tools';
         const jsonDir = (s.directory || '').replace(/'/g,"\\'");
         const escId = s.id.replace(/[^a-zA-Z0-9]/g,'_');
         html += '<tr>' +
