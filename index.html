@@ -1052,6 +1052,24 @@ function formatTime(isoStr) {
   return d.toLocaleTimeString();
 }
 
+function humanAgo(ts) {
+  if (!ts) return '—';
+  const ms = Date.now() - ts;
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return sec + 's ago';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return min + 'm ago';
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return hr + 'h ago';
+  const day = Math.floor(hr / 24);
+  if (day < 7) return day + 'd ago';
+  const wk = Math.floor(day / 7);
+  if (wk < 5) return wk + 'w ago';
+  const mo = Math.floor(day / 30);
+  if (mo < 12) return mo + 'mo ago';
+  return Math.floor(day / 365) + 'y ago';
+}
+
 function renderDashboard(data) {
   if (!data) return;
 
@@ -1239,8 +1257,7 @@ function renderDashboard(data) {
     if (isOccupied) {
       isActive = worker.sessionState === 'thinking' || worker.sessionState === 'running-tools';
       stateStyle = STATE_STYLE[worker.sessionState] || STATE_STYLE[''];
-      const ago = worker.sessionUpdated ? Math.floor((Date.now() - worker.sessionUpdated) / 60000) : '?';
-      agoStr = ago === 0 ? '<1m' : ago + 'm';
+      agoStr = humanAgo(worker.sessionUpdated);
       sessionLabel = worker.sessionTitle || '(standalone)';
       isVirt = worker.virtual;
     }
@@ -1381,8 +1398,7 @@ function renderDashboard(data) {
 
   sessions.forEach(ss => {
     const state = STATE_STYLE[ss.state] || STATE_STYLE[''];
-    const ago = ss.updated ? Math.floor((Date.now() - ss.updated) / 60000) : '?';
-    const agoStr = ago === 0 ? '<1m' : ago + 'm';
+    const agoStr = humanAgo(ss.updated);
     const scId = 'sc-' + ss.id.replace(/[^a-zA-Z0-9]/g, '');
     const previewId = 'prev-' + ss.id.replace(/[^a-zA-Z0-9]/g, '');
     const agents = ss.agents || [];
@@ -1459,8 +1475,7 @@ function renderDashboard(data) {
       const div = document.createElement('div');
       div.style.cssText = 'font-size:11px;padding:6px 0;border-bottom:1px solid rgba(48,54,61,0.3)';
 
-      const ago = ss.updated ? Math.floor((Date.now() - ss.updated) / 60000) : '?';
-      const agoStr = ago === 0 ? '<1m' : ago + 'm';
+      const agoStr = humanAgo(ss.updated);
 
       const state = STATE_STYLE[ss.state] || STATE_STYLE[''];
       const slug = ss.slug ? ` · ${ss.slug}` : '';
@@ -1898,8 +1913,7 @@ async function renderSessionsTab() {
 
       html += '<table class="admin-table"><colgroup><col style="width:25%"><col style="width:10%"><col style="width:15%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:20%"></colgroup><thead><tr><th>Title</th><th>State</th><th>Model</th><th>Cost</th><th>Tokens</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
       group.forEach(s => {
-        const ago = s.updated ? Math.floor((Date.now() - s.updated) / 60000) : '?';
-        const agoStr = ago === 0 ? '<1m' : ago + 'm ago';
+        const agoStr = humanAgo(s.updated);
         const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
         const isActive = s.state === 'thinking' || s.state === 'running-tools' || s.state === '';
         const jsonDir = (s.directory || '').replace(/'/g,"\\'");
@@ -1962,8 +1976,7 @@ function viewSession(id) {
     }
     titleEl.textContent = s.title || 'Session Details';
     const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
-    const ago = s.updated ? Math.floor((Date.now() - s.updated) / 60000) : '?';
-    const agoStr = ago === 0 ? '<1m' : ago + 'm ago';
+    const agoStr = humanAgo(s.updated);
     body.innerHTML = `
       <div class="admin-card" style="margin-bottom:12px">
         <div class="row"><span class="label">State</span><span class="value" style="color:${stateColor}">${s.state || 'active'}</span></div>
