@@ -92,15 +92,17 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
             sid = body.get('id', '')
             message = body.get('message', '')
             directory = body.get('directory', '')
+            model = body.get('model', '')
             if not sid or not message:
                 self._json({'ok': False, 'message': 'Missing session id or message'}, 400)
                 return
             try:
                 cwd = directory or None
-                r = subprocess.run(
-                    ['opencode', 'run', '-s', sid, message],
-                    capture_output=True, text=True, timeout=60, cwd=cwd
-                )
+                cmd = ['opencode', 'run', '-s', sid]
+                if model:
+                    cmd.extend(['-m', model])
+                cmd.append(message)
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: instructed session {sid}")
                     self._json({'ok': True, 'message': 'Instruction sent'})
@@ -108,6 +110,35 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                     self._json({'ok': False, 'message': r.stderr.strip()[:200] or 'Unknown error'}, 500)
             except subprocess.TimeoutExpired:
                 self._json({'ok': False, 'message': 'Timeout sending instruction'}, 500)
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
+        elif path == '/api/models':
+            try:
+                # Fetch opencode models
+                r = subprocess.run(['opencode', 'models'], capture_output=True, text=True, timeout=15)
+                opencode_models = []
+                if r.returncode == 0:
+                    for line in r.stdout.strip().split('\n'):
+                        line = line.strip()
+                        if line and '/' in line:
+                            opencode_models.append({'id': line, 'provider': 'opencode'})
+
+                # Fetch Ollama models
+                ollama_models = []
+                try:
+                    rr = subprocess.run(
+                        ['curl', '-s', '--max-time', '5', 'https://ollama.brandon.my/api/tags'],
+                        capture_output=True, text=True, timeout=10
+                    )
+                    if rr.returncode == 0:
+                        ollama_data = json.loads(rr.stdout)
+                        for m in ollama_data.get('models', []):
+                            ollama_models.append({'id': m['name'], 'provider': 'ollama'})
+                except:
+                    pass
+
+                self._json({'ok': True, 'models': opencode_models + ollama_models})
             except Exception as e:
                 self._json({'ok': False, 'message': str(e)[:200]}, 500)
 
@@ -129,7 +160,9 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
-        if path == '/api/ping':
+        if path == '/api/models':
+            self.do_POST()
+        elif path == '/api/ping':
             self.do_POST()
         else:
             self._json({'ok': False, 'message': 'Not found'}, 404)

@@ -1600,14 +1600,25 @@ setInterval(poll, POLL_INTERVAL);
         <div id="sessionsTabContent"><div style="font-size:12px;color:var(--text-dim)">Loading sessions...</div></div>
       </div>
 
-      <!-- Session View Modal -->
+      <!-- Session View Modal (metadata only) -->
       <div class="modal-overlay" id="sessionViewModal" style="display:none">
         <div class="login-modal" style="width:600px;max-height:80vh;overflow-y:auto">
           <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-            <h2 style="font-size:18px" id="sessionViewTitle">Session Details</h2>
-            <button class="admin-close" onclick="closeSessionView()">&times;</button>
+            <h2 style="font-size:18px">Session Details</h2>
+            <button class="admin-close" onclick="document.getElementById('sessionViewModal').style.display='none'">&times;</button>
           </div>
           <div id="sessionViewBody"></div>
+        </div>
+      </div>
+
+      <!-- Session Continue Modal -->
+      <div class="modal-overlay" id="sessionContinueModal" style="display:none">
+        <div class="login-modal" style="width:680px;max-height:85vh;overflow-y:auto">
+          <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+            <h2 style="font-size:18px" id="continueModalTitle">Continue Session</h2>
+            <button class="admin-close" onclick="document.getElementById('sessionContinueModal').style.display='none'">&times;</button>
+          </div>
+          <div id="continueModalBody"></div>
         </div>
       </div>
 
@@ -1928,7 +1939,7 @@ async function renderSessionsTab() {
           '<td style="white-space:nowrap">' +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\')">Stop</button>' : '') +
-            (s.state === 'complete' ? ' <button class="send-btn" onclick="viewSession(\'' + s.id + '\')">Continue</button>' : '') +
+            (s.state === 'complete' ? ' <button class="send-btn" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
           '</td>' +
         '</tr>';
       });
@@ -1965,8 +1976,6 @@ async function stopSession(id, dir) {
 function viewSession(id) {
   const modal = document.getElementById('sessionViewModal');
   const body = document.getElementById('sessionViewBody');
-  const titleEl = document.getElementById('sessionViewTitle');
-  // Find session from latest status.json data
   fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
     const s = (data.all_sessions || data.sessions || []).find(x => x.id === id);
     if (!s) {
@@ -1974,33 +1983,18 @@ function viewSession(id) {
       modal.style.display = 'flex';
       return;
     }
-    titleEl.textContent = s.title || 'Session Details';
     const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
-    const agoStr = humanAgo(s.updated);
     body.innerHTML = `
-      <div class="admin-card" style="margin-bottom:12px">
+      <div class="admin-card">
         <div class="row"><span class="label">State</span><span class="value" style="color:${stateColor}">${s.state || 'active'}</span></div>
         <div class="row"><span class="label">Slug</span><span class="value">${s.slug || '—'}</span></div>
         <div class="row"><span class="label">Model</span><span class="value">${s.model_id || '—'}</span></div>
         <div class="row"><span class="label">Cost</span><span class="value">$${(s.cost||0).toFixed(4)}</span></div>
         <div class="row"><span class="label">Tokens</span><span class="value">${(s.tokens||0).toLocaleString()}</span></div>
-        <div class="row"><span class="label">Updated</span><span class="value">${agoStr}</span></div>
+        <div class="row"><span class="label">Updated</span><span class="value">${humanAgo(s.updated)}</span></div>
         <div class="row"><span class="label">Directory</span><span class="value" style="font-size:10px">${s.directory || '—'}</span></div>
         ${s.last_mode ? `<div class="row"><span class="label">Last Mode</span><span class="value">${s.last_mode}</span></div>` : ''}
       </div>
-      ${s.last_user_prompt ? `<div class="admin-card"><h4>Last User Prompt</h4><div style="font-size:11px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word">${escapeHtml(s.last_user_prompt)}</div></div>` : ''}
-      ${s.last_text ? `<div class="admin-card"><h4>Last Response</h4><div style="font-size:11px;color:var(--text-dim);line-height:1.5;white-space:pre-wrap;word-break:break-word">${escapeHtml(s.last_text)}</div></div>` : ''}
-      ${!s.last_user_prompt && !s.last_text ? '<div style="font-size:12px;color:var(--text-dim)">No details available for this session</div>' : ''}
-      ${s.state === 'complete' ? `
-        <div class="admin-card">
-          <h4>Continue Session</h4>
-          <div style="display:flex;gap:8px;align-items:center">
-            <input type="text" id="instruct-${s.id.replace(/[^a-zA-Z0-9]/g,'_')}" placeholder="Enter new instruction..." style="flex:1;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none" onkeydown="if(event.key==='Enter')sessionInstructView('${s.id}','${(s.directory||'').replace(/'/g,"\\'")}')">
-            <button class="btn btn-primary btn-sm" onclick="sessionInstructView('${s.id}','${(s.directory||'').replace(/'/g,"\\'")}')">Send</button>
-          </div>
-          <div style="font-size:10px;color:var(--text-dim);margin-top:6px">Sends a new instruction to continue this session</div>
-        </div>
-      ` : ''}
     `;
     modal.style.display = 'flex';
   }).catch(() => {
@@ -2009,29 +2003,91 @@ function viewSession(id) {
   });
 }
 
-function closeSessionView() {
-  document.getElementById('sessionViewModal').style.display = 'none';
+function continueSession(id) {
+  const modal = document.getElementById('sessionContinueModal');
+  const body = document.getElementById('continueModalBody');
+  const titleEl = document.getElementById('continueModalTitle');
+  fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
+    const s = (data.all_sessions || data.sessions || []).find(x => x.id === id);
+    if (!s) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--red)">Session not found</div>';
+      modal.style.display = 'flex';
+      return;
+    }
+    titleEl.textContent = 'Continue Session \u2014 ' + (s.title || '?');
+    const escId = s.id.replace(/[^a-zA-Z0-9]/g,'_');
+    const dirEsc = (s.directory || '').replace(/'/g,"\\'");
+    body.innerHTML = `
+      ${s.last_user_prompt ? `<div class="admin-card"><h4>Last User Prompt</h4><div style="font-size:11px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:120px;overflow-y:auto">${escapeHtml(s.last_user_prompt)}</div></div>` : ''}
+      <div class="admin-card">
+        ${s.last_text ? `<h4>Last Response</h4><div style="font-size:11px;color:var(--text-dim);line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow-y:auto;margin-bottom:16px">${escapeHtml(s.last_text)}</div><hr style="border:none;border-top:1px solid var(--border);margin:12px 0">` : ''}
+        <h4>New Instruction</h4>
+        <textarea id="instruct-${escId}" placeholder="Enter your instruction to continue this session..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:80px;font-family:inherit" onkeydown="if(event.key==='Enter'&&event.shiftKey)event.preventDefault()"></textarea>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+          <select id="model-${escId}" style="flex:1;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+            <option value="">Loading models...</option>
+          </select>
+          <button class="btn btn-primary btn-sm" onclick="sessionInstructView('${s.id}','${dirEsc}')">Send</button>
+        </div>
+        <div style="font-size:10px;color:var(--text-dim);margin-top:6px">Press Send to continue this session with the instruction above</div>
+      </div>
+    `;
+    modal.style.display = 'flex';
+    loadModels('model-' + escId, s.model_id || '');
+  }).catch(() => {
+    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load session data</div>';
+    modal.style.display = 'flex';
+  });
+}
+
+async function loadModels(selectId, selected) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  sel.innerHTML = '<option value="">Loading models...</option>';
+  try {
+    const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/models');
+    const data = await resp.json();
+    if (!data.ok || !data.models) { sel.innerHTML = '<option value="">No models available</option>'; return; }
+    const grouped = {};
+    data.models.forEach(m => {
+      if (!grouped[m.provider]) grouped[m.provider] = [];
+      grouped[m.provider].push(m.id);
+    });
+    let html = '<option value="">Default model</option>';
+    for (const [provider, ids] of Object.entries(grouped)) {
+      html += '<optgroup label="' + provider + '">';
+      ids.forEach(id => {
+        const selAttr = id === selected ? ' selected' : '';
+        html += '<option value="' + id.replace(/"/g,'&quot;') + '"' + selAttr + '>' + id + '</option>';
+      });
+      html += '</optgroup>';
+    }
+    sel.innerHTML = html;
+  } catch {
+    sel.innerHTML = '<option value="">Failed to load models</option>';
+  }
 }
 
 async function sessionInstructView(id, dir) {
-  const inputId = 'instruct-' + id.replace(/[^a-zA-Z0-9]/g,'_');
-  const input = document.getElementById(inputId);
+  const escId = id.replace(/[^a-zA-Z0-9]/g,'_');
+  const input = document.getElementById('instruct-' + escId);
+  const modelSel = document.getElementById('model-' + escId);
   const message = input ? input.value.trim() : '';
   if (!message) { showToast('Please enter an instruction', 'error'); return; }
 
-  const btn = document.querySelector('#sessionViewModal .btn-primary');
+  const btn = document.querySelector('#sessionContinueModal .btn-primary');
   if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
   try {
     const resp = await fetch('http://127.0.0.1:' + ADMIN_PORT + '/api/session-instruct', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, message, directory: dir || '' })
+      body: JSON.stringify({ id, message, model: modelSel ? modelSel.value : '', directory: dir || '' })
     });
     const data = await resp.json();
     if (data.ok) {
-      showToast('Instruction sent — session continued', 'success');
+      showToast('Instruction sent \u2014 session continued', 'success');
       if (input) input.value = '';
-      closeSessionView();
+      document.getElementById('sessionContinueModal').style.display = 'none';
       renderSessionsTab();
     } else {
       showToast('Error: ' + data.message, 'error');
