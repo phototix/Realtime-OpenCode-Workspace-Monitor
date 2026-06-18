@@ -1816,6 +1816,7 @@ setInterval(poll, POLL_INTERVAL);
       <div class="admin-tab" data-tab="names" onclick="switchTab('names')">👤 Names</div>
       <div class="admin-tab" data-tab="settings" onclick="switchTab('settings')">⚙ Settings</div>
       <div class="admin-tab" data-tab="providers" onclick="switchTab('providers')">🔌 Provider</div>
+      <div class="admin-tab" data-tab="super-staff" onclick="switchTab('super-staff')">🧑‍💼 Super Staff</div>
       <div class="admin-tab" data-tab="security" onclick="switchTab('security')">🔒 Security</div>
       <div class="admin-tab" data-tab="logs" onclick="switchTab('logs')">📄 Logs</div>
     </div>
@@ -1905,6 +1906,15 @@ setInterval(poll, POLL_INTERVAL);
         <div class="desc">Manage AI providers and Ollama connections</div>
         <div id="providersTabContent">
           <div style="font-size:12px;color:var(--text-dim)">Loading providers...</div>
+        </div>
+      </div>
+
+      <!-- Super Staff Tab -->
+      <div class="tab-content" id="tab-super-staff">
+        <h3>🧑‍💼 Super Staff</h3>
+        <div class="desc">Create and manage dedicated AI agents as staff members</div>
+        <div id="superStaffTabContent">
+          <div style="font-size:12px;color:var(--text-dim)">Loading staff...</div>
         </div>
       </div>
 
@@ -2004,10 +2014,7 @@ setInterval(poll, POLL_INTERVAL);
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <div class="form-group" style="flex:1;min-width:180px">
           <label>Mode</label>
-          <select id="newSessionMode" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
-            <option value="build">Build</option>
-            <option value="plan">Plan</option>
-          </select>
+          <select id="newSessionMode" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none"></select>
         </div>
         <div class="form-group" style="flex:2;min-width:220px">
           <label>Model</label>
@@ -2165,6 +2172,9 @@ function openAdminModal() {
     }
   }
 
+  // Load super staff cache
+  fetch('/api/super-staff').then(r => r.json()).then(d => { if (d.ok) superStaffCache = d.staff || []; }).catch(() => {});
+
   modal.style.display = 'flex';
   renderCasesTab();
   renderSystemTab();
@@ -2187,6 +2197,7 @@ function switchTab(tabId) {
   if (tabId === 'names') renderNamesTab();
   if (tabId === 'logs') renderLogsTab();
   if (tabId === 'providers') renderProvidersTab();
+  if (tabId === 'super-staff') renderSuperStaffTab();
 }
 
 // ── SESSIONS TAB ──
@@ -2360,9 +2371,20 @@ function continueSession(id) {
           <select id="model-${escId}" style="flex:1;min-width:180px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
             <option value="">Loading models...</option>
           </select>
-          <select id="mode-${escId}" style="width:130px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
-            <option value="build"${s.last_mode === 'plan' ? '' : ' selected'}>Build</option>
-            <option value="plan"${s.last_mode === 'plan' ? ' selected' : ''}>Plan</option>
+          <select id="mode-${escId}" style="width:150px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+            ${(() => {
+              const agents = getCustomAgents();
+              const lastMode = s.last_mode || '';
+              let opts = '<option value="build"' + (lastMode !== 'plan' ? ' selected' : '') + '>Build</option>';
+              opts += '<option value="plan"' + (lastMode === 'plan' ? ' selected' : '') + '>Plan</option>';
+              if (agents.length > 0) {
+                opts += '<option disabled style="font-size:9px;color:var(--text-dim)">── Agents ──</option>';
+                agents.forEach(a => {
+                  opts += '<option value="' + escapeHtml(a.name) + '"' + (a.name === lastMode ? ' selected' : '') + '>' + escapeHtml(a.name) + '</option>';
+                });
+              }
+              return opts;
+            })()}
           </select>
           <button class="btn btn-primary btn-sm" onclick="sessionInstructView('${s.id}','${dirEsc}')">Send</button>
         </div>
@@ -2381,8 +2403,8 @@ function openNewSessionModal() {
   const modal = document.getElementById('newSessionModal');
   document.getElementById('newSessionTitle').value = '';
   document.getElementById('newSessionMessage').value = '';
-  document.getElementById('newSessionMode').value = 'build';
   document.getElementById('newSessionError').style.display = 'none';
+  renderModeOptions('newSessionMode', 'build');
   modal.style.display = 'flex';
   // Populate models
   const modelSel = document.getElementById('newSessionModel');
@@ -3077,6 +3099,138 @@ async function ollamaRemove(url) {
     showToast('Error: ' + e.message, 'error');
     btn.disabled = false;
   }
+}
+
+// ── SUPER STAFF TAB ──
+let superStaffCache = [];
+
+async function renderSuperStaffTab() {
+  const el = document.getElementById('superStaffTabContent');
+  try {
+    const resp = await fetch('/api/super-staff');
+    const data = await resp.json();
+    if (!data.ok) { el.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load staff</div>'; return; }
+    superStaffCache = data.staff || [];
+
+    let html = '';
+
+    // Staff list
+    html += '<div class="admin-card"><h4>Staff Members</h4>';
+    if (superStaffCache.length > 0) {
+      html += '<table class="admin-table"><thead><tr><th>Name</th><th>Mode</th><th>Model</th><th>Description</th><th>Path</th><th></th></tr></thead><tbody>';
+      superStaffCache.forEach(s => {
+        html += '<tr><td>' + escapeHtml(s.name) + '</td>' +
+          '<td><span style="color:' + (s.mode === 'plan' ? 'var(--purple)' : 'var(--blue)') + '">' + escapeHtml(s.mode) + '</span></td>' +
+          '<td style="font-size:10px;color:var(--text-dim)">' + escapeHtml(s.model || 'default') + '</td>' +
+          '<td style="font-size:10px;color:var(--text-dim);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(s.description) + '">' + (s.description ? s.description.slice(0,40) + (s.description.length > 40 ? '...' : '') : '—') + '</td>' +
+          '<td style="font-size:10px;color:var(--text-dim)">' + escapeHtml((s.path || '~').split('/').pop()) + '</td>' +
+          '<td><button class="stop-btn" onclick="deleteSuperStaff(\'' + escapeHtml(s.name) + '\')">Delete</button></td></tr>';
+      });
+      html += '</tbody></table>';
+    } else {
+      html += '<div style="font-size:12px;color:var(--text-dim)">No staff members created yet</div>';
+    }
+    html += '</div>';
+
+    // Create form
+    html += '<div class="admin-card"><h4>Create Staff Member</h4>';
+    html += '<div class="form-group"><label>Name</label><input type="text" id="ssName" placeholder="e.g. Code Reviewer"></div>';
+    html += '<div class="form-group"><label>Roles & Scope</label><textarea id="ssDescription" placeholder="Describe what this agent does and its responsibilities..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:60px;font-family:inherit"></textarea></div>';
+    html += '<div style="display:flex;gap:12px;flex-wrap:wrap">';
+    html += '<div class="form-group" style="flex:1;min-width:150px"><label>Mode</label><select id="ssMode" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none"><option value="build">Build</option><option value="plan">Plan</option></select></div>';
+    html += '<div class="form-group" style="flex:2;min-width:200px"><label>Model</label><select id="ssModel" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none"><option value="">Default</option></select></div>';
+    html += '</div>';
+    html += '<div class="form-group"><label>Workspace Path</label><select id="ssPath" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none"><option value="' + window.location.origin.replace('http://localhost:5500','').replace('http://127.0.0.1:5500','') + '">~ (home)</option></select></div>';
+    html += '<button class="btn btn-sm btn-primary" onclick="createSuperStaff()">Create Staff</button>';
+    html += '<div class="form-success" id="ssMsg" style="margin-top:8px;display:none"></div>';
+    html += '<div class="form-error" id="ssErr" style="margin-top:8px;display:none"></div>';
+    html += '</div>';
+
+    el.innerHTML = html;
+
+    // Populate model dropdown
+    loadModels('ssModel', '');
+    // Populate workspace paths
+    const pathSel = document.getElementById('ssPath');
+    try {
+      const resp2 = await fetch('data/status.json?_=' + Date.now());
+      const statusData = await resp2.json();
+      const dirs = [...new Set((statusData.all_sessions || []).map(s => s.directory).filter(Boolean))].sort();
+      dirs.forEach(d => {
+        const opt = document.createElement('option');
+        opt.value = d;
+        opt.textContent = d.split('/').pop() || d;
+        opt.title = d;
+        pathSel.appendChild(opt);
+      });
+    } catch {}
+  } catch (e) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--red)">Error: ' + e.message + '</div>';
+  }
+}
+
+async function createSuperStaff() {
+  const name = document.getElementById('ssName').value.trim();
+  const description = document.getElementById('ssDescription').value.trim();
+  const mode = document.getElementById('ssMode').value;
+  const model = document.getElementById('ssModel').value;
+  const path = document.getElementById('ssPath').value;
+  const msg = document.getElementById('ssMsg');
+  const err = document.getElementById('ssErr');
+  msg.style.display = 'none'; err.style.display = 'none';
+  if (!name) { err.textContent = 'Name is required'; err.style.display = 'block'; return; }
+  try {
+    const resp = await fetch('/api/super-staff-create', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, description, mode, model, path })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      msg.textContent = 'Staff member created!'; msg.style.display = 'block';
+      document.getElementById('ssName').value = '';
+      document.getElementById('ssDescription').value = '';
+      setTimeout(() => { msg.style.display = 'none'; renderSuperStaffTab(); }, 2000);
+    } else {
+      err.textContent = data.message; err.style.display = 'block';
+    }
+  } catch (e) {
+    err.textContent = e.message; err.style.display = 'block';
+  }
+}
+
+async function deleteSuperStaff(name) {
+  if (!confirm('Delete staff member "' + name + '"?')) return;
+  try {
+    const resp = await fetch('/api/super-staff-delete', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const data = await resp.json();
+    showToast(data.ok ? 'Deleted: ' + name : 'Error: ' + data.message, data.ok ? 'success' : 'error');
+    renderSuperStaffTab();
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
+  }
+}
+
+function getCustomAgents() {
+  return superStaffCache || [];
+}
+
+function renderModeOptions(selectId, selected) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  let html = '<option value="build"' + (selected === 'build' ? ' selected' : '') + '>Build</option>' +
+    '<option value="plan"' + (selected === 'plan' ? ' selected' : '') + '>Plan</option>';
+  const agents = getCustomAgents();
+  if (agents.length > 0) {
+    html += '<option disabled style="font-size:9px;color:var(--text-dim)">── Custom Agents ──</option>';
+    agents.forEach(a => {
+      const selAttr = a.name === selected ? ' selected' : '';
+      html += '<option value="' + escapeHtml(a.name) + '"' + selAttr + '>' + escapeHtml(a.name) + '</option>';
+    });
+  }
+  sel.innerHTML = html;
 }
 
 // ── TOAST ──

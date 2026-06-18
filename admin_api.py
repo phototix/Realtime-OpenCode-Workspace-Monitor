@@ -78,6 +78,70 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({'ok': False, 'message': str(e)}, 500)
 
+        elif path == '/api/super-staff':
+            staff_file = os.path.join(DATA_DIR, 'super_staff.json')
+            staff = []
+            if os.path.exists(staff_file):
+                try:
+                    with open(staff_file) as f:
+                        staff = json.load(f)
+                except:
+                    pass
+            self._json({'ok': True, 'staff': staff})
+
+        elif path == '/api/super-staff-create':
+            name = body.get('name', '').strip()
+            if not name:
+                self._json({'ok': False, 'message': 'Missing name'}, 400)
+                return
+            description = body.get('description', '').strip()
+            mode_val = body.get('mode', 'build')
+            model = body.get('model', '')
+            agent_path = body.get('path', os.path.expanduser('~'))
+            try:
+                staff_file = os.path.join(DATA_DIR, 'super_staff.json')
+                staff = []
+                if os.path.exists(staff_file):
+                    with open(staff_file) as f:
+                        staff = json.load(f)
+                agent_dir = os.path.join(agent_path, '.opencode', 'agents')
+                os.makedirs(agent_dir, exist_ok=True)
+                agent_file = os.path.join(agent_dir, name.replace(' ', '_').lower() + '.json')
+                agent_config = {
+                    'name': name,
+                    'description': description,
+                    'mode': 'all',
+                    'model': model or None,
+                    'permissions': ['*'],
+                }
+                with open(agent_file, 'w') as f:
+                    json.dump(agent_config, f, indent=2)
+                staff.append({'name': name, 'description': description, 'mode': mode_val, 'model': model, 'path': agent_path, 'created': __import__('time').time()})
+                with open(staff_file, 'w') as f:
+                    json.dump(staff, f, indent=2)
+                log(f"Admin: created super staff '{name}'")
+                self._json({'ok': True, 'message': f'Agent {name} created'})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
+        elif path == '/api/super-staff-delete':
+            name = body.get('name', '').strip()
+            if not name:
+                self._json({'ok': False, 'message': 'Missing name'}, 400)
+                return
+            try:
+                staff_file = os.path.join(DATA_DIR, 'super_staff.json')
+                if os.path.exists(staff_file):
+                    with open(staff_file) as f:
+                        staff = json.load(f)
+                    staff = [s for s in staff if s['name'] != name]
+                    with open(staff_file, 'w') as f:
+                        json.dump(staff, f, indent=2)
+                log(f"Admin: deleted super staff '{name}'")
+                self._json({'ok': True, 'message': f'Agent {name} deleted'})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
         elif path == '/api/restart-daemon':
             try:
                 if os.path.exists(PID_FILE):
