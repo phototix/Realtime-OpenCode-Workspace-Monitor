@@ -585,16 +585,19 @@
     border-left: 3px solid var(--yellow); border-radius: 12px;
     padding: 14px 16px; margin-bottom: 16px; }
   .discussion-item { display: flex; align-items: flex-start; gap: 10px;
-    padding: 6px 0; }
-  .discussion-item + .discussion-item { border-top: 1px solid var(--border);
-    margin-top: 6px; padding-top: 10px; }
-  .discussion-item .di-icon { font-size: 20px; flex-shrink: 0; margin-top: 2px; }
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
+  .discussion-item:last-child { margin-bottom: 0; }
+  .discussion-item .di-icon { flex-shrink: 0; margin-top: 2px; }
+  .discuss-icon-img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
   .discussion-item .di-body { flex: 1; min-width: 0; }
   .discussion-item .di-title { font-size: 12px; font-weight: 600; }
   .discussion-item .di-meta { font-size: 10px; color: var(--text-dim); }
   .discussion-item .di-staff { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-  .discussion-item .di-staff span { font-size: 9px; background: var(--surface2);
-    padding: 2px 6px; border-radius: 4px; color: var(--text-dim); }
+  .discussion-item .di-staff span { font-size: 10px; background: var(--surface);
+    padding: 3px 8px; border-radius: 6px; color: var(--text); font-weight: 500; }
+  .discuss-empty-wrapper { display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .discuss-empty-img { width: 80px; height: 80px; opacity: 0.5; }
 
   .rest-room-grid { display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 8px; align-items: start; }
@@ -1510,7 +1513,7 @@ function renderDashboard(data) {
       const div = document.createElement('div');
       div.className = 'discussion-item';
       div.innerHTML = `
-        <div class="di-icon">💬</div>
+        <div class="di-icon"><img src="assets/discuss-group-loop.gif" class="discuss-icon-img" alt="discussing"></div>
         <div class="di-body">
           <div class="di-title">${sessionTitle}</div>
           <div class="di-meta" style="color:${stateStyle.color}">${stateStyle.label}</div>
@@ -1521,10 +1524,7 @@ function renderDashboard(data) {
     });
   } else {
     discussionLabel.innerHTML = '💬 Discussion Desk <span class="count">(vacant)</span>';
-    const emptyMsg = document.createElement('div');
-    emptyMsg.style.cssText = 'font-size:11px;color:var(--text-dim);text-align:center;padding:8px 0';
-    emptyMsg.textContent = 'No discussions in progress';
-    discussionDesk.appendChild(emptyMsg);
+    discussionDesk.innerHTML = '<div class="discuss-empty-wrapper"><img src="assets/discuss-empty.png" class="discuss-empty-img" alt="vacant"></div>';
   }
 
   // ── REST ROOM ──
