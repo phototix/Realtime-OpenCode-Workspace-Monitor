@@ -2034,7 +2034,7 @@ setInterval(poll, POLL_INTERVAL);
       <div style="display:flex;gap:12px;flex-wrap:wrap">
         <div class="form-group" style="flex:1;min-width:180px">
           <label>Mode</label>
-          <select id="newSessionMode" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none"></select>
+          <select id="newSessionMode" onchange="onNewCaseModeChange()" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none"></select>
         </div>
         <div class="form-group" style="flex:2;min-width:220px">
           <label>Model</label>
@@ -2473,7 +2473,7 @@ function continueSession(id) {
           <select id="model-${escId}" style="flex:1;min-width:180px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
             <option value="">Loading models...</option>
           </select>
-          <select id="mode-${escId}" style="width:150px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+          <select id="mode-${escId}" style="width:150px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none" onchange="onModeChange(this,'${escId}')">
             ${(() => {
               const agents = getCustomAgents();
               const lastMode = s.last_mode || '';
@@ -2538,6 +2538,11 @@ async function startNewSession() {
 
   if (!message) { err.textContent = 'Please enter instructions'; err.style.display = 'block'; return; }
 
+  // Prepend Roles & Scope if a Super Staff agent is selected
+  const staff = getStaffForMode(mode);
+  const finalMessage = staff ? (staff.description + '\n\n' + message) : message;
+  const finalModel = staff && staff.model ? staff.model : model;
+
   // Close modal immediately
   closeNewSessionModal();
   showToast('Starting new case...', 'success');
@@ -2546,7 +2551,7 @@ async function startNewSession() {
     const resp = await fetch('/api/new-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, message, mode, model, directory })
+      body: JSON.stringify({ title, message: finalMessage, mode, model: finalModel, directory })
     });
     const data = await resp.json();
     if (!data.ok) {
@@ -2616,8 +2621,11 @@ async function sessionInstructView(id, dir) {
   const input = document.getElementById('instruct-' + escId);
   const modelSel = document.getElementById('model-' + escId);
   const modeSel = document.getElementById('mode-' + escId);
+  const mode = modeSel ? modeSel.value : '';
+  const staff = getStaffForMode(mode);
   const message = input ? input.value.trim() : '';
   if (!message) { showToast('Please enter an instruction', 'error'); return; }
+  const finalMessage = staff ? (staff.description + '\n\n' + message) : message;
 
   // Close modal immediately
   closeContinueModal();
@@ -2651,9 +2659,9 @@ async function sessionInstructView(id, dir) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id, message,
-        model: modelSel ? modelSel.value : '',
-        mode: modeSel ? modeSel.value : '',
+        id, message: finalMessage,
+        model: staff && staff.model ? staff.model : (modelSel ? modelSel.value : ''),
+        mode,
         directory: dir || ''
       })
     });
@@ -3357,6 +3365,35 @@ async function deleteSuperStaff(name) {
 
 function getCustomAgents() {
   return superStaffCache || [];
+}
+
+function onModeChange(modeSel, escId) {
+  const modelSel = document.getElementById('model-' + escId);
+  if (!modelSel) return;
+  const staff = superStaffCache.find(s => s.name === modeSel.value);
+  if (staff && staff.model) {
+    modelSel.value = staff.model;
+    modelSel.disabled = true;
+  } else {
+    modelSel.disabled = false;
+  }
+}
+
+function onNewCaseModeChange() {
+  const mode = document.getElementById('newSessionMode').value;
+  const modelSel = document.getElementById('newSessionModel');
+  if (!modelSel) return;
+  const staff = superStaffCache.find(s => s.name === mode);
+  if (staff && staff.model) {
+    modelSel.value = staff.model;
+    modelSel.disabled = true;
+  } else {
+    modelSel.disabled = false;
+  }
+}
+
+function getStaffForMode(mode) {
+  return superStaffCache.find(s => s.name === mode);
 }
 
 function renderModeOptions(selectId, selected) {
