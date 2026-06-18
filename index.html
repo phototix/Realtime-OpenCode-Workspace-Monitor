@@ -3134,6 +3134,7 @@ function loadSettings() {
     if (s) {
       if (s.pollInterval) { document.getElementById('pollIntervalRange').value = s.pollInterval; document.getElementById('pollIntervalVal').textContent = s.pollInterval; }
       if (s.retention) { document.getElementById('retentionRange').value = s.retention; document.getElementById('retentionVal').textContent = s.retention; }
+      if (s.cronInterval) { document.getElementById('cronIntervalRange').value = s.cronInterval; document.getElementById('cronIntervalVal').textContent = s.cronInterval; }
       if (s.logLines) { document.getElementById('logLinesRange').value = s.logLines; document.getElementById('logLinesVal').textContent = s.logLines; }
     }
     document.getElementById('bossNameInput').value = getBossName();

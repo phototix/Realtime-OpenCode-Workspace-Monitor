@@ -7,10 +7,13 @@ import signal
 import sys
 import urllib.parse
 import mimetypes
+import threading
+import time
 
 DATA_DIR = os.path.expanduser('~/.opencode-dashboard/data')
 PID_FILE = os.path.join(DATA_DIR, 'daemon.pid')
 ACTIVITY_FILE = os.path.join(DATA_DIR, 'activity.log')
+CRON_FILE = os.path.join(DATA_DIR, 'cron_jobs.json')
 STATIC_DIR = os.path.expanduser('~/.opencode-dashboard')
 
 import re
@@ -67,6 +70,99 @@ def engine_is_reachable(url, password=''):
         return r.returncode == 0 and r.stdout.strip().startswith('2')
     except:
         return False
+
+def _load_cron_jobs():
+    if not os.path.exists(CRON_FILE):
+        return []
+    try:
+        with open(CRON_FILE) as f:
+            return json.load(f)
+    except:
+        return []
+
+def _save_cron_jobs(jobs):
+    with open(CRON_FILE, 'w') as f:
+        json.dump(jobs, f, indent=2)
+
+def _run_cron_job(job):
+    try:
+        attach = get_attach_url()
+        action = job.get('action', {})
+        cwd = action.get('directory') or None
+        cmd = ['opencode', 'run']
+        if action.get('type') == 'session' and action.get('session_id') and not action.get('fork', False):
+            cmd.extend(['-s', action['session_id']])
+        else:
+            cmd.extend(['-c'])
+        cmd.extend(['--attach', attach])
+        password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
+        if password:
+            cmd.extend(['-p', password])
+        if action.get('model'):
+            cmd.extend(['-m', action['model']])
+        staff_name = action.get('staff', '')
+        if staff_name:
+            sf_path = os.path.join(DATA_DIR, 'super_staff.json')
+            if os.path.exists(sf_path):
+                try:
+                    with open(sf_path) as f:
+                        for s in json.load(f):
+                            if s.get('name') == staff_name:
+                                s_mode = s.get('mode', '')
+                                if s_mode:
+                                    cmd.extend(['--agent', s_mode])
+                                s_model = s.get('model', '')
+                                if s_model and not action.get('model'):
+                                    cmd.extend(['-m', s_model])
+                                break
+                except:
+                    pass
+        elif action.get('mode'):
+            cmd.extend(['--agent', action['mode']])
+        if action.get('directory'):
+            cmd.extend(['--dir', action['directory']])
+        message = action.get('message', '')
+        cmd.append(message)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=cwd)
+        status = 'done' if r.returncode == 0 else 'fail: ' + strip_ansi(r.stderr.strip()[:100] or r.stdout.strip()[:100] or 'unknown')
+    except subprocess.TimeoutExpired:
+        status = 'fail: timeout (>5m)'
+    except Exception as e:
+        status = 'fail: ' + str(e)[:100]
+    try:
+        jobs = _load_cron_jobs()
+        for j in jobs:
+            if j['id'] == job['id']:
+                j['last_run'] = time.time()
+                j['last_status'] = status
+                j.pop('_running', None)
+                break
+        _save_cron_jobs(jobs)
+        log(f"Cron job '{job.get('name', '?')}': {status}")
+    except:
+        pass
+
+def _cron_runner():
+    while True:
+        try:
+            time.sleep(30)
+            jobs = _load_cron_jobs()
+            if not isinstance(jobs, list):
+                continue
+            now = time.time()
+            for job in jobs:
+                if not job.get('enabled', True):
+                    continue
+                last_run = job.get('last_run', 0)
+                interval = job.get('interval_sec', 300)
+                if now - last_run < interval:
+                    continue
+                if job.get('_running'):
+                    continue
+                job['_running'] = True
+                threading.Thread(target=_run_cron_job, args=(job,), daemon=True).start()
+        except:
+            pass
 
 class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -565,6 +661,74 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                     pass
             self._json({'ok': True, 'assignments': assignments})
 
+        elif path == '/api/cron-jobs':
+            jobs = _load_cron_jobs()
+            self._json({'ok': True, 'jobs': jobs})
+
+        elif path == '/api/cron-jobs/create':
+            name = body.get('name', '').strip()
+            interval_sec = int(body.get('interval_sec', 300))
+            action = body.get('action', {})
+            if not name or not action.get('message', '').strip():
+                self._json({'ok': False, 'message': 'Missing name or message'}, 400)
+                return
+            jobs = _load_cron_jobs()
+            new_job = {
+                'id': 'cron_' + __import__('uuid').uuid4().hex[:12],
+                'name': name,
+                'interval_sec': max(60, interval_sec),
+                'last_run': None,
+                'last_status': None,
+                'enabled': True,
+                'action': action,
+                'created': time.time()
+            }
+            jobs.append(new_job)
+            _save_cron_jobs(jobs)
+            log(f"Admin: created cron job '{name}'")
+            self._json({'ok': True, 'job': new_job})
+
+        elif path == '/api/cron-jobs/update':
+            job_id = body.get('id', '')
+            name = body.get('name', '').strip()
+            interval_sec = int(body.get('interval_sec', 300))
+            action = body.get('action', {})
+            if not job_id or not name or not action.get('message', '').strip():
+                self._json({'ok': False, 'message': 'Missing id, name or message'}, 400)
+                return
+            jobs = _load_cron_jobs()
+            for j in jobs:
+                if j['id'] == job_id:
+                    j['name'] = name
+                    j['interval_sec'] = max(60, interval_sec)
+                    j['action'] = action
+                    break
+            _save_cron_jobs(jobs)
+            self._json({'ok': True, 'message': 'Cron job updated'})
+
+        elif path == '/api/cron-jobs/delete':
+            job_id = body.get('id', '')
+            if not job_id:
+                self._json({'ok': False, 'message': 'Missing id'}, 400)
+                return
+            jobs = _load_cron_jobs()
+            jobs = [j for j in jobs if j['id'] != job_id]
+            _save_cron_jobs(jobs)
+            self._json({'ok': True, 'message': 'Cron job deleted'})
+
+        elif path == '/api/cron-jobs/toggle':
+            job_id = body.get('id', '')
+            if not job_id:
+                self._json({'ok': False, 'message': 'Missing id'}, 400)
+                return
+            jobs = _load_cron_jobs()
+            for j in jobs:
+                if j['id'] == job_id:
+                    j['enabled'] = not j.get('enabled', True)
+                    break
+            _save_cron_jobs(jobs)
+            self._json({'ok': True, 'message': 'Toggled'})
+
         elif path == '/api/restart-daemon':
             try:
                 if os.path.exists(PID_FILE):
@@ -611,7 +775,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         if path.startswith('/api/'):
-            if path in ('/api/ping', '/api/providers', '/api/super-staff', '/api/super-staff-assignments'):
+            if path in ('/api/ping', '/api/providers', '/api/super-staff', '/api/super-staff-assignments', '/api/cron-jobs'):
                 self.do_POST()
             else:
                 self._json({'ok': False, 'message': 'Use POST for this endpoint'}, 405)
@@ -622,6 +786,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
         pass
 
 if __name__ == '__main__':
+    threading.Thread(target=_cron_runner, daemon=True).start()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 5500
     server = http.server.HTTPServer(('', port), UnifiedHandler)
     print(f"Dashboard server running on http://localhost:{port}")
