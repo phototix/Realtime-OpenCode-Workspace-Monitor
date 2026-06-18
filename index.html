@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MyDora Dashboard</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 <style>
   :root {
     --bg: #0d1117;
@@ -274,6 +276,12 @@
     font-size: 9px;
     color: var(--text-dim);
     text-transform: uppercase;
+  }
+
+  .boss-photo { flex-shrink: 0; }
+  .boss-photo img {
+    width: 72px; height: 72px; border-radius: 8px;
+    object-fit: cover; border: 2px solid var(--border);
   }
 
   .node-card .command {
@@ -580,24 +588,37 @@
   .desk-card .desk-active-dot.active { background: var(--green); animation: pulse 1.5s infinite; }
   .desk-card .desk-active-dot.idle { background: var(--text-dim); }
 
-  /* Discussion Desk */
-  .discussion-desk { display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-    background: var(--surface); border: 1px solid var(--border);
+  /* Discussion Room */
+  .discussion-desk { display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 8px; background: var(--surface); border: 1px solid var(--border);
     border-left: 3px solid var(--yellow); border-radius: 12px;
     padding: 14px 16px; margin-bottom: 16px; }
-  .discussion-item { display: flex; align-items: flex-start; gap: 10px;
-    background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 10px; padding: 10px 12px; }
-  .discussion-item .di-icon { flex-shrink: 0; margin-top: 2px; }
-  .discuss-icon-img { width: 160px; height: 160px; border-radius: 8px; object-fit: cover; }
-  .discussion-item .di-body { flex: 1; min-width: 0; }
-  .discussion-item .di-title { font-size: 12px; font-weight: 600; }
-  .discussion-item .di-meta { font-size: 10px; color: var(--text-dim); }
-  .discussion-item .di-staff { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-  .discussion-item .di-staff span { font-size: 10px; background: var(--surface);
-    padding: 3px 8px; border-radius: 6px; color: var(--text); font-weight: 500; }
-  .discuss-empty-wrapper { display: flex; align-items: center; justify-content: center; padding: 20px; grid-column: 1 / -1; }
-  .discuss-empty-img { width: 160px; height: 160px; opacity: 0.5; }
+  .discuss-slot { background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px; text-align: center;
+    transition: all 0.2s ease; position: relative; }
+  .discuss-slot.occupied { border-color: var(--yellow); }
+  .discuss-slot.vacant { border-style: dashed; opacity: 0.5; }
+  .discuss-slot .slot-number { position: absolute; top: 6px; left: 8px;
+    font-size: 9px; background: var(--surface); padding: 1px 6px;
+    border-radius: 4px; color: var(--text-dim); }
+  .discuss-slot .slot-active-dot { position: absolute; top: 8px; right: 8px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--green); animation: pulse 1.5s infinite; }
+  .discuss-slot .slot-avatar { width: 120px; height: 120px;
+    margin: 4px auto 6px; border-radius: 12px; display: flex;
+    align-items: center; justify-content: center; }
+  .discuss-slot .slot-avatar.occupied { background: #d2992222; }
+  .discuss-slot .slot-avatar.vacant { background: var(--surface); }
+  .discuss-slot .slot-img { width: 120px; height: 120px;
+    border-radius: 8px; object-fit: cover; }
+  .discuss-slot .slot-img.vacant { opacity: 0.4; }
+  .discuss-slot .slot-name { font-size: 12px; font-weight: 600; }
+  .discuss-slot .slot-session { font-size: 9px; padding: 2px 8px;
+    border-radius: 4px; display: inline-block; margin-top: 4px;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; }
+  .discuss-slot .slot-stats { display: flex; justify-content: center;
+    gap: 6px; font-size: 9px; color: var(--text-dim); margin-top: 3px; }
 
   .rest-room-grid { display: grid; grid-template-columns: repeat(3, 1fr);
     gap: 8px; align-items: start; }
@@ -1071,8 +1092,8 @@
         <div class="section-label" style="margin-bottom:8px">Staff <span class="count" id="staffLabel"></span></div>
         <div class="office-floor" id="officeFloor"></div>
 
-        <div class="section-label" id="discussionLabel" style="display:none;margin-top:20px">💬 Discussion Desk <span class="count" id="discussionCount"></span></div>
-        <div class="discussion-desk" id="discussionDesk" style="display:none"></div>
+        <div class="section-label" id="discussionLabel" style="margin-top:20px">💬 Discussion Room <span class="count" id="discussionCount"></span></div>
+        <div class="discussion-desk" id="discussionDesk"></div>
 
         <div class="section-label" id="restRoomLabel" style="display:none;margin-top:20px">☕ Rest Room <span class="count" id="restRoomCount"></span></div>
         <div class="rest-room-grid" id="restRoomGrid"></div>
@@ -1347,10 +1368,13 @@ function renderDashboard(data) {
           <div class="type-badge engine">boss</div>
           <button class="manage-btn" onclick="openLoginModal()">Manage</button>
         </div>
-        <div class="card-body">
-          <div class="item"><div class="v">${brandon.cpu || '0'}%</div><div class="l">CPU</div></div>
-          <div class="item"><div class="v">${brandon.mem_mb || '0'} MB</div><div class="l">Memory</div></div>
-          <div class="item"><div class="v">${s.cpu_core_count || '?'}</div><div class="l">Staff</div></div>
+        <div class="card-body" style="display:flex;gap:12px;align-items:center">
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;flex:1">
+            <div class="item"><div class="v">${brandon.cpu || '0'}%</div><div class="l">CPU</div></div>
+            <div class="item"><div class="v">${brandon.mem_mb || '0'} MB</div><div class="l">Memory</div></div>
+            <div class="item"><div class="v">${s.cpu_core_count || '?'}</div><div class="l">Staff</div></div>
+          </div>
+          ${profilePhoto ? '<div class="boss-photo"><img src="' + profilePhoto + '" alt="Profile"></div>' : ''}
         </div>
       </div>
     `;
@@ -1452,12 +1476,22 @@ function renderDashboard(data) {
   const discussingPool = virtuals.filter(w => w.sessionState === 'thinking' || w.sessionState === 'running-tools');
   const restingVirtuals = virtuals.filter(w => w.sessionState !== 'thinking' && w.sessionState !== 'running-tools');
 
-  const restingPool = [...restingVirtuals, ...allWorkers.filter(w => w.placeholder || (!w.virtual && !deskPids.has(w.pid)))];
+  // Assign up to 3 discussing agents to discussion room slots
+  const DISCUSS_SLOTS = 3;
+  const discussSlots = new Array(DISCUSS_SLOTS).fill(null);
+  const sortedDiscussing = [...discussingPool].sort((a, b) => a.pid - b.pid);
+  sortedDiscussing.forEach((w, i) => {
+    if (i < DISCUSS_SLOTS) discussSlots[i] = w;
+  });
+  const overflowDiscussing = sortedDiscussing.slice(DISCUSS_SLOTS);
+
+  const restingPool = [...restingVirtuals, ...overflowDiscussing, ...allWorkers.filter(w => w.placeholder || (!w.virtual && !deskPids.has(w.pid)))];
 
   const officeFloor = document.getElementById('officeFloor');
   officeFloor.innerHTML = '';
   const occupied = deskTaken.size;
-  document.getElementById('staffLabel').textContent = `${occupied} working · ${discussingPool.length} discussing · ${restingPool.length} relaxing`;
+  const discussFilled = discussSlots.filter(Boolean).length;
+  document.getElementById('staffLabel').textContent = `${occupied} working · ${discussFilled} discussing · ${restingPool.length} relaxing`;
 
   desks.forEach((worker, idx) => {
     const deskNum = idx + 1;
@@ -1502,49 +1536,46 @@ function renderDashboard(data) {
     officeFloor.appendChild(card);
   });
 
-  // ── DISCUSSION DESK ──
+  // ── DISCUSSION ROOM ──
   const discussionDesk = document.getElementById('discussionDesk');
   const discussionLabel = document.getElementById('discussionLabel');
   discussionDesk.innerHTML = '';
 
-  // Group discussing staff by session title
-  const discussionGroups = {};
-  discussingPool.forEach(w => {
-    const key = w.sessionTitle || 'Unknown';
-    if (!discussionGroups[key]) discussionGroups[key] = [];
-    discussionGroups[key].push(w);
-  });
+  discussionLabel.innerHTML = discussFilled > 0
+    ? '💬 Discussion Room <span class="count">(' + discussFilled + ' staff)</span>'
+    : '💬 Discussion Room <span class="count">(vacant)</span>';
 
-  discussionLabel.style.display = 'block';
-  discussionDesk.style.display = 'block';
+  discussSlots.forEach((worker, idx) => {
+    const slotNum = idx + 1;
+    const isOccupied = worker !== null;
+    const card = document.createElement('div');
+    card.className = 'discuss-slot' + (isOccupied ? ' occupied' : ' vacant');
 
-  const groupKeys = Object.keys(discussionGroups);
-  if (groupKeys.length > 0) {
-    discussionLabel.innerHTML = '💬 Discussion Desk <span class="count">(' + discussingPool.length + ' staff)</span>';
-
-    groupKeys.forEach(sessionTitle => {
-      const staff = discussionGroups[sessionTitle];
-      const stateStyle = STATE_STYLE[staff[0].sessionState] || STATE_STYLE[''];
-      const staffList = staff.map(w => {
-        let name = w.superStaff || window._discussNames[w.pid] || (window._discussNames[w.pid] = _claimName());
-        return '<span>' + name + '</span>';
-      }).join('');
-      const div = document.createElement('div');
-      div.className = 'discussion-item';
-      div.innerHTML = `
-        <div class="di-icon"><img src="assets/discuss-group-loop.gif" class="discuss-icon-img" alt="discussing"></div>
-        <div class="di-body">
-          <div class="di-title">${escapeHtml(sessionTitle)}</div>
-          <div class="di-meta" style="color:${stateStyle.color}">${stateStyle.label}</div>
-          <div class="di-staff">${staffList}</div>
+    if (isOccupied) {
+      let name = worker.superStaff || window._discussNames[worker.pid] || (window._discussNames[worker.pid] = _claimName());
+      const stateStyle = STATE_STYLE[worker.sessionState] || STATE_STYLE[''];
+      if (worker.superStaff) _usedNames.add(worker.superStaff);
+      else _usedNames.add(getMappedName(worker.pid, worker.name));
+      card.innerHTML = `
+        <div class="slot-number">#${slotNum}</div>
+        <div class="slot-active-dot"></div>
+        <div class="slot-avatar occupied"><img src="assets/discuss-group-loop.gif" class="slot-img" alt="discussing"></div>
+        <div class="slot-name">${name}</div>
+        <div class="slot-session" style="background:${stateStyle.color}22;color:${stateStyle.color}">${escapeHtml(worker.sessionTitle || '')}</div>
+        <div class="slot-stats">
+          <span style="color:${stateStyle.color}">${stateStyle.label}</span>
+          <span>${humanAgo(worker.sessionUpdated)}</span>
         </div>
       `;
-      discussionDesk.appendChild(div);
-    });
-  } else {
-    discussionLabel.innerHTML = '💬 Discussion Desk <span class="count">(vacant)</span>';
-    discussionDesk.innerHTML = '<div class="discuss-empty-wrapper"><img src="assets/discuss-empty.png" class="discuss-empty-img" alt="vacant"></div>';
-  }
+    } else {
+      card.innerHTML = `
+        <div class="slot-number">#${slotNum}</div>
+        <div class="slot-avatar vacant"><img src="assets/discuss-empty.png" class="slot-img vacant" alt="vacant"></div>
+        <div class="slot-name" style="color:var(--text-dim)">Vacant</div>
+      `;
+    }
+    discussionDesk.appendChild(card);
+  });
 
   // ── REST ROOM ──
   const restRoomImages = {
@@ -2024,6 +2055,15 @@ _pollTimer = setInterval(poll, POLL_INTERVAL);
             <label>Boss Name</label>
             <input type="text" id="bossNameInput" placeholder="Brandon" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
           </div>
+          <div class="settings-group">
+            <label>Profile Photo</label>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
+              <img id="settingsPhotoPreview" src="" style="width:60px;height:60px;border-radius:8px;object-fit:cover;background:var(--surface2);display:none">
+              <button class="btn btn-sm" onclick="document.getElementById('photoInput').click()">Upload Photo</button>
+              <button class="btn btn-sm" id="removePhotoBtn" onclick="removeProfilePhoto()" style="display:none">Remove</button>
+              <input type="file" id="photoInput" accept="image/*" style="display:none" onchange="openCropModal(event)">
+            </div>
+          </div>
           <button class="btn btn-sm btn-primary" onclick="saveSettings()">Save Settings</button>
           <div class="form-success" id="settingsMsg" style="margin-top:8px"></div>
         </div>
@@ -2232,6 +2272,23 @@ _pollTimer = setInterval(poll, POLL_INTERVAL);
       <button class="admin-close" onclick="closeCronModal()">&times;</button>
     </div>
     <div id="cronModalBody"></div>
+  </div>
+</div>
+
+<!-- Crop Modal -->
+<div class="modal-overlay" id="cropModal" style="display:none">
+  <div class="login-modal" style="width:520px">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:18px">Crop Profile Photo</h2>
+      <button class="admin-close" onclick="closeCropModal()">&times;</button>
+    </div>
+    <div style="margin:16px 0;text-align:center;min-height:200px;display:flex;align-items:center;justify-content:center;background:var(--surface2);border-radius:8px">
+      <img id="cropImage" style="max-width:460px;max-height:380px">
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-sm" onclick="closeCropModal()">Cancel</button>
+      <button class="btn btn-sm btn-primary" onclick="cropAndSave()">Crop & Save</button>
+    </div>
   </div>
 </div>
 
@@ -3138,6 +3195,11 @@ function restartPollTimer() {
 function saveSettings() {
   const bossName = document.getElementById('bossNameInput').value.trim();
   if (bossName) localStorage.setItem('dashboard_boss_name', bossName);
+  const photoBase64 = document.getElementById('settingsPhotoPreview').src;
+  if (photoBase64 && photoBase64.startsWith('data:image')) {
+    localStorage.setItem('dashboard_boss_photo', photoBase64);
+    profilePhoto = photoBase64;
+  }
   const newPoll = parseInt(document.getElementById('pollIntervalRange').value);
   const retention = parseInt(document.getElementById('retentionRange').value);
   const cronInterval = parseInt(document.getElementById('cronIntervalRange').value);
@@ -3165,8 +3227,62 @@ function loadSettings() {
     }
     document.getElementById('bossNameInput').value = getBossName();
   } catch {}
+  updatePhotoPreview();
 }
+
+// ── PROFILE PHOTO ──
+let profilePhoto = localStorage.getItem('dashboard_boss_photo') || '';
+let cropper = null;
+
 loadSettings();
+
+function openCropModal(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = document.getElementById('cropImage');
+    img.src = e.target.result;
+    document.getElementById('cropModal').style.display = 'flex';
+    if (cropper) cropper.destroy();
+    cropper = new Cropper(img, { aspectRatio: 1 / 1, viewMode: 1 });
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+function closeCropModal() {
+  document.getElementById('cropModal').style.display = 'none';
+  if (cropper) { cropper.destroy(); cropper = null; }
+}
+
+function cropAndSave() {
+  if (!cropper) return;
+  const canvas = cropper.getCroppedCanvas({ width: 256, height: 256 });
+  profilePhoto = canvas.toDataURL();
+  localStorage.setItem('dashboard_boss_photo', profilePhoto);
+  closeCropModal();
+  updatePhotoPreview();
+}
+
+function removeProfilePhoto() {
+  profilePhoto = '';
+  localStorage.removeItem('dashboard_boss_photo');
+  updatePhotoPreview();
+}
+
+function updatePhotoPreview() {
+  const preview = document.getElementById('settingsPhotoPreview');
+  const removeBtn = document.getElementById('removePhotoBtn');
+  if (profilePhoto) {
+    preview.src = profilePhoto;
+    preview.style.display = 'block';
+    removeBtn.style.display = 'inline-block';
+  } else {
+    preview.style.display = 'none';
+    removeBtn.style.display = 'none';
+  }
+}
 
 // ── SECURITY TAB ──
 async function changePassword() {
