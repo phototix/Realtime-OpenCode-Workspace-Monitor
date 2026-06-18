@@ -1206,6 +1206,7 @@ function switchContentTab(tab) {
 }
 
 var _lastMainPid = 0;
+window._restSlotNames = window._restSlotNames || {};
 
 function renderDashboard(data) {
   if (!data) return;
@@ -1564,15 +1565,19 @@ function renderDashboard(data) {
   const stateCycleMs = 2000;
   restRoomLayout.forEach((layout, idx) => {
     const worker = assigned[idx] || null;
-    const stateIdx = Math.floor(Date.now() / stateCycleMs) % (layout.states || [layout.label]).length;
+    const stateLen = (layout.states || [layout.label]).length;
+    const stateIdx = Math.floor(Date.now() / stateCycleMs) % stateLen;
     const currentLabel = (layout.states || [layout.label])[stateIdx];
     const card = document.createElement('div');
     card.className = 'rest-card';
     const imgFile = restRoomImages[layout.label] ? restRoomImages[layout.label][currentLabel] : null;
     if (worker) {
+      // Clear name when cycle resets to first state, then claim a new one
+      if (stateIdx === 0) delete window._restSlotNames[idx];
+      if (!window._restSlotNames[idx]) window._restSlotNames[idx] = _claimName();
       card.innerHTML = `
         ${imgFile ? `<img src="assets/rest-room/${imgFile}" class="rc-img" alt="${currentLabel}">` : `<div class="rc-emoji">${layout.emoji}</div>`}
-        <div class="rc-desk">${_claimName()}</div>
+        <div class="rc-desk">${window._restSlotNames[idx]}</div>
         <div class="rc-label">${currentLabel}${worker.virtual ? ' (virtual)' : ''}</div>
       `;
     } else {
