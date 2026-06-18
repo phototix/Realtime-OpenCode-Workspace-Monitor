@@ -494,26 +494,7 @@ if needs_refresh and not export_running:
       try: os.remove(export_tmp)
       except: pass
 
-# Apply cache to sessions
-for s in sessions:
-  sid = s.get('id', '')
-  cached = detail_cache.get(sid, {})
-  s['slug'] = cached.get('slug', '')
-  s['state'] = cached.get('state', '')
-  s['last_user_prompt'] = cached.get('last_user_prompt', '')
-  s['last_text'] = cached.get('last_text', '')
-  s['tool_name'] = cached.get('tool_name', '')
-  s['last_role'] = cached.get('last_role', '')
-  s['last_mode'] = cached.get('last_mode', '')
-  s['tokens'] = cached.get('tokens', 0)
-  s['cost'] = cached.get('cost', 0)
-  s['files_changed'] = cached.get('files_changed', 0)
-  s['agent_type'] = cached.get('agent_type', '')
-  s['model_id'] = cached.get('model_id', '')
-  s['pending_questions'] = cached.get('pending_questions', [])
-
-# Enrich all_sessions with cache for admin panel (include every session, all states)
-# Also load case assignments and super staff for session-to-staff mapping
+# Load case assignments and super staff for session-to-staff mapping
 case_assignments = {}
 if os.path.exists(assignments_file):
     try:
@@ -530,6 +511,33 @@ if os.path.exists(staff_file_path):
     except:
         pass
 
+# Apply cache to sessions (active list) and add assignment info
+for s in sessions:
+  sid = s.get('id', '')
+  cached = detail_cache.get(sid, {})
+  s['slug'] = cached.get('slug', '')
+  s['state'] = cached.get('state', '')
+  s['last_user_prompt'] = cached.get('last_user_prompt', '')
+  s['last_text'] = cached.get('last_text', '')
+  s['tool_name'] = cached.get('tool_name', '')
+  s['last_role'] = cached.get('last_role', '')
+  s['last_mode'] = cached.get('last_mode', '')
+  s['tokens'] = cached.get('tokens', 0)
+  s['cost'] = cached.get('cost', 0)
+  s['files_changed'] = cached.get('files_changed', 0)
+  s['agent_type'] = cached.get('agent_type', '')
+  s['model_id'] = cached.get('model_id', '')
+  s['pending_questions'] = cached.get('pending_questions', [])
+  # Add case assignment info to active sessions
+  assigned_name = case_assignments.get(sid, '')
+  if assigned_name:
+      s['assigned_staff'] = assigned_name
+      staff_info = super_staff_map.get(assigned_name, {})
+      s['staff_gender'] = staff_info.get('gender', 'male')
+      s['staff_mode'] = staff_info.get('mode', '')
+      s['staff_model'] = staff_info.get('model', '')
+
+# Enrich all_sessions with cache for admin panel (include every session, all states)
 known_sids = {s['id'] for s in sessions}
 all_sessions_enriched = []
 for s in all_sessions:
