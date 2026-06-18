@@ -1216,6 +1216,7 @@ function switchContentTab(tab) {
 
 var _lastMainPid = 0;
 window._restSlotNames = window._restSlotNames || {};
+window._discussNames = window._discussNames || {};
 
 function renderDashboard(data) {
   if (!data) return;
@@ -1509,7 +1510,10 @@ function renderDashboard(data) {
     groupKeys.forEach(sessionTitle => {
       const staff = discussionGroups[sessionTitle];
       const stateStyle = STATE_STYLE[staff[0].sessionState] || STATE_STYLE[''];
-      const staffList = staff.map(w => '<span>' + (w.superStaff || _claimName()) + '</span>').join('');
+      const staffList = staff.map(w => {
+        let name = w.superStaff || window._discussNames[w.pid] || (window._discussNames[w.pid] = _claimName());
+        return '<span>' + name + '</span>';
+      }).join('');
       const div = document.createElement('div');
       div.className = 'discussion-item';
       div.innerHTML = `
