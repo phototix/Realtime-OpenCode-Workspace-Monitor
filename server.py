@@ -622,6 +622,22 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                     old_file = os.path.join(agent_dir, original_name.replace(' ', '_').lower() + '.json')
                     if os.path.exists(old_file):
                         os.remove(old_file)
+                    # Update all case assignments that reference the old name
+                    assign_file = os.path.join(DATA_DIR, 'case_assignments.json')
+                    if os.path.exists(assign_file):
+                        try:
+                            with open(assign_file) as f:
+                                assignments = json.load(f)
+                            changed = False
+                            for sid in assignments:
+                                if assignments[sid] == original_name:
+                                    assignments[sid] = name
+                                    changed = True
+                            if changed:
+                                with open(assign_file, 'w') as f:
+                                    json.dump(assignments, f, indent=2)
+                        except:
+                            pass
                 log(f"Admin: updated super staff '{original_name}' -> '{name}'")
                 self._json({'ok': True, 'message': f'Agent {name} updated'})
             except Exception as e:

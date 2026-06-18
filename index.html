@@ -3476,6 +3476,16 @@ async function saveStaff() {
     if (data.ok) {
       closeStaffModal();
       showToast(isEdit ? 'Staff member updated' : 'Staff member created', 'success');
+      // Update case assignments cache if name changed
+      if (isEdit && editingStaffName !== name) {
+        for (const sid in _caseAssignments) {
+          if (_caseAssignments[sid] === editingStaffName) {
+            _caseAssignments[sid] = name;
+          }
+        }
+        // Re-render admin cases tab to reflect the change
+        if (currentTab === 'sessions') renderCasesTab();
+      }
       renderSuperStaffTab();
     } else {
       err.textContent = data.message; err.style.display = 'block';
