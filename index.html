@@ -1210,6 +1210,18 @@ var _lastMainPid = 0;
 function renderDashboard(data) {
   if (!data) return;
 
+  const _usedNames = new Set();
+
+  function _claimName() {
+    const cfg = getNamesConfig();
+    const pool = Object.values(cfg).map(e => e.name).filter(n => n);
+    const avail = pool.filter(n => !_usedNames.has(n));
+    if (avail.length === 0) return pool[Math.floor(Math.random() * pool.length)] || 'Staff';
+    const name = avail[Math.floor(Math.random() * avail.length)];
+    _usedNames.add(name);
+    return name;
+  }
+
   const s = data.summary;
 
   // Detect engine restart — PID changed since last render
@@ -1421,8 +1433,10 @@ function renderDashboard(data) {
       agoStr = humanAgo(worker.sessionUpdated);
       sessionLabel = worker.sessionTitle || '(standalone)';
       isVirt = worker.virtual;
+      _usedNames.add(getMappedName(worker.pid, worker.name));
     }
 
+    const deskName = isOccupied ? (isVirt ? _claimName() : getMappedName(worker.pid, worker.name)) : 'Vacant';
     const deskGif = isOccupied
       ? (getWorkerGender(worker.pid) === 'F' ? 'assets/working-staff-loop-female.gif' : 'assets/working-staff-loop.gif')
       : 'assets/working-desk-empty.png';
@@ -1432,7 +1446,7 @@ function renderDashboard(data) {
       <div class="desk-number">#${deskNum}</div>
       ${isOccupied ? `<div class="desk-active-dot ${isActive ? 'active' : 'idle'}"></div>` : ''}
       <div class="desk-avatar ${isOccupied ? 'occupied' : 'vacant'}"><img src="${deskGif}" class="desk-img" alt=""></div>
-      <div class="desk-name">${isOccupied ? (isVirt ? getRandomName() : getMappedName(worker.pid, worker.name)) : 'Vacant'}</div>
+      <div class="desk-name">${deskName}</div>
       ${isOccupied ? `
         <div class="desk-session" style="background:${stateStyle.color}22;color:${stateStyle.color}">${isVirt ? (isActive ? '\u{1F4AD}' : '\u2713') + ' ' + stateStyle.label : sessionLabel.length > 20 ? sessionLabel.slice(0,18)+'...' : sessionLabel}</div>
         <div class="desk-stats">
@@ -1468,7 +1482,7 @@ function renderDashboard(data) {
     groupKeys.forEach(sessionTitle => {
       const staff = discussionGroups[sessionTitle];
       const stateStyle = STATE_STYLE[staff[0].sessionState] || STATE_STYLE[''];
-      const staffList = staff.map(w => '<span>' + getRandomName() + '</span>').join('');
+      const staffList = staff.map(w => '<span>' + _claimName() + '</span>').join('');
       const div = document.createElement('div');
       div.className = 'discussion-item';
       div.innerHTML = `
@@ -1558,7 +1572,7 @@ function renderDashboard(data) {
     if (worker) {
       card.innerHTML = `
         ${imgFile ? `<img src="assets/rest-room/${imgFile}" class="rc-img" alt="${currentLabel}">` : `<div class="rc-emoji">${layout.emoji}</div>`}
-        <div class="rc-desk">${getRandomName()}</div>
+        <div class="rc-desk">${_claimName()}</div>
         <div class="rc-label">${currentLabel}${worker.virtual ? ' (virtual)' : ''}</div>
       `;
     } else {
