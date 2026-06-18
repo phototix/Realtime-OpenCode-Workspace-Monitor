@@ -17,7 +17,10 @@ CRON_FILE = os.path.join(DATA_DIR, 'cron_jobs.json')
 STATIC_DIR = os.path.expanduser('~/.opencode-dashboard')
 
 import re
-_ansi_re = re.compile(r'\x1b\[[0-9;]*[a-zA-Z]')
+
+def _safe_agent_name(name):
+    return re.sub(r'[^a-z0-9_\-]', '', name.replace(' ', '_').lower())
+_ansi_re = re.compile('\x1b\\[[0-9;]*[a-zA-Z]')
 
 def strip_ansi(s):
     return _ansi_re.sub('', s)
@@ -85,6 +88,7 @@ def _save_cron_jobs(jobs):
         json.dump(jobs, f, indent=2)
 
 def _run_cron_job(job):
+    status = 'unknown'
     try:
         attach = get_attach_url()
         action = job.get('action', {})
@@ -131,18 +135,19 @@ def _run_cron_job(job):
         status = 'fail: timeout (>5m)'
     except Exception as e:
         status = 'fail: ' + str(e)[:100]
-    try:
-        jobs = _load_cron_jobs()
-        for j in jobs:
-            if j['id'] == job['id']:
-                j['last_run'] = time.time()
-                j['last_status'] = status
-                j.pop('_running', None)
-                break
-        _save_cron_jobs(jobs)
-        log(f"Cron job '{job.get('name', '?')}': {status}")
-    except:
-        pass
+    finally:
+        try:
+            jobs = _load_cron_jobs()
+            for j in jobs:
+                if j['id'] == job['id']:
+                    j['last_run'] = time.time()
+                    j['last_status'] = status
+                    j.pop('_running', None)
+                    break
+            _save_cron_jobs(jobs)
+            log(f"Cron job '{job.get('name', '?')}': {status}")
+        except:
+            pass
 
 def _cron_runner():
     while True:
@@ -169,6 +174,9 @@ def _cron_runner():
 class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=STATIC_DIR, **kwargs)
+
+    def list_directory(self, path):
+        self.send_error(403, 'Directory listing denied')
 
     def _json(self, data, status=200):
         self.send_response(status)
@@ -422,6 +430,8 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 # AI providers from auth.json
                 auth_file = os.path.expanduser('~/.local/share/opencode/auth.json')
+                if not os.path.exists(auth_file):
+                    auth_file = os.path.expanduser('~/Library/Application Support/opencode/auth.json')
                 if os.path.exists(auth_file):
                     with open(auth_file) as f:
                         auth_data = json.load(f)
@@ -545,7 +555,11 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 # Create agent config in opencode project
                 agent_dir = os.path.join(agent_path, '.opencode', 'agents')
                 os.makedirs(agent_dir, exist_ok=True)
-                agent_file = os.path.join(agent_dir, name.replace(' ', '_').lower() + '.json')
+                safe_name = _safe_agent_name(name)
+                if not safe_name:
+                    self._json({'ok': False, 'message': 'Invalid name'}, 400)
+                    return
+                agent_file = os.path.join(agent_dir, safe_name + '.json')
                 agent_config = {
                     'name': name,
                     'description': description,
@@ -608,9 +622,13 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                             break
                     with open(staff_file, 'w') as f:
                         json.dump(staff, f, indent=2)
+                safe_name = _safe_agent_name(name)
+                if not safe_name:
+                    self._json({'ok': False, 'message': 'Invalid name'}, 400)
+                    return
                 # Update agent file on disk
                 agent_dir = os.path.join(agent_path, '.opencode', 'agents')
-                agent_file = os.path.join(agent_dir, name.replace(' ', '_').lower() + '.json')
+                agent_file = os.path.join(agent_dir, safe_name + '.json')
                 agent_config = {
                     'name': name,
                     'description': description,
@@ -623,7 +641,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                     json.dump(agent_config, f, indent=2)
                 # Remove old agent file if name changed
                 if name != original_name:
-                    old_file = os.path.join(agent_dir, original_name.replace(' ', '_').lower() + '.json')
+                    old_file = os.path.join(agent_dir, _safe_agent_name(original_name) + '.json')
                     if os.path.exists(old_file):
                         os.remove(old_file)
                     # Update all case assignments that reference the old name
@@ -697,7 +715,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 'id': 'cron_' + __import__('uuid').uuid4().hex[:12],
                 'name': name,
                 'interval_sec': max(60, interval_sec),
-                'last_run': None,
+                'last_run': 0,
                 'last_status': None,
                 'enabled': True,
                 'action': action,

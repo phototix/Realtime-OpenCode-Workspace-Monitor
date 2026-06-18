@@ -900,11 +900,12 @@
     background: var(--surface); border: 1px solid var(--border);
     box-shadow: 0 8px 24px rgba(0,0,0,0.4);
     display: none; animation: fadeIn 0.2s ease;
-    display: none; align-items: center; gap: 12px;
+    align-items: center; gap: 12px;
     max-width: 480px;
   }
   .toast.success { border-left: 3px solid var(--green); color: var(--green); }
   .toast.error { border-left: 3px solid var(--red); color: var(--red); }
+  .toast.info { border-left: 3px solid var(--blue, #4a9eff); color: var(--blue, #4a9eff); }
   .toast-close {
     font-size: 16px; cursor: pointer; opacity: 0.5;
     flex-shrink: 0; line-height: 1;
@@ -1092,7 +1093,8 @@
 
 <script>
 const STATUS_URL = 'data/status.json';
-const POLL_INTERVAL = 2000;
+let POLL_INTERVAL = 2000;
+let _pollTimer = null;
 
 const TYPE_ICONS = {
   main: '\u2699',
@@ -1258,15 +1260,27 @@ function renderDashboard(data) {
   document.getElementById('loadBar').style.width = loadPct + '%';
   document.getElementById('totalCost').textContent = '$' + (s.total_cost || 0).toFixed(4);
 
+  const cpuCount = (navigator.hardwareConcurrency || 8);
+  const cpuPct = Math.min(parseFloat(s.total_cpu || 0) / cpuCount * 100, 100);
   document.getElementById('cpuRow').textContent = s.total_cpu_str || '0%';
-  document.getElementById('cpuBar').style.width = Math.min(parseFloat(s.total_cpu || 0) * 5, 100) + '%';
-  document.getElementById('memRow').textContent = (s.total_mem_mb || 0) + ' MB';
-  document.getElementById('memBar').style.width = Math.min((s.total_mem_mb || 0) / 200, 100) + '%';
+  document.getElementById('cpuBar').style.width = cpuPct + '%';
+
+  const memTotalGb = parseFloat(s.mem_total_gb) || 0;
+  const memUsedGb = parseFloat(s.total_mem_mb || 0) / 1024;
+  const memPct = memTotalGb > 0 ? Math.round(memUsedGb / memTotalGb * 100) : 0;
+  document.getElementById('memRow').textContent = (s.total_mem_mb || 0) + ' / ' + (memTotalGb * 1024).toFixed(0) + ' MB';
+  document.getElementById('memBar').style.width = memPct + '%';
 
   document.getElementById('diskRow').textContent = s.disk_free + ' / ' + s.disk_total;
-  const diskParts = s.disk_free?.match(/(\d+)/);
-  const diskNum = diskParts ? parseInt(diskParts[1]) : 50;
-  document.getElementById('diskBar').style.width = Math.min(diskNum, 100) + '%';
+  function _parseSize(str) {
+    const m = String(str).match(/^([\d.]+)\s*([KMGTP]?)/i);
+    if (!m) return null;
+    const units = {K: 1, M: 2, G: 3, T: 4, P: 5};
+    return parseFloat(m[1]) * Math.pow(1024, units[m[2].toUpperCase()] || 0);
+  }
+  const _freeB = _parseSize(s.disk_free), _totalB = _parseSize(s.disk_total);
+  const diskPct = (_freeB && _totalB && _totalB > 0) ? Math.round((1 - _freeB / _totalB) * 100) : 50;
+  document.getElementById('diskBar').style.width = Math.min(diskPct, 100) + '%';
 
   const uptimeContainer = document.getElementById('uptimeRowContainer');
   const uptimeFmt = formatUptime(s.uptime);
@@ -1520,7 +1534,7 @@ function renderDashboard(data) {
       div.innerHTML = `
         <div class="di-icon"><img src="assets/discuss-group-loop.gif" class="discuss-icon-img" alt="discussing"></div>
         <div class="di-body">
-          <div class="di-title">${sessionTitle}</div>
+          <div class="di-title">${escapeHtml(sessionTitle)}</div>
           <div class="di-meta" style="color:${stateStyle.color}">${stateStyle.label}</div>
           <div class="di-staff">${staffList}</div>
         </div>
@@ -1699,7 +1713,6 @@ function renderDashboard(data) {
 
   if (sessions.length === 0) {
     grid.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:8px"><div style="font-size:32px;line-height:1">📋</div><div style="font-size:13px;color:var(--text-dim)">No Cases working on at the moment</div></div>';
-    return;
   }
 
   // Build staff assignment lookup from all_sessions
@@ -1734,22 +1747,22 @@ function renderDashboard(data) {
       <div class="sc-header">
         <div class="sc-icon ${ss.state || ''}">${state.icon}</div>
         <div style="flex:1;min-width:0">
-          <div class="sc-title">${ss.title || '?'}</div>
-          <div class="sc-meta">${ss.slug ? ss.slug + ' · ' : ''}${ss.last_mode ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:${ss.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33'};color:${ss.last_mode === 'plan' ? '#bc8cff' : '#58a6ff'}">${ss.last_mode}</span> ` : ''}${staffMap[ss.id] ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:#2ea04322;color:#3fb950">${staffMap[ss.id]}</span> ` : ''}${ss.agent_type || ''} ${ss.model_id ? '· ' + ss.model_id : ''}</div>
+          <div class="sc-title">${escapeHtml(ss.title || '?')}</div>
+          <div class="sc-meta">${ss.slug ? escapeHtml(ss.slug) + ' · ' : ''}${ss.last_mode ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:${ss.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33'};color:${ss.last_mode === 'plan' ? '#bc8cff' : '#58a6ff'}">${ss.last_mode}</span> ` : ''}${staffMap[ss.id] ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:#2ea04322;color:#3fb950">${escapeHtml(staffMap[ss.id])}</span> ` : ''}${escapeHtml(ss.agent_type || '')} ${ss.model_id ? '· ' + escapeHtml(ss.model_id) : ''}</div>
         </div>
         <div class="sc-state-badge ${ss.state || '\\30'}">${state.label}</div>
         ${loggedIn && ss.state !== 'thinking' && ss.state !== 'running-tools' ? `<button class="comment-btn" onclick="event.stopPropagation();continueSession('${ss.id}')" title="Quick instruction">\u{1F4AC}</button>` : ''}
         <div class="sc-status-dot ${ss.state || '\\30'}"></div>
       </div>
-      ${ss.last_user_prompt ? `<div style="margin-top:4px;padding:4px 6px;background:#58a6ff11;border-left:2px solid var(--blue);border-radius:4px;font-size:10px;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${ss.last_user_prompt.replace(/"/g,'&quot;')}">${ss.last_user_prompt.slice(0,60)}${ss.last_user_prompt.length > 60 ? '...' : ''}</div>` : ''}
+      ${ss.last_user_prompt ? `<div style="margin-top:4px;padding:4px 6px;background:#58a6ff11;border-left:2px solid var(--blue);border-radius:4px;font-size:10px;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(ss.last_user_prompt).replace(/"/g,'&quot;')}">${escapeHtml(ss.last_user_prompt.slice(0,60))}${ss.last_user_prompt.length > 60 ? '...' : ''}</div>` : ''}
       ${ss.last_text ? `
-        <div class="sc-text-preview" onclick="toggleDisplay('${previewId}')">${ss.last_text.slice(0,80)}${ss.last_text.length > 80 ? '...' : ''}</div>
-        <div class="sc-text-expanded" id="${previewId}">${ss.last_text}</div>
+        <div class="sc-text-preview" onclick="toggleDisplay('${previewId}')">${escapeHtml(ss.last_text.slice(0,80))}${ss.last_text.length > 80 ? '...' : ''}</div>
+        <div class="sc-text-expanded" id="${previewId}">${escapeHtml(ss.last_text)}</div>
       ` : ''}
       ${toolInfo}
       <div style="display:flex;gap:6px;margin-top:4px;font-size:10px;color:var(--text-dim)">
         <span>${agoStr} ago</span>
-        ${dirInfo ? `<span>${dirInfo.split('/').pop() || dirInfo}</span>` : ''}
+        ${dirInfo ? `<span>${escapeHtml(dirInfo.split('/').pop() || dirInfo)}</span>` : ''}
       </div>
       ${agentChips ? `<div class="sc-agent-bar">${agentChips}</div>` : ''}
       <div style="margin-top:4px;padding-top:4px;border-top:1px solid var(--border)">
@@ -1803,14 +1816,14 @@ function renderDashboard(data) {
       div.innerHTML = `
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
           <span class="status-dot" style="width:6px;height:6px;background:${state.color};animation:${state.dot === 'pulse' ? 'pulse 2s infinite' : 'none'};flex-shrink:0"></span>
-          <span style="font-weight:500;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ss.title || '?'}</span>
+          <span style="font-weight:500;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(ss.title || '?')}</span>
         </div>
         <div style="display:flex;gap:4px;margin:2px 0 2px 12px;flex-wrap:wrap">
           <span style="font-size:9px;color:${state.color};background:${state.color}22;padding:1px 5px;border-radius:3px;font-weight:500">${state.label}</span>
           <span style="font-size:9px;color:var(--text-dim)">${agoStr} ago${slug}</span>
         </div>
-        ${ss.last_text ? `<div style="font-size:9px;color:var(--text-dim);margin:2px 0 0 12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" onclick="toggleDisplay('${previewId}')">${ss.last_text.slice(0,60)}${ss.last_text.length > 60 ? '...' : ''}</div><div id="${previewId}" style="display:none;font-size:9px;color:var(--text-dim);margin:2px 0 0 12px;padding:4px;background:var(--surface2);border-radius:4px;white-space:pre-wrap;word-break:break-word">${ss.last_text}</div>` : ''}
-        ${ss.tool_name ? `<div style="font-size:8px;color:var(--blue);margin:1px 0 0 12px">\u2699 ${ss.tool_name}</div>` : ''}
+        ${ss.last_text ? `<div style="font-size:9px;color:var(--text-dim);margin:2px 0 0 12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" onclick="toggleDisplay('${previewId}')">${escapeHtml(ss.last_text.slice(0,60))}${ss.last_text.length > 60 ? '...' : ''}</div><div id="${previewId}" style="display:none;font-size:9px;color:var(--text-dim);margin:2px 0 0 12px;padding:4px;background:var(--surface2);border-radius:4px;white-space:pre-wrap;word-break:break-word">${escapeHtml(ss.last_text)}</div>` : ''}
+        ${ss.tool_name ? `<div style="font-size:8px;color:var(--blue);margin:1px 0 0 12px">\u2699 ${escapeHtml(ss.tool_name)}</div>` : ''}
         ${cost || tokens ? `<div style="font-size:8px;color:var(--text-dim);margin:1px 0 0 12px">${cost}${tokens}</div>` : ''}
       `;
       sl.appendChild(div);
@@ -1853,8 +1866,8 @@ function renderDashboard(data) {
       card.innerHTML = `
         <div class="pc-icon">\u269B</div>
         <div class="pc-info">
-          <div class="pc-name">${getMappedName(w.pid, w.name || '?')}</div>
-          <div class="pc-meta">PID ${w.pid} · CPU ${w.cpu || 0}% · ${w.mem_mb || 0}MB · ${w.elapsed || '?'}</div>
+          <div class="pc-name">${escapeHtml(getMappedName(w.pid, w.name || '?'))}</div>
+          <div class="pc-meta">PID ${w.pid} · CPU ${w.cpu || 0}% · ${w.mem_mb || 0}MB · ${escapeHtml(w.elapsed || '?')}</div>
         </div>
       `;
       standaloneGrid.appendChild(card);
@@ -1873,6 +1886,7 @@ async function poll() {
     renderDashboard(data);
   } catch (e) {
     console.log('Poll failed:', e.message);
+    showToast('Poll failed: ' + e.message, 'error');
   }
 }
 
@@ -1882,7 +1896,7 @@ if ('Notification' in window && Notification.permission === 'default') {
 }
 
 poll();
-setInterval(poll, POLL_INTERVAL);
+_pollTimer = setInterval(poll, POLL_INTERVAL);
 </script>
 
 <!-- LOGIN MODAL -->
@@ -2451,23 +2465,27 @@ async function renderCasesTab() {
         const isActive = s.state === 'thinking' || s.state === 'running-tools';
         const jsonDir = (s.directory || '').replace(/'/g,"\\'");
         const escId = s.id.replace(/[^a-zA-Z0-9]/g,'_');
+        var sTitle = escapeHtml(s.title || '?');
+        var sState = escapeHtml(s.state || 'active');
+        var sModel = escapeHtml(s.model_id || '—');
+        var sAssigned = escapeHtml(s.assigned_staff || '');
         html += '<tr>' +
-          '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + (s.title||'').replace(/"/g,'&quot;') + '">' + (s.title||'?').slice(0,28) + '</td>' +
-          '<td><span style="color:' + stateColor + '">' + (s.state || 'active') + '</span></td>' +
+          '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + sTitle.replace(/"/g,'&quot;') + '">' + sTitle.slice(0,28) + '</td>' +
+          '<td><span style="color:' + stateColor + '">' + sState + '</span></td>' +
           '<td>' + (s.last_mode ? '<span style="font-size:10px;padding:1px 6px;border-radius:3px;font-weight:500;background:' + (s.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33') + ';color:' + (s.last_mode === 'plan' ? '#bc8cff' : '#58a6ff') + '">' + s.last_mode + '</span>' : '—') + '</td>' +
-          '<td style="font-size:10px;color:var(--text-dim)">' + (s.model_id || '—') + '</td>' +
+          '<td style="font-size:10px;color:var(--text-dim)">' + sModel + '</td>' +
           '<td>$' + (s.cost||0).toFixed(4) + '</td>' +
           '<td>' + ((s.tokens||0).toLocaleString()) + '</td>' +
           '<td style="font-size:10px;color:var(--text-dim)">' + agoStr + '</td>' +
           '<td style="white-space:nowrap">' +
             questionBadge(s) +
             '<select onchange="assignStaff(\'' + s.id + '\',this.value)" style="font-size:9px;padding:1px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none;vertical-align:middle;max-width:80px" title="Assign super staff">' +
-              '<option value="">' + (s.assigned_staff || '\u{1F464}') + '</option>' +
-              superStaffCache.map(function(st) { return '<option value="' + st.name.replace(/"/g,'&quot;') + '"' + (s.assigned_staff === st.name ? ' selected' : '') + '>' + st.name + '</option>'; }).join('') +
+              '<option value="">' + (sAssigned || '\u{1F464}') + '</option>' +
+              superStaffCache.map(function(st) { return '<option value="' + st.name.replace(/"/g,'&quot;') + '"' + (s.assigned_staff === st.name ? ' selected' : '') + '>' + escapeHtml(st.name) + '</option>'; }).join('') +
               (s.assigned_staff ? '<option value="__unassign__" style="color:var(--red)">\u2715 Unassign</option>' : '') +
             '</select> ' +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
-            (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\')">Stop</button>' : '') +
+            (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\', event)">Stop</button>' : '') +
              (s.state !== 'thinking' && s.state !== 'running-tools' ? ' <button class="send-btn" data-sid="' + s.id + '" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
           '</td>' +
         '</tr>';
@@ -2505,8 +2523,8 @@ async function assignStaff(sessionId, staffName) {
   }
 }
 
-async function stopSession(id, dir) {
-  const btn = event.target; btn.disabled = true; btn.textContent = 'Stopping...';
+async function stopSession(id, dir, event) {
+  const btn = (event || window.event).target; btn.disabled = true; btn.textContent = 'Stopping...';
   try {
     const resp = await fetch('/api/stop-session', {
       method: 'POST',
@@ -2540,14 +2558,14 @@ function viewSession(id) {
     const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
     body.innerHTML = `
       <div class="admin-card">
-        <div class="row"><span class="label">State</span><span class="value" style="color:${stateColor}">${s.state || 'active'}</span></div>
-        <div class="row"><span class="label">Slug</span><span class="value">${s.slug || '—'}</span></div>
-        <div class="row"><span class="label">Model</span><span class="value">${s.model_id || '—'}</span></div>
+        <div class="row"><span class="label">State</span><span class="value" style="color:${stateColor}">${escapeHtml(s.state || 'active')}</span></div>
+        <div class="row"><span class="label">Slug</span><span class="value">${escapeHtml(s.slug || '—')}</span></div>
+        <div class="row"><span class="label">Model</span><span class="value">${escapeHtml(s.model_id || '—')}</span></div>
         <div class="row"><span class="label">Cost</span><span class="value">$${(s.cost||0).toFixed(4)}</span></div>
         <div class="row"><span class="label">Tokens</span><span class="value">${(s.tokens||0).toLocaleString()}</span></div>
         <div class="row"><span class="label">Updated</span><span class="value">${humanAgo(s.updated)}</span></div>
-        <div class="row"><span class="label">Directory</span><span class="value" style="font-size:10px">${s.directory || '—'}</span></div>
-        ${s.last_mode ? `<div class="row"><span class="label">Last Mode</span><span class="value">${s.last_mode}</span></div>` : ''}
+        <div class="row"><span class="label">Directory</span><span class="value" style="font-size:10px">${escapeHtml(s.directory || '—')}</span></div>
+        ${s.last_mode ? `<div class="row"><span class="label">Last Mode</span><span class="value">${escapeHtml(s.last_mode)}</span></div>` : ''}
       </div>
     `;
     modal.style.display = 'flex';
@@ -3112,16 +3130,24 @@ function updateSettingPreview(id) {
   if (id === 'logLines') document.getElementById('logLinesVal').textContent = document.getElementById('logLinesRange').value;
 }
 
+function restartPollTimer() {
+  if (_pollTimer) clearInterval(_pollTimer);
+  _pollTimer = setInterval(poll, POLL_INTERVAL);
+}
+
 function saveSettings() {
   const bossName = document.getElementById('bossNameInput').value.trim();
   if (bossName) localStorage.setItem('dashboard_boss_name', bossName);
-  const settings = {
-    pollInterval: parseInt(document.getElementById('pollIntervalRange').value),
-    retention: parseInt(document.getElementById('retentionRange').value),
-    cronInterval: parseInt(document.getElementById('cronIntervalRange').value),
-    logLines: parseInt(document.getElementById('logLinesRange').value)
-  };
+  const newPoll = parseInt(document.getElementById('pollIntervalRange').value);
+  const retention = parseInt(document.getElementById('retentionRange').value);
+  const cronInterval = parseInt(document.getElementById('cronIntervalRange').value);
+  const logLines = parseInt(document.getElementById('logLinesRange').value);
+  const settings = { pollInterval: newPoll, retention, cronInterval, logLines };
   localStorage.setItem('dashboard_settings', JSON.stringify(settings));
+  if (newPoll !== POLL_INTERVAL) {
+    POLL_INTERVAL = newPoll;
+    restartPollTimer();
+  }
   const msg = document.getElementById('settingsMsg');
   msg.textContent = 'Settings saved';
   msg.style.display = 'block';
@@ -3132,7 +3158,7 @@ function loadSettings() {
   try {
     const s = JSON.parse(localStorage.getItem('dashboard_settings'));
     if (s) {
-      if (s.pollInterval) { document.getElementById('pollIntervalRange').value = s.pollInterval; document.getElementById('pollIntervalVal').textContent = s.pollInterval; }
+      if (s.pollInterval) { document.getElementById('pollIntervalRange').value = s.pollInterval; document.getElementById('pollIntervalVal').textContent = s.pollInterval; POLL_INTERVAL = s.pollInterval; }
       if (s.retention) { document.getElementById('retentionRange').value = s.retention; document.getElementById('retentionVal').textContent = s.retention; }
       if (s.cronInterval) { document.getElementById('cronIntervalRange').value = s.cronInterval; document.getElementById('cronIntervalVal').textContent = s.cronInterval; }
       if (s.logLines) { document.getElementById('logLinesRange').value = s.logLines; document.getElementById('logLinesVal').textContent = s.logLines; }
@@ -3228,7 +3254,7 @@ async function renderProvidersTab() {
       data.providers.forEach(p => {
         html += '<tr><td>' + escapeHtml(p.name) + '</td><td style="font-size:10px;color:var(--text-dim)">' + escapeHtml(p.type) + '</td>' +
           '<td><span style="color:var(--green)">● Active</span></td>' +
-          '<td><button class="stop-btn" onclick="providerLogout(\'' + escapeHtml(p.name) + '\')">Logout</button></td></tr>';
+          '<td><button class="stop-btn" onclick="providerLogout(\'' + escapeHtml(p.name) + '\', event)">Logout</button></td></tr>';
       });
       html += '</tbody></table>';
     } else {
@@ -3251,7 +3277,7 @@ async function renderProvidersTab() {
         html += '<tr><td style="font-size:11px">' + escapeHtml(o.url) + '</td>' +
           '<td><span style="color:' + statusColor + '">' + statusLabel + '</span></td>' +
           '<td>' + (o.models || 0) + '</td>' +
-          '<td><button class="stop-btn" onclick="ollamaRemove(\'' + escapeHtml(o.url) + '\')">Remove</button></td></tr>';
+          '<td><button class="stop-btn" onclick="ollamaRemove(\'' + escapeHtml(o.url) + '\', event)">Remove</button></td></tr>';
       });
       html += '</tbody></table>';
     } else {
@@ -3270,8 +3296,8 @@ async function renderProvidersTab() {
   }
 }
 
-async function providerLogout(name) {
-  const btn = event.target; btn.disabled = true;
+async function providerLogout(name, event) {
+  const btn = (event || window.event).target; btn.disabled = true;
   try {
     const resp = await fetch('/api/provider-logout', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -3331,8 +3357,8 @@ async function ollamaAdd() {
   }
 }
 
-async function ollamaRemove(url) {
-  const btn = event.target; btn.disabled = true;
+async function ollamaRemove(url, event) {
+  const btn = (event || window.event).target; btn.disabled = true;
   try {
     const resp = await fetch('/api/ollama-remove', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -3632,7 +3658,7 @@ async function renderCronTab() {
             <span class="toggle-slider"></span>
           </label>
           <button class="btn btn-sm" onclick="openCronModal('${job.id}')" title="Edit">✏️</button>
-          <button class="btn btn-sm" onclick="runCronJob('${job.id}')" title="Run now" ${job._running ? 'disabled' : ''}">▶</button>
+          <button class="btn btn-sm" onclick="runCronJob('${job.id}')" title="Run now" ${job._running ? 'disabled' : ''}>▶</button>
           <button class="btn btn-sm" onclick="deleteCronJob('${job.id}')" title="Delete">🗑️</button>
         </div>
       </div>

@@ -48,24 +48,23 @@ if os.path.exists(prev_pids_file):
 ]
   except: pass
 
-result = subprocess.run(['ps', 'aux'], capture_output=True, text=True)
+result = subprocess.run(['ps', 'axo', 'pid,ppid,pcpu,rss,etime,args'], capture_output=True, text=True, timeout=30)
 lines = result.stdout.strip().split('\n')[1:]
 
 proc_list = []
 agent_list = []
 
 for line in lines:
-  parts = line.split(None, 10)
-  if len(parts) < 11:
+  parts = line.split(None, 5)
+  if len(parts) < 6:
     continue
-  cmd = parts[10]
-  pid = int(parts[1])
-  ppid_raw = subprocess.run(['ps', '-o', 'ppid=', '-p', str(pid)], capture_output=True, text=True).stdout.strip()
-  ppid = int(ppid_raw) if ppid_raw.isdigit() else 0
+  pid = int(parts[0])
+  ppid = int(parts[1])
   cpu = float(parts[2])
-  rss_kb = int(parts[5])
+  rss_kb = int(parts[3])
   mem_mb = round(rss_kb / 1024, 1)
-  elapsed_raw = subprocess.run(['ps', '-o', 'etime=', '-p', str(pid)], capture_output=True, text=True).stdout.strip()
+  elapsed_raw = parts[4]
+  cmd = parts[5]
 
   name = os.path.basename(cmd.split()[0]) if cmd.split() else '?'
   cmd_lower = cmd.lower()
@@ -143,12 +142,12 @@ for line in lines:
 total_cpu = round(sum(a['cpu'] for a in agent_list), 1)
 total_mem_mb = round(sum(a['mem_mb'] for a in agent_list))
 
-disk = subprocess.run(['df', '-h', '/'], capture_output=True, text=True).stdout.strip().split('\n')
+disk = subprocess.run(['df', '-h', '/'], capture_output=True, text=True, timeout=10).stdout.strip().split('\n')
 disk_parts = disk[1].split() if len(disk) > 1 else ['?', '?', '?', '?']
 disk_free = disk_parts[3] if len(disk_parts) > 3 else '?'
 disk_total = disk_parts[1] if len(disk_parts) > 1 else '?'
 
-sysctl_r = subprocess.run(['sysctl', '-n', 'hw.memsize'], capture_output=True, text=True).stdout.strip()
+sysctl_r = subprocess.run(['sysctl', '-n', 'hw.memsize'], capture_output=True, text=True, timeout=10).stdout.strip()
 mem_total_gb = round(int(sysctl_r) / 1024**3, 1) if sysctl_r.isdigit() else 0
 
 main_pids = [a['pid'] for a in agent_list if a['type'] == 'engine']
@@ -165,7 +164,7 @@ if os.path.exists(status_file):
     with open(status_file) as f:
       prev_data = json.load(f)
     prev_main_pid = prev_data.get('summary', {}).get('main_pid', 0)
-    if prev_main_pid and main_pid and prev_main_pid != main_pid:
+    if prev_main_pid > 0 and main_pid and prev_main_pid != main_pid:
       engine_restarted_at = timestamp
       log_activity_py(f"Engine restart detected: PID {prev_main_pid} -> {main_pid}")
       # Clear stale session detail cache — old sessions are invalid
@@ -592,11 +591,20 @@ active_titles = {s['title'] for s in sessions}
 agent_list[:] = [a for a in agent_list if not (a.get('virtual') and a.get('session_title') and a['session_title'] not in active_titles)]
 
 # Remove stale real agents: no session, cpu=0, running >2h (idled out)
+def _elapsed_hours(s):
+  try:
+    parts = s.split(':')
+    if '-' in parts[0]:
+      d, h = parts[0].split('-')
+      return int(d) * 24 + int(h)
+    return int(parts[0])
+  except:
+    return 0
+
 for a in agent_list[:]:
   if not a.get('virtual') and a['type'] != 'engine' and not a.get('session_title'):
     if a.get('cpu', 0) == 0:
-      elapsed_str = a.get('elapsed', '')
-      if '02:' in elapsed_str or '03:' in elapsed_str:  # running >2h with no session
+      if _elapsed_hours(a.get('elapsed', '')) >= 2:
         log_activity_py(f"Idle worker removed: {a.get('name', '?')} (PID {a['pid']})")
         agent_list.remove(a)
 
