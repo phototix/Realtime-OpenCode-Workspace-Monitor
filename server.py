@@ -44,6 +44,30 @@ def get_attach_url():
         pass
     return 'http://127.0.0.1:51384'
 
+def get_engine_restarted():
+    status_path = os.path.join(DATA_DIR, 'status.json')
+    if os.path.exists(status_path):
+        try:
+            with open(status_path) as f:
+                sd = json.load(f)
+            return sd.get('summary', {}).get('engine_restarted_at')
+        except:
+            pass
+    return None
+
+def engine_is_reachable(url, password=''):
+    if not url:
+        return False
+    try:
+        cmd = ['curl', '-s', '--max-time', '3', '-o', '/dev/null', '-w', '%{http_code}']
+        if password:
+            cmd.extend(['-u', f'opencode:{password}'])
+        cmd.append(url.rstrip('/') + '/api/ping')
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        return r.returncode == 0 and r.stdout.strip().startswith('2')
+    except:
+        return False
+
 class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=STATIC_DIR, **kwargs)
@@ -89,26 +113,31 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({'ok': False, 'message': 'Missing session id or message'}, 400)
                 return
             try:
-                # Check if engine restarted since this session was created
-                status_path = os.path.join(DATA_DIR, 'status.json')
-                engine_restarted = False
-                if os.path.exists(status_path):
-                    try:
-                        with open(status_path) as f:
-                            sd = json.load(f)
-                        if sd.get('summary', {}).get('engine_restarted_at'):
-                            engine_restarted = True
-                    except:
-                        pass
-
                 cwd = directory or None
                 attach = get_attach_url()
                 password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
+
+                # Check engine reachability before anything else
+                engine_restarted = get_engine_restarted()
+                if not engine_is_reachable(attach, password):
+                    msg = 'OpenCode engine is not reachable — please relaunch the app.'
+                    if engine_restarted:
+                        msg += ' (Engine was restarted)'
+                    log(f"Admin: engine not reachable at {attach}")
+                    self._json({'ok': False, 'message': msg, 'code': 'engine_unreachable'}, 500)
+                    return
+
+                if engine_restarted:
+                    log(f"Admin: engine restart detected, session {sid} invalid")
+                    self._json({'ok': False, 'message': 'OpenCode engine was restarted — all prior sessions are invalid. Create a new case.', 'code': 'engine_restarted'}, 500)
+                    return
 
                 def _build_cmd(with_session=True):
                     c = ['opencode', 'run']
                     if with_session:
                         c.extend(['-s', sid])
+                    else:
+                        c.extend(['-c'])
                     c.extend(['--attach', attach])
                     if password:
                         c.extend(['-p', password])
@@ -128,23 +157,24 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
 
                 err_text = strip_ansi(r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]
 
-                # If engine restarted, sessions are all invalid
-                if engine_restarted:
-                    log(f"Admin: engine restart detected, session {sid} invalid")
-                    self._json({'ok': False, 'message': 'OpenCode engine was restarted — all prior sessions are invalid. Create a new session.', 'code': 'engine_restarted'}, 500)
-                    return
-
-                # If session not found (completed/archived), fall back to creating a new session
+                # If session not found (completed/archived), fall back to continuing last session
                 if 'not found' in err_text.lower():
-                    log(f"Admin: session {sid} not found, falling back to new session")
-                    cmd_fallback = _build_cmd(with_session=False)
+                    log(f"Admin: session {sid} not found, falling back to continue last")
+                    cmd_fallback = ['opencode', 'run', '-c', '--attach', attach]
+                    if password:
+                        cmd_fallback.extend(['-p', password])
+                    if model:
+                        cmd_fallback.extend(['-m', model])
+                    if mode_val:
+                        cmd_fallback.extend(['--agent', mode_val])
+                    cmd_fallback.append(message)
                     r2 = subprocess.run(cmd_fallback, capture_output=True, text=True, timeout=120, cwd=cwd)
                     if r2.returncode == 0:
                         log(f"Admin: created new session from continue (was {sid})")
                         self._json({'ok': True, 'message': 'This case has ended — a new case was created with your instruction.'})
                         return
                     fb_err = strip_ansi(r2.stderr.strip() or r2.stdout.strip()[:200] or 'Unknown error')[:200]
-                    log(f"Admin: fallback new session also failed: {fb_err[:100]}")
+                    log(f"Admin: fallback continue also failed: {fb_err[:100]}")
                     self._json({'ok': False, 'message': fb_err}, 500)
                     return
 
@@ -152,7 +182,12 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 if model and ('Model not found' in err_text or 'UnknownError' in err_text):
                     log(f"Admin: retrying session {sid} without model")
                     model = ''
-                    cmd_retry = _build_cmd(with_session=True)
+                    cmd_retry = ['opencode', 'run', '-s', sid, '--attach', attach]
+                    if password:
+                        cmd_retry.extend(['-p', password])
+                    if mode_val:
+                        cmd_retry.extend(['--agent', mode_val])
+                    cmd_retry.append(message)
                     r3 = subprocess.run(cmd_retry, capture_output=True, text=True, timeout=60, cwd=cwd)
                     if r3.returncode == 0:
                         log(f"Admin: instructed session {sid} (retry without model)")
@@ -176,22 +211,29 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({'ok': False, 'message': 'Missing session id or answers'}, 400)
                 return
             try:
-                # Check if engine restarted since this session was created
-                status_path = os.path.join(DATA_DIR, 'status.json')
-                engine_restarted = False
-                if os.path.exists(status_path):
-                    try:
-                        with open(status_path) as f:
-                            sd = json.load(f)
-                        if sd.get('summary', {}).get('engine_restarted_at'):
-                            engine_restarted = True
-                    except:
-                        pass
-
                 cwd = body.get('directory') or None
                 attach = get_attach_url()
+                password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
+                engine_restarted = get_engine_restarted()
+
+                if not engine_is_reachable(attach, password):
+                    msg = 'OpenCode engine is not reachable — cannot send answer.'
+                    if engine_restarted:
+                        msg += ' (Engine was restarted)'
+                    log(f"Admin: answer failed — engine not reachable at {attach}")
+                    self._json({'ok': False, 'message': msg, 'code': 'engine_unreachable'}, 500)
+                    return
+
+                if engine_restarted:
+                    log(f"Admin: engine restart detected, session {sid} invalid for answer")
+                    self._json({'ok': False, 'message': 'Session no longer available — the engine was restarted.', 'code': 'engine_restarted'}, 500)
+                    return
+
                 answer_text = 'I choose: ' + '; '.join(str(a) for a in answers)
-                cmd = ['opencode', 'run', '-s', sid, '--attach', attach, answer_text]
+                cmd = ['opencode', 'run', '-s', sid, '--attach', attach]
+                if password:
+                    cmd.extend(['-p', password])
+                cmd.append(answer_text)
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: answered session {sid}")
@@ -221,23 +263,38 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 cwd = directory or None
                 attach = get_attach_url()
-                status_file = os.path.join(DATA_DIR, 'status.json')
-                last_sid = None
-                if os.path.exists(status_file):
-                    try:
-                        with open(status_file) as f:
-                            sd = json.load(f)
-                        for s in sd.get('sessions', []):
-                            if s.get('state') == 'complete':
-                                last_sid = s['id']
-                                break
-                    except:
-                        pass
+                password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
+
+                # Check engine reachability
+                if not engine_is_reachable(attach, password):
+                    msg = 'OpenCode engine is not reachable — please relaunch the app.'
+                    log(f"Admin: new session failed — engine not reachable at {attach}")
+                    self._json({'ok': False, 'message': msg, 'code': 'engine_unreachable'}, 500)
+                    return
+
+                engine_restarted = get_engine_restarted()
                 cmd = ['opencode', 'run']
-                if last_sid:
-                    cmd.extend(['-s', last_sid, '--attach', attach])
-                else:
+                if engine_restarted:
                     cmd.extend(['-c', '--attach', attach])
+                else:
+                    status_file = os.path.join(DATA_DIR, 'status.json')
+                    last_sid = None
+                    if os.path.exists(status_file):
+                        try:
+                            with open(status_file) as f:
+                                sd = json.load(f)
+                            for s in sd.get('sessions', []):
+                                if s.get('state') == 'complete':
+                                    last_sid = s['id']
+                                    break
+                        except:
+                            pass
+                    if last_sid:
+                        cmd.extend(['-s', last_sid, '--attach', attach])
+                    else:
+                        cmd.extend(['-c', '--attach', attach])
+                if password:
+                    cmd.extend(['-p', password])
                 if title:
                     cmd.extend(['--title', title])
                 if model:
@@ -357,6 +414,71 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             log(f"Admin: removed Ollama URL {url}")
             self._json({'ok': True, 'message': 'Ollama URL removed'})
 
+        elif path == '/api/super-staff':
+            staff_file = os.path.join(DATA_DIR, 'super_staff.json')
+            staff = []
+            if os.path.exists(staff_file):
+                try:
+                    with open(staff_file) as f:
+                        staff = json.load(f)
+                except:
+                    pass
+            self._json({'ok': True, 'staff': staff})
+
+        elif path == '/api/super-staff-create':
+            name = body.get('name', '').strip()
+            if not name:
+                self._json({'ok': False, 'message': 'Missing name'}, 400)
+                return
+            description = body.get('description', '').strip()
+            mode_val = body.get('mode', 'build')
+            model = body.get('model', '')
+            agent_path = body.get('path', os.path.expanduser('~'))
+            try:
+                staff_file = os.path.join(DATA_DIR, 'super_staff.json')
+                staff = []
+                if os.path.exists(staff_file):
+                    with open(staff_file) as f:
+                        staff = json.load(f)
+                # Create agent config in opencode project
+                agent_dir = os.path.join(agent_path, '.opencode', 'agents')
+                os.makedirs(agent_dir, exist_ok=True)
+                agent_file = os.path.join(agent_dir, name.replace(' ', '_').lower() + '.json')
+                agent_config = {
+                    'name': name,
+                    'description': description,
+                    'mode': 'all',
+                    'model': model or None,
+                    'permissions': ['*'],
+                }
+                with open(agent_file, 'w') as f:
+                    json.dump(agent_config, f, indent=2)
+                staff.append({'name': name, 'description': description, 'mode': mode_val, 'model': model, 'path': agent_path, 'created': __import__('time').time()})
+                with open(staff_file, 'w') as f:
+                    json.dump(staff, f, indent=2)
+                log(f"Admin: created super staff '{name}'")
+                self._json({'ok': True, 'message': f'Agent {name} created'})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
+        elif path == '/api/super-staff-delete':
+            name = body.get('name', '').strip()
+            if not name:
+                self._json({'ok': False, 'message': 'Missing name'}, 400)
+                return
+            try:
+                staff_file = os.path.join(DATA_DIR, 'super_staff.json')
+                if os.path.exists(staff_file):
+                    with open(staff_file) as f:
+                        staff = json.load(f)
+                    staff = [s for s in staff if s['name'] != name]
+                    with open(staff_file, 'w') as f:
+                        json.dump(staff, f, indent=2)
+                log(f"Admin: deleted super staff '{name}'")
+                self._json({'ok': True, 'message': f'Agent {name} deleted'})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
         elif path == '/api/restart-daemon':
             try:
                 if os.path.exists(PID_FILE):
@@ -403,7 +525,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         if path.startswith('/api/'):
-            if path == '/api/ping' or path == '/api/providers':
+            if path in ('/api/ping', '/api/providers', '/api/super-staff'):
                 self.do_POST()
             else:
                 self._json({'ok': False, 'message': 'Use POST for this endpoint'}, 405)
