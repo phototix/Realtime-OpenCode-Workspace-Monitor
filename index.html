@@ -1621,10 +1621,16 @@ function renderDashboard(data) {
   const restLabel = document.getElementById('restRoomLabel');
   restGrid.innerHTML = '';
 
-  // Stable assign resting workers to spots by PID hash
+  // Chaotic rest room assignment with epoch-shuffled slots
+  const restEpoch = Math.floor(Date.now() / 30000);
+  const shuffled = [...restingPool];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
   const assigned = {};
-  restingPool.forEach(w => {
-    const slotIdx = ((w.pid * 13 + 7) % restRoomLayout.length + restRoomLayout.length) % restRoomLayout.length;
+  shuffled.forEach(w => {
+    const slotIdx = ((w.pid * 13 + 7 + restEpoch) % restRoomLayout.length + restRoomLayout.length) % restRoomLayout.length;
     // Linear probe if slot taken
     for (let attempt = 0; attempt < restRoomLayout.length; attempt++) {
       const candidate = (slotIdx + attempt) % restRoomLayout.length;
