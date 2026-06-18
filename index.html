@@ -1996,7 +1996,7 @@ setInterval(poll, POLL_INTERVAL);
             <input type="range" min="500" max="10000" step="500" value="2000" id="pollIntervalRange" oninput="updateSettingPreview('pollInterval')">
           </div>
           <div class="settings-group">
-            <label>Session Retention <span class="range-val" id="retentionVal">30</span> min</label>
+            <label>Case Retention <span class="range-val" id="retentionVal">30</span> min</label>
             <input type="range" min="5" max="120" step="5" value="30" id="retentionRange" oninput="updateSettingPreview('retention')">
           </div>
           <div class="settings-group">
@@ -2553,7 +2553,7 @@ function viewSession(id) {
     `;
     modal.style.display = 'flex';
   }).catch(() => {
-    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load session data</div>';
+    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load case data</div>';
     modal.style.display = 'flex';
   });
 }
@@ -2570,7 +2570,7 @@ function continueSession(id) {
   if (!modal || !body) { showToast('Continue modal not available', 'error'); return; }
   fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
     if (data.summary && data.summary.engine_restarted_at) {
-      showToast('Cannot continue \u2014 OpenCode engine was restarted. All prior sessions are invalid.', 'error');
+      showToast('Cannot continue \u2014 OpenCode engine restarted. All prior cases are invalid.', 'error');
       return;
     }
     const s = (data.all_sessions || data.sessions || []).find(x => x.id === id);
@@ -2623,7 +2623,7 @@ function continueSession(id) {
     modal.style.display = 'flex';
     loadModels('model-' + escId, s.model_id || '');
   }).catch(() => {
-    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load session data</div>';
+    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load case data</div>';
     modal.style.display = 'flex';
   });
 }
@@ -2807,7 +2807,7 @@ async function sessionInstructView(id, dir) {
     } else {
       _revertUI();
       if (data.code === 'engine_restarted') {
-        showToast('Engine restarted \u2014 refresh the page to see active sessions.', 'error');
+        showToast('Engine restarted \u2014 refresh the page to see active cases.', 'error');
       } else {
         showToast('Error: ' + data.message, 'error');
       }
@@ -3602,7 +3602,7 @@ async function renderCronTab() {
     const lastStatus = job.last_status || '—';
     const intervalMin = Math.round((job.interval_sec || 300) / 60);
     const action = job.action || {};
-    const typeLabel = action.type === 'session' ? 'Continue Session' : 'New Case';
+    const typeLabel = action.type === 'session' ? 'Continue Case' : 'New Case';
     const msg = (action.message || '').substring(0, 80);
     html += `<div class="admin-card" style="opacity:${enabled ? 1 : 0.5}">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:12px">
@@ -3645,13 +3645,15 @@ async function openCronModal(jobId) {
   const intervalMin = job ? Math.round((job.interval_sec || 300) / 60) : 5;
   const action = job ? (job.action || {}) : {};
   const typeVal = action.type || 'workspace';
-  const staffName = escapeHtml(action.staff || '');
   const model = escapeHtml(action.model || '');
   const modeVal = escapeHtml(action.mode || '');
+  const staffName = escapeHtml(action.staff || '');
   const dirVal = escapeHtml(action.directory || '');
   const sidVal = escapeHtml(action.session_id || '');
   const forkCheck = action.fork ? 'checked' : '';
   const msgVal = escapeHtml(action.message || '');
+  // Determine initial mode value (staff name takes priority over mode)
+  const initialMode = staffName || modeVal || 'build';
   body.innerHTML = `
     <div class="form-group">
       <label>Job Name</label>
@@ -3665,14 +3667,14 @@ async function openCronModal(jobId) {
       <label>Type</label>
       <select id="cronType" onchange="toggleCronType()" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
         <option value="workspace" ${typeVal === 'workspace' ? 'selected' : ''}>New Case (workspace)</option>
-        <option value="session" ${typeVal === 'session' ? 'selected' : ''}>Continue Existing Session</option>
+        <option value="session" ${typeVal === 'session' ? 'selected' : ''}>Continue Existing Case</option>
       </select>
     </div>
     <div id="cronSessionFields" style="display:${typeVal === 'session' ? 'block' : 'none'}">
       <div class="form-group">
-        <label>Session</label>
+        <label>Case</label>
         <select id="cronSessionId" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
-          <option value="">Loading sessions...</option>
+          <option value="">Loading cases...</option>
         </select>
       </div>
       <div class="form-group">
@@ -3695,28 +3697,21 @@ async function openCronModal(jobId) {
       <textarea id="cronMessage" rows="3" style="width:100%;resize:vertical;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none;font-family:inherit">${msgVal}</textarea>
     </div>
     <div class="form-group">
-      <label>Super Staff (optional)</label>
-      <select id="cronStaff" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
-        <option value="">None</option>
+      <label>Mode</label>
+      <select id="cronMode" onchange="onCronModeChange()" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+        <option value="build">Build</option>
+        <option value="plan">Plan</option>
       </select>
     </div>
     <div class="form-group">
-      <label>Mode (optional, overridden by Super Staff)</label>
-      <select id="cronMode" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
-        <option value="">Default</option>
-        <option value="plan" ${modeVal === 'plan' ? 'selected' : ''}>Plan</option>
-        <option value="build" ${modeVal === 'build' ? 'selected' : ''}>Build</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Model (optional, overridden by Super Staff)</label>
+      <label>Model</label>
       <input type="text" id="cronModel" value="${model}" placeholder="e.g. openai/gpt-4o" style="width:100%">
     </div>
     <div class="form-error" id="cronModalErr" style="display:none"></div>
     <button class="btn btn-primary" onclick="saveCronJob('${jobId || ''}')" style="width:100%;margin-top:8px">${jobId ? 'Update' : 'Create'} Cron Job</button>
   `;
   overlay.style.display = 'flex';
-  // Load super staff + sessions + directories in parallel
+  // Load sessions + directories + populate mode dropdown with staff
   try {
     const [sr, sdResp] = await Promise.all([
       fetch('/api/super-staff'),
@@ -3725,25 +3720,31 @@ async function openCronModal(jobId) {
     const sd = await sr.json();
     const statusData = await sdResp.json();
     const allSessions = statusData.all_sessions || statusData.sessions || [];
-    // Populate super staff
-    if (sd.ok && sd.staff) {
-      const sel = document.getElementById('cronStaff');
-      sel.innerHTML = '<option value="">None</option>';
+    // Populate mode dropdown with super staff options
+    const modeSel = document.getElementById('cronMode');
+    if (sd.ok && sd.staff && sd.staff.length) {
+      modeSel.innerHTML = '<option value="build">Build</option><option value="plan">Plan</option>';
       for (const s of sd.staff) {
         const opt = document.createElement('option');
         opt.value = s.name;
         opt.textContent = s.name + (s.model ? ' (' + s.model + ')' : '');
-        if (s.name === staffName) opt.selected = true;
-        sel.appendChild(opt);
+        if (s.name === initialMode || s.name === staffName) opt.selected = true;
+        modeSel.appendChild(opt);
       }
     }
-    // Populate sessions dropdown (id + name)
+    // Apply initial mode selection effects and restore model
+    onCronModeChange();
+    const modelInput = document.getElementById('cronModel');
+    if (model && !modelInput.disabled) modelInput.value = model;
+    // Populate sessions dropdown (case title + workspace)
     const sidSel = document.getElementById('cronSessionId');
-    sidSel.innerHTML = '<option value="">Select a session...</option>';
+    sidSel.innerHTML = '<option value="">Select a case...</option>';
     for (const s of allSessions) {
       const opt = document.createElement('option');
       opt.value = s.id || '';
-      opt.textContent = (s.name || s.id || '').slice(0, 60) + (s.name ? '' : '');
+      const label = s.title || s.slug || s.id || '';
+      const sub = s.directory ? ' (' + s.directory.split('/').pop() + ')' : '';
+      opt.textContent = label + sub;
       opt.title = s.id || '';
       if (s.id === sidVal) opt.selected = true;
       sidSel.appendChild(opt);
@@ -3761,6 +3762,19 @@ async function openCronModal(jobId) {
       dirSel.appendChild(opt);
     });
   } catch(e) {}
+}
+
+function onCronModeChange() {
+  const modeSel = document.getElementById('cronMode');
+  const modelInput = document.getElementById('cronModel');
+  if (!modeSel || !modelInput) return;
+  const staff = getStaffForMode(modeSel.value);
+  if (staff && staff.model) {
+    modelInput.value = staff.model;
+    modelInput.disabled = true;
+  } else {
+    modelInput.disabled = false;
+  }
 }
 
 function closeCronModal() {
@@ -3785,18 +3799,20 @@ async function saveCronJob(jobId) {
     return;
   }
   errEl.style.display = 'none';
+  const modeVal = document.getElementById('cronMode').value;
+  const staff = getStaffForMode(modeVal);
   const action = {
     type: type,
     message: message,
-    staff: document.getElementById('cronStaff').value || '',
-    mode: document.getElementById('cronMode').value || '',
-    model: document.getElementById('cronModel').value.trim() || '',
+    staff: staff ? staff.name : '',
+    mode: staff ? staff.mode : (modeVal || ''),
+    model: document.getElementById('cronModel').value.trim() || (staff ? staff.model : ''),
   };
   if (type === 'session') {
     action.session_id = document.getElementById('cronSessionId').value.trim();
     action.fork = document.getElementById('cronFork').checked;
     if (!action.session_id) {
-      errEl.textContent = 'Session ID is required for Continue Session type';
+      errEl.textContent = 'Case ID is required for Continue Case type';
       errEl.style.display = 'block';
       return;
     }
