@@ -729,6 +729,27 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             _save_cron_jobs(jobs)
             self._json({'ok': True, 'message': 'Toggled'})
 
+        elif path == '/api/cron-jobs/run':
+            job_id = body.get('id', '')
+            if not job_id:
+                self._json({'ok': False, 'message': 'Missing id'}, 400)
+                return
+            jobs = _load_cron_jobs()
+            found = None
+            for j in jobs:
+                if j['id'] == job_id:
+                    found = j
+                    break
+            if not found:
+                self._json({'ok': False, 'message': 'Job not found'}, 404)
+                return
+            found['last_run'] = 0
+            found['_running'] = True
+            _save_cron_jobs(jobs)
+            threading.Thread(target=_run_cron_job, args=(found,), daemon=True).start()
+            log(f"Admin: triggered cron job '{found.get('name', '?')}'")
+            self._json({'ok': True, 'message': 'Job triggered'})
+
         elif path == '/api/restart-daemon':
             try:
                 if os.path.exists(PID_FILE):
@@ -775,7 +796,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         if path.startswith('/api/'):
-            if path in ('/api/ping', '/api/providers', '/api/super-staff', '/api/super-staff-assignments', '/api/cron-jobs'):
+            if path in ('/api/ping', '/api/providers', '/api/super-staff', '/api/super-staff-assignments', '/api/cron-jobs', '/api/cron-jobs/run'):
                 self.do_POST()
             else:
                 self._json({'ok': False, 'message': 'Use POST for this endpoint'}, 405)

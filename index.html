@@ -3622,6 +3622,7 @@ async function renderCronTab() {
             <span class="toggle-slider"></span>
           </label>
           <button class="btn btn-sm" onclick="openCronModal('${job.id}')" title="Edit">✏️</button>
+          <button class="btn btn-sm" onclick="runCronJob('${job.id}')" title="Run now" ${job._running ? 'disabled' : ''}">▶</button>
           <button class="btn btn-sm" onclick="deleteCronJob('${job.id}')" title="Delete">🗑️</button>
         </div>
       </div>
@@ -3855,6 +3856,21 @@ async function toggleCronJob(jobId) {
   try {
     await fetch('/api/cron-jobs/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: jobId }) });
   } catch(e) {}
+}
+
+async function runCronJob(jobId) {
+  try {
+    const r = await fetch('/api/cron-jobs/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: jobId }) });
+    const d = await r.json();
+    if (d.ok) {
+      showToast('Job triggered — refresh to see result', 'success');
+      renderCronTab();
+    } else {
+      showToast('Failed: ' + (d.message || 'unknown'), 'error');
+    }
+  } catch(e) {
+    showToast('Error triggering job', 'error');
+  }
 }
 
 // Initial auth check on page load
