@@ -2574,6 +2574,10 @@ function continueSession(id) {
           </select>
           <button class="btn btn-primary btn-sm" onclick="sessionInstructView('${s.id}','${dirEsc}')">Send</button>
         </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+          <input type="checkbox" id="branch-${escId}" style="accent-color:var(--blue)">
+          <label for="branch-${escId}" style="font-size:11px;color:var(--text-dim);cursor:pointer">Start as a new case instead</label>
+        </div>
         <div style="font-size:10px;color:var(--text-dim);margin-top:6px">Press Send to continue this case with the instruction above</div>
       </div>
     `;
@@ -2712,6 +2716,7 @@ async function sessionInstructView(id, dir) {
   if (!message) { showToast('Please enter an instruction', 'error'); return; }
   const finalMode = staff ? staff.mode : mode;
   const finalMessage = staff ? (staff.description + '\n\n' + message) : message;
+  const branch = document.getElementById('branch-' + escId) ? document.getElementById('branch-' + escId).checked : false;
 
   // Close modal immediately
   closeContinueModal();
@@ -2748,7 +2753,8 @@ async function sessionInstructView(id, dir) {
         id, message: finalMessage,
         model: staff && staff.model ? staff.model : (modelSel ? modelSel.value : ''),
         mode: finalMode,
-        directory: dir || ''
+        directory: dir || '',
+        branch: branch
       })
     });
     const data = await resp.json();

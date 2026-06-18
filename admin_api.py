@@ -224,6 +224,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
             directory = body.get('directory', '')
             model = body.get('model', '')
             mode_val = body.get('mode', '')
+            branch_val = body.get('branch', False)
             if not sid or not message:
                 self._json({'ok': False, 'message': 'Missing session id or message'}, 400)
                 return
@@ -248,6 +249,8 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                     c = ['opencode', 'run']
                     if with_session:
                         c.extend(['-s', sid])
+                    else:
+                        c.extend(['-c'])
                     c.extend(['--attach', attach])
                     if password:
                         c.extend(['-p', password])
@@ -258,7 +261,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                     c.append(message)
                     return c
 
-                cmd = _build_cmd(with_session=True)
+                cmd = _build_cmd(with_session=not branch_val)
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: instructed session {sid}")
