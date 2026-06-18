@@ -1156,6 +1156,43 @@ function formatUptime(raw) {
   return segs.join(' ') || raw;
 }
 
+// ── A-Z NAMES ──
+const DEFAULT_NAMES = {
+  A:{name:'Alice',gender:'F'}, B:{name:'Bob',gender:'M'}, C:{name:'Chloe',gender:'F'},
+  D:{name:'David',gender:'M'}, E:{name:'Emma',gender:'F'}, F:{name:'Frank',gender:'M'},
+  G:{name:'Grace',gender:'F'}, H:{name:'Henry',gender:'M'}, I:{name:'Ivy',gender:'F'},
+  J:{name:'Jack',gender:'M'}, K:{name:'Kate',gender:'F'}, L:{name:'Liam',gender:'M'},
+  M:{name:'Mia',gender:'F'}, N:{name:'Noah',gender:'M'}, O:{name:'Olivia',gender:'F'},
+  P:{name:'Paul',gender:'M'}, Q:{name:'Quinn',gender:'F'}, R:{name:'Ryan',gender:'M'},
+  S:{name:'Sarah',gender:'F'}, T:{name:'Tom',gender:'M'}, U:{name:'Uma',gender:'F'},
+  V:{name:'Victor',gender:'M'}, W:{name:'Wendy',gender:'F'}, X:{name:'Xavier',gender:'M'},
+  Y:{name:'Yara',gender:'F'}, Z:{name:'Zack',gender:'M'}
+};
+const NAMES_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+function getNamesConfig() {
+  try { return JSON.parse(localStorage.getItem('dashboard_names')) || DEFAULT_NAMES; } catch { return DEFAULT_NAMES; }
+}
+
+function saveNamesConfig(cfg) {
+  localStorage.setItem('dashboard_names', JSON.stringify(cfg));
+}
+
+function getMappedName(pid, fallback) {
+  const cfg = getNamesConfig();
+  const idx = Math.abs((pid || 0) * 7 + 13) % 26;
+  const entry = cfg[NAMES_LETTERS[idx]];
+  return entry ? entry.name : fallback;
+}
+
+function getRandomName() {
+  const cfg = getNamesConfig();
+  const letters = Object.keys(cfg);
+  if (letters.length === 0) return 'Staff';
+  const entry = cfg[letters[Math.floor(Math.random() * letters.length)]];
+  return entry ? entry.name : 'Staff';
+}
+
 function switchContentTab(tab) {
   document.querySelectorAll('.content-tab').forEach(t => t.classList.toggle('active', t.dataset.panel === tab));
   document.querySelectorAll('.content-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + tab));
@@ -1385,7 +1422,7 @@ function renderDashboard(data) {
       <div class="desk-number">#${deskNum}</div>
       ${isOccupied ? `<div class="desk-active-dot ${isActive ? 'active' : 'idle'}"></div>` : ''}
       <div class="desk-avatar ${isOccupied ? 'occupied' : 'vacant'}">${isOccupied ? (() => { const g = ['assets/working-staff-loop.gif','assets/working-staff-loop-female.gif']; return '<img src=\"' + g[Math.abs((worker.pid || deskNum) * 7 + 13) % g.length] + '\" class=\"desk-img\" alt=\"working\">'; })() : '<img src=\"assets/working-desk-empty.png\" class=\"desk-img\" alt=\"vacant\">'}</div>
-      <div class="desk-name">${isOccupied ? (isVirt ? sessionLabel.slice(0, 14) + (sessionLabel.length > 14 ? '...' : '') : worker.name) : 'Vacant'}</div>
+      <div class="desk-name">${isOccupied ? (isVirt ? getRandomName() : getMappedName(worker.pid, worker.name)) : 'Vacant'}</div>
       ${isOccupied ? `
         <div class="desk-session" style="background:${stateStyle.color}22;color:${stateStyle.color}">${isVirt ? (isActive ? '\u{1F4AD}' : '\u2713') + ' ' + stateStyle.label : sessionLabel.length > 20 ? sessionLabel.slice(0,18)+'...' : sessionLabel}</div>
         <div class="desk-stats">
@@ -1421,7 +1458,7 @@ function renderDashboard(data) {
     groupKeys.forEach(sessionTitle => {
       const staff = discussionGroups[sessionTitle];
       const stateStyle = STATE_STYLE[staff[0].sessionState] || STATE_STYLE[''];
-      const staffList = staff.map(w => '<span>' + w.name + '</span>').join('');
+      const staffList = staff.map(w => '<span>' + getRandomName() + '</span>').join('');
       const div = document.createElement('div');
       div.className = 'discussion-item';
       div.innerHTML = `
@@ -1511,7 +1548,7 @@ function renderDashboard(data) {
     if (worker) {
       card.innerHTML = `
         ${imgFile ? `<img src="assets/rest-room/${imgFile}" class="rc-img" alt="${currentLabel}">` : `<div class="rc-emoji">${layout.emoji}</div>`}
-        <div class="rc-desk">${worker.name}</div>
+        <div class="rc-desk">${getRandomName()}</div>
         <div class="rc-label">${currentLabel}${worker.virtual ? ' (virtual)' : ''}</div>
       `;
     } else {
@@ -1543,7 +1580,7 @@ function renderDashboard(data) {
 
     let agentChips = '';
     agents.forEach(a => {
-      agentChips += `<span class="sc-agent-chip">${a.name} (PID ${a.pid}) · ${a.cpu}% · ${a.mem_mb}MB</span>`;
+      agentChips += `<span class="sc-agent-chip">${getMappedName(a.pid, a.name)} (PID ${a.pid}) · ${a.cpu}% · ${a.mem_mb}MB</span>`;
     });
 
     let toolInfo = ss.tool_name ? `<span style="font-size:9px;color:var(--blue);margin-top:2px">\u2699 ${ss.tool_name}</span>` : '';
@@ -1677,7 +1714,7 @@ function renderDashboard(data) {
       card.innerHTML = `
         <div class="pc-icon">\u269B</div>
         <div class="pc-info">
-          <div class="pc-name">${w.name || '?'}</div>
+          <div class="pc-name">${getMappedName(w.pid, w.name || '?')}</div>
           <div class="pc-meta">PID ${w.pid} · CPU ${w.cpu || 0}% · ${w.mem_mb || 0}MB · ${w.elapsed || '?'}</div>
         </div>
       `;
@@ -1747,6 +1784,7 @@ setInterval(poll, POLL_INTERVAL);
       <div class="admin-tab active" data-tab="sessions" onclick="switchTab('sessions')">📋 Cases</div>
       <div class="admin-tab" data-tab="system" onclick="switchTab('system')">🖥 System</div>
       <div class="admin-tab admin-only" data-tab="users" onclick="switchTab('users')">👥 Users</div>
+      <div class="admin-tab" data-tab="names" onclick="switchTab('names')">👤 Names</div>
       <div class="admin-tab" data-tab="settings" onclick="switchTab('settings')">⚙ Settings</div>
       <div class="admin-tab" data-tab="providers" onclick="switchTab('providers')">🔌 Provider</div>
       <div class="admin-tab" data-tab="security" onclick="switchTab('security')">🔒 Security</div>
@@ -1794,6 +1832,15 @@ setInterval(poll, POLL_INTERVAL);
         <div class="desc">Manage dashboard users. Admin role required.</div>
         <div id="usersTabContent">
           <div style="font-size:12px;color:var(--text-dim)">Loading users...</div>
+        </div>
+      </div>
+
+      <!-- Names Tab -->
+      <div class="tab-content" id="tab-names">
+        <h3>👤 Names</h3>
+        <div class="desc">Customize A-Z staff names displayed in the dashboard. <span id="namesTabCount" style="color:var(--text-dim)"></span></div>
+        <div id="namesTabContent">
+          <div style="font-size:12px;color:var(--text-dim)">Loading names...</div>
         </div>
       </div>
 
@@ -2108,6 +2155,7 @@ function switchTab(tabId) {
   if (tabId === 'sessions') renderCasesTab();
   if (tabId === 'system') renderSystemTab();
   if (tabId === 'users') renderUsersTab();
+  if (tabId === 'names') renderNamesTab();
   if (tabId === 'logs') renderLogsTab();
   if (tabId === 'providers') renderProvidersTab();
 }
@@ -2705,6 +2753,61 @@ function deleteUser(email) {
   saveUsers(users);
   showToast('User deleted', 'success');
   renderUsersTab();
+}
+
+// ── NAMES TAB ──
+function renderNamesTab() {
+  const el = document.getElementById('namesTabContent');
+  const cfg = getNamesConfig();
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  document.getElementById('namesTabCount').textContent = '(' + letters.length + ' names)';
+
+  let html = '<table class="admin-table"><thead><tr><th style="width:50px">Letter</th><th>Name</th><th style="width:60px">Gender</th><th style="width:80px"></th></tr></thead><tbody>';
+  letters.forEach(l => {
+    const entry = cfg[l] || DEFAULT_NAMES[l] || { name: '?', gender: '?' };
+    const genderColor = entry.gender === 'F' ? 'var(--pink)' : 'var(--blue)';
+    html += '<tr>' +
+      '<td style="font-weight:700;font-size:14px">' + l + '</td>' +
+      '<td><input type="text" id="name-input-' + l + '" value="' + entry.name.replace(/"/g,'&quot;') + '" style="width:160px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;outline:none" onchange="saveName(\'' + l + '\')"></td>' +
+      '<td><span style="color:' + genderColor + '">' + (entry.gender === 'F' ? '♀ Female' : '♂ Male') + '</span></td>' +
+      '<td><button class="view-btn" onclick="resetName(\'' + l + '\')" style="font-size:9px">Reset</button></td>' +
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  html += '<div style="margin-top:12px"><button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="resetAllNames()">Reset All to Default</button></div>';
+  html += '<div class="form-success" id="namesMsg" style="margin-top:8px"></div>';
+  el.innerHTML = html;
+}
+
+function saveName(letter) {
+  const input = document.getElementById('name-input-' + letter);
+  const name = input ? input.value.trim() : '';
+  if (!name) return;
+  const cfg = getNamesConfig();
+  cfg[letter] = cfg[letter] || {};
+  cfg[letter].name = name;
+  if (!cfg[letter].gender) cfg[letter].gender = DEFAULT_NAMES[letter]?.gender || 'M';
+  saveNamesConfig(cfg);
+  const msg = document.getElementById('namesMsg');
+  msg.textContent = 'Saved ' + letter + ' → ' + name;
+  msg.style.display = 'block';
+  setTimeout(() => msg.style.display = 'none', 2000);
+}
+
+function resetName(letter) {
+  const cfg = getNamesConfig();
+  const def = DEFAULT_NAMES[letter];
+  if (def) {
+    cfg[letter] = { name: def.name, gender: def.gender };
+    saveNamesConfig(cfg);
+    renderNamesTab();
+  }
+}
+
+function resetAllNames() {
+  if (!confirm('Reset all names to defaults?')) return;
+  saveNamesConfig(DEFAULT_NAMES);
+  renderNamesTab();
 }
 
 // ── SETTINGS TAB ──
