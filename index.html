@@ -3669,8 +3669,10 @@ async function openCronModal(jobId) {
     </div>
     <div id="cronSessionFields" style="display:${typeVal === 'session' ? 'block' : 'none'}">
       <div class="form-group">
-        <label>Session ID</label>
-        <input type="text" id="cronSessionId" value="${sidVal}" placeholder="opencode_…" style="width:100%">
+        <label>Session</label>
+        <select id="cronSessionId" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+          <option value="">Loading sessions...</option>
+        </select>
       </div>
       <div class="form-group">
         <label style="display:flex;align-items:center;gap:8px">
@@ -3682,7 +3684,9 @@ async function openCronModal(jobId) {
     <div id="cronWorkspaceFields" style="display:${typeVal === 'session' ? 'none' : 'block'}">
       <div class="form-group">
         <label>Workspace Directory (optional)</label>
-        <input type="text" id="cronDirectory" value="${dirVal}" placeholder="~ or absolute path" style="width:100%">
+        <select id="cronDirectory" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+          <option value="">~ (home)</option>
+        </select>
       </div>
     </div>
     <div class="form-group">
@@ -3711,12 +3715,19 @@ async function openCronModal(jobId) {
     <button class="btn btn-primary" onclick="saveCronJob('${jobId || ''}')" style="width:100%;margin-top:8px">${jobId ? 'Update' : 'Create'} Cron Job</button>
   `;
   overlay.style.display = 'flex';
-  // Load super staff into dropdown
+  // Load super staff + sessions + directories in parallel
   try {
-    const sr = await fetch('/api/super-staff');
+    const [sr, sdResp] = await Promise.all([
+      fetch('/api/super-staff'),
+      fetch('data/status.json?_=' + Date.now())
+    ]);
     const sd = await sr.json();
+    const statusData = await sdResp.json();
+    const allSessions = statusData.all_sessions || statusData.sessions || [];
+    // Populate super staff
     if (sd.ok && sd.staff) {
       const sel = document.getElementById('cronStaff');
+      sel.innerHTML = '<option value="">None</option>';
       for (const s of sd.staff) {
         const opt = document.createElement('option');
         opt.value = s.name;
@@ -3725,6 +3736,29 @@ async function openCronModal(jobId) {
         sel.appendChild(opt);
       }
     }
+    // Populate sessions dropdown (id + name)
+    const sidSel = document.getElementById('cronSessionId');
+    sidSel.innerHTML = '<option value="">Select a session...</option>';
+    for (const s of allSessions) {
+      const opt = document.createElement('option');
+      opt.value = s.id || '';
+      opt.textContent = (s.name || s.id || '').slice(0, 60) + (s.name ? '' : '');
+      opt.title = s.id || '';
+      if (s.id === sidVal) opt.selected = true;
+      sidSel.appendChild(opt);
+    }
+    // Populate directories dropdown
+    const dirSel = document.getElementById('cronDirectory');
+    dirSel.innerHTML = '<option value="">~ (home)</option>';
+    const dirs = [...new Set(allSessions.map(s => s.directory).filter(Boolean))].sort();
+    dirs.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = d.split('/').pop() || d;
+      opt.title = d;
+      if (d === dirVal) opt.selected = true;
+      dirSel.appendChild(opt);
+    });
   } catch(e) {}
 }
 
