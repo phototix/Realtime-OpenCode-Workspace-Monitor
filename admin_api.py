@@ -95,6 +95,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'message': 'Missing name'}, 400)
                 return
             description = body.get('description', '').strip()
+            gender = body.get('gender', 'male')
             mode_val = body.get('mode', 'build')
             model = body.get('model', '')
             agent_path = body.get('path', os.path.expanduser('~'))
@@ -116,7 +117,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 }
                 with open(agent_file, 'w') as f:
                     json.dump(agent_config, f, indent=2)
-                staff.append({'name': name, 'description': description, 'mode': mode_val, 'model': model, 'path': agent_path, 'created': __import__('time').time()})
+                staff.append({'name': name, 'description': description, 'gender': gender, 'mode': mode_val, 'model': model, 'path': agent_path, 'created': __import__('time').time()})
                 with open(staff_file, 'w') as f:
                     json.dump(staff, f, indent=2)
                 log(f"Admin: created super staff '{name}'")
@@ -149,6 +150,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'message': 'Missing name'}, 400)
                 return
             description = body.get('description', '').strip()
+            gender = body.get('gender', 'male')
             mode_val = body.get('mode', 'build')
             model = body.get('model', '')
             agent_path = body.get('path', os.path.expanduser('~'))
@@ -161,6 +163,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                         if s['name'] == original_name:
                             s['name'] = name
                             s['description'] = description
+                            s['gender'] = gender
                             s['mode'] = mode_val
                             s['model'] = model
                             s['path'] = agent_path

@@ -1193,7 +1193,13 @@ function getRandomName() {
   return entry ? entry.name : 'Staff';
 }
 
-function getWorkerGender(pid) {
+function getWorkerGender(pid, sessionTitle) {
+  // Check if this worker is a Super Staff agent
+  if (sessionTitle) {
+    const staff = superStaffCache.find(s => s.name === sessionTitle || sessionTitle.includes(s.name));
+    if (staff) return staff.gender === 'female' ? 'F' : 'M';
+  }
+  // Fall back to name-based gender
   const cfg = getNamesConfig();
   const idx = Math.abs((pid || 0) * 7 + 13) % 26;
   const entry = cfg[NAMES_LETTERS[idx]];
@@ -1439,7 +1445,7 @@ function renderDashboard(data) {
 
     const deskName = isOccupied ? (isVirt ? _claimName() : getMappedName(worker.pid, worker.name)) : 'Vacant';
     const deskGif = isOccupied
-      ? (getWorkerGender(worker.pid) === 'F' ? 'assets/working-staff-loop-female.gif' : 'assets/working-staff-loop.gif')
+      ? (getWorkerGender(worker.pid, worker.sessionTitle) === 'F' ? 'assets/working-staff-loop-female.gif' : 'assets/working-staff-loop.gif')
       : 'assets/working-desk-empty.png';
     const card = document.createElement('div');
     card.className = 'desk-card' + (isOccupied ? ' occupied' : ' vacant');
@@ -2046,6 +2052,13 @@ setInterval(poll, POLL_INTERVAL);
       <div class="form-group">
         <label>Name</label>
         <input type="text" id="staffName" placeholder="e.g. Code Reviewer">
+      </div>
+      <div class="form-group">
+        <label>Gender</label>
+        <select id="staffGender" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+          <option value="male">Male</option>
+          <option value="female">Female</option>
+        </select>
       </div>
       <div class="form-group">
         <label>Roles & Scope</label>
@@ -3190,6 +3203,7 @@ function openStaffModal(originalName) {
   const titleEl = document.getElementById('staffModalTitle');
   const nameInput = document.getElementById('staffName');
   const descInput = document.getElementById('staffDescription');
+  const genderSel = document.getElementById('staffGender');
   const modeSel = document.getElementById('staffMode');
   const modelSel = document.getElementById('staffModel');
   const pathSel = document.getElementById('staffPath');
@@ -3202,6 +3216,7 @@ function openStaffModal(originalName) {
     if (staff) {
       nameInput.value = staff.name;
       descInput.value = staff.description || '';
+      genderSel.value = staff.gender || 'male';
       modeSel.value = staff.mode || 'build';
       loadModels('staffModel', staff.model || '');
     }
@@ -3209,6 +3224,7 @@ function openStaffModal(originalName) {
     titleEl.textContent = 'Create Staff Member';
     nameInput.value = '';
     descInput.value = '';
+    genderSel.value = 'male';
     modeSel.value = 'build';
     loadModels('staffModel', '');
   }
@@ -3245,6 +3261,7 @@ function closeStaffModal() {
 async function saveStaff() {
   const name = document.getElementById('staffName').value.trim();
   const description = document.getElementById('staffDescription').value.trim();
+  const gender = document.getElementById('staffGender').value;
   const mode = document.getElementById('staffMode').value;
   const model = document.getElementById('staffModel').value;
   const path = document.getElementById('staffPath').value;
@@ -3256,8 +3273,8 @@ async function saveStaff() {
   const isEdit = !!editingStaffName;
   const endpoint = isEdit ? '/api/super-staff-update' : '/api/super-staff-create';
   const body = isEdit
-    ? { originalName: editingStaffName, name, description, mode, model, path }
-    : { name, description, mode, model, path };
+    ? { originalName: editingStaffName, name, description, gender, mode, model, path }
+    : { name, description, gender, mode, model, path };
 
   try {
     const resp = await fetch(endpoint, {
