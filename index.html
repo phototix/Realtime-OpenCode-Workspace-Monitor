@@ -1697,6 +1697,12 @@ function renderDashboard(data) {
     return;
   }
 
+  // Build staff assignment lookup from all_sessions
+  const staffMap = {};
+  (data.all_sessions || []).forEach(s => {
+    if (s.assigned_staff) staffMap[s.id] = s.assigned_staff;
+  });
+
   const loggedIn = !!getAuth();
 
   sessions.forEach(ss => {
@@ -1724,7 +1730,7 @@ function renderDashboard(data) {
         <div class="sc-icon ${ss.state || ''}">${state.icon}</div>
         <div style="flex:1;min-width:0">
           <div class="sc-title">${ss.title || '?'}</div>
-          <div class="sc-meta">${ss.slug ? ss.slug + ' · ' : ''}${ss.last_mode ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:${ss.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33'};color:${ss.last_mode === 'plan' ? '#bc8cff' : '#58a6ff'}">${ss.last_mode}</span> ` : ''}${ss.agent_type || ''} ${ss.model_id ? '· ' + ss.model_id : ''}</div>
+          <div class="sc-meta">${ss.slug ? ss.slug + ' · ' : ''}${ss.last_mode ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:${ss.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33'};color:${ss.last_mode === 'plan' ? '#bc8cff' : '#58a6ff'}">${ss.last_mode}</span> ` : ''}${staffMap[ss.id] ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:#2ea04322;color:#3fb950">${staffMap[ss.id]}</span> ` : ''}${ss.agent_type || ''} ${ss.model_id ? '· ' + ss.model_id : ''}</div>
         </div>
         <div class="sc-state-badge ${ss.state || '\\30'}">${state.label}</div>
         ${loggedIn && ss.state !== 'thinking' && ss.state !== 'running-tools' ? `<button class="comment-btn" onclick="event.stopPropagation();continueSession('${ss.id}')" title="Quick instruction">\u{1F4AC}</button>` : ''}
