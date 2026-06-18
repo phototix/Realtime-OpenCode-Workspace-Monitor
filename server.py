@@ -530,6 +530,40 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json({'ok': False, 'message': str(e)[:200]}, 500)
 
+        elif path == '/api/super-staff-assign':
+            session_id = body.get('sessionId', '').strip()
+            staff_name = body.get('staffName', '').strip()
+            if not session_id:
+                self._json({'ok': False, 'message': 'Missing session ID'}, 400)
+                return
+            assign_file = os.path.join(DATA_DIR, 'case_assignments.json')
+            assignments = {}
+            if os.path.exists(assign_file):
+                try:
+                    with open(assign_file) as f:
+                        assignments = json.load(f)
+                except:
+                    pass
+            if staff_name:
+                assignments[session_id] = staff_name
+            else:
+                assignments.pop(session_id, None)
+            with open(assign_file, 'w') as f:
+                json.dump(assignments, f, indent=2)
+            log(f"Admin: {'assigned' if staff_name else 'unassigned'} staff '{staff_name}' to session {session_id[:16]}")
+            self._json({'ok': True, 'message': f"Staff {'assigned' if staff_name else 'unassigned'}"})
+
+        elif path == '/api/super-staff-assignments':
+            assign_file = os.path.join(DATA_DIR, 'case_assignments.json')
+            assignments = {}
+            if os.path.exists(assign_file):
+                try:
+                    with open(assign_file) as f:
+                        assignments = json.load(f)
+                except:
+                    pass
+            self._json({'ok': True, 'assignments': assignments})
+
         elif path == '/api/restart-daemon':
             try:
                 if os.path.exists(PID_FILE):
@@ -576,7 +610,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         if path.startswith('/api/'):
-            if path in ('/api/ping', '/api/providers', '/api/super-staff'):
+            if path in ('/api/ping', '/api/providers', '/api/super-staff', '/api/super-staff-assignments'):
                 self.do_POST()
             else:
                 self._json({'ok': False, 'message': 'Use POST for this endpoint'}, 405)

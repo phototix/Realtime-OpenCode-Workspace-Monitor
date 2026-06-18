@@ -13,6 +13,8 @@ status_file = os.path.join(data_dir, 'status.json')
 prev_pids_file = os.path.join(data_dir, 'prev_pids.json')
 session_details_file = os.path.join(data_dir, 'session_details.json')
 export_lock_file = os.path.join(data_dir, 'export.lock')
+assignments_file = os.path.join(data_dir, 'case_assignments.json')
+staff_file_path = os.path.join(data_dir, 'super_staff.json')
 os.makedirs(data_dir, exist_ok=True)
 
 def log_activity_py(msg):
@@ -511,6 +513,23 @@ for s in sessions:
   s['pending_questions'] = cached.get('pending_questions', [])
 
 # Enrich all_sessions with cache for admin panel (include every session, all states)
+# Also load case assignments and super staff for session-to-staff mapping
+case_assignments = {}
+if os.path.exists(assignments_file):
+    try:
+        with open(assignments_file) as f:
+            case_assignments = json.load(f)
+    except:
+        pass
+super_staff_map = {}
+if os.path.exists(staff_file_path):
+    try:
+        with open(staff_file_path) as f:
+            for s in json.load(f):
+                super_staff_map[s['name']] = s
+    except:
+        pass
+
 known_sids = {s['id'] for s in sessions}
 all_sessions_enriched = []
 for s in all_sessions:
@@ -537,6 +556,14 @@ for s in all_sessions:
     'pending_questions': cached.get('pending_questions', []),
     'active': sid in known_sids,
   }
+  # Add case assignment info
+  assigned_name = case_assignments.get(sid, '')
+  if assigned_name:
+      enriched['assigned_staff'] = assigned_name
+      staff_info = super_staff_map.get(assigned_name, {})
+      enriched['staff_gender'] = staff_info.get('gender', 'male')
+      enriched['staff_mode'] = staff_info.get('mode', '')
+      enriched['staff_model'] = staff_info.get('model', '')
   all_sessions_enriched.append(enriched)
 
 # Remove completed sessions idle >5 min

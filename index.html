@@ -1374,13 +1374,21 @@ function renderDashboard(data) {
       if (isComplete && age > 1) return;
 
       const virtPid = -Math.abs(s.id ? s.id.split('').reduce((a,c)=>a*31+c.charCodeAt(0),0) % 99999 : Date.now());
-      allWorkers.push({
+      const wData = {
         name: '(virtual)', pid: virtPid, cpu: 0, mem_mb: 0,
         ppid: 14138, command: '',
         sessionTitle: s.title, sessionState: s.state || '',
         sessionMode: s.last_mode || '', sessionUpdated: s.updated || 0,
         virtual: true
-      });
+      };
+      if (s.assigned_staff) {
+        wData.superStaff = s.assigned_staff;
+        wData.name = s.assigned_staff;
+        wData.staffGender = s.staff_gender || 'male';
+        wData.staffMode = s.staff_mode || '';
+        wData.staffModel = s.staff_model || '';
+      }
+      allWorkers.push(wData);
     }
   });
 
@@ -1397,11 +1405,11 @@ function renderDashboard(data) {
     });
   }
 
-  // Assign real (non-virtual, non-placeholder) workers to 6 office desks.
+  // Assign real workers + super-staff virtuals to 6 office desks.
   const officeDeskCount = 6;
   const desks = new Array(officeDeskCount).fill(null);
   const deskTaken = new Set();
-  allWorkers.filter(w => !w.virtual && !w.placeholder).forEach(w => {
+  allWorkers.filter(w => w.superStaff || (!w.virtual && !w.placeholder)).forEach(w => {
     let idx = getDeskNumber(w.pid);
     for (let attempt = 0; attempt < officeDeskCount; attempt++) {
       if (!deskTaken.has((idx + attempt) % officeDeskCount)) {
@@ -1440,12 +1448,19 @@ function renderDashboard(data) {
       agoStr = humanAgo(worker.sessionUpdated);
       sessionLabel = worker.sessionTitle || '(standalone)';
       isVirt = worker.virtual;
-      _usedNames.add(getMappedName(worker.pid, worker.name));
+      if (worker.superStaff) _usedNames.add(worker.superStaff);
+      else _usedNames.add(getMappedName(worker.pid, worker.name));
     }
 
-    const deskName = isOccupied ? (isVirt ? _claimName() : getMappedName(worker.pid, worker.name)) : 'Vacant';
+    let deskName = 'Vacant';
+    if (isOccupied) {
+      if (worker.superStaff) deskName = worker.superStaff;
+      else if (isVirt) deskName = _claimName();
+      else deskName = getMappedName(worker.pid, worker.name);
+    }
+    const deskGender = worker.superStaff ? (worker.staffGender === 'female' ? 'F' : 'M') : getWorkerGender(worker.pid, worker.sessionTitle);
     const deskGif = isOccupied
-      ? (getWorkerGender(worker.pid, worker.sessionTitle) === 'F' ? 'assets/working-staff-loop-female.gif' : 'assets/working-staff-loop.gif')
+      ? (deskGender === 'F' ? 'assets/working-staff-loop-female.gif' : 'assets/working-staff-loop.gif')
       : 'assets/working-desk-empty.png';
     const card = document.createElement('div');
     card.className = 'desk-card' + (isOccupied ? ' occupied' : ' vacant');
@@ -1455,9 +1470,9 @@ function renderDashboard(data) {
       <div class="desk-avatar ${isOccupied ? 'occupied' : 'vacant'}"><img src="${deskGif}" class="desk-img" alt=""></div>
       <div class="desk-name">${deskName}</div>
       ${isOccupied ? `
-        <div class="desk-session" style="background:${stateStyle.color}22;color:${stateStyle.color}">${isVirt ? (isActive ? '\u{1F4AD}' : '\u2713') + ' ' + stateStyle.label : sessionLabel.length > 20 ? sessionLabel.slice(0,18)+'...' : sessionLabel}</div>
+        <div class="desk-session" style="background:${stateStyle.color}22;color:${stateStyle.color}">${worker.superStaff ? sessionLabel : (isVirt ? (isActive ? '\u{1F4AD}' : '\u2713') + ' ' + stateStyle.label : sessionLabel.length > 20 ? sessionLabel.slice(0,18)+'...' : sessionLabel)}</div>
         <div class="desk-stats">
-          ${isVirt ? '<span>virtual</span>' : `<span>CPU ${worker.cpu || 0}%</span>`}
+          ${isVirt ? (worker.superStaff && worker.staffMode ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${worker.staffMode === 'plan' ? '#bc8cff33' : '#58a6ff33'};color:${worker.staffMode === 'plan' ? '#bc8cff' : '#58a6ff'}">${worker.staffMode}</span>` : '<span>virtual</span>') : `<span>CPU ${worker.cpu || 0}%</span>`}
           <span>${isVirt ? 'conversation' : 'MEM ' + (worker.mem_mb || 0) + 'MB'}</span>
           <span>${agoStr}</span>
         </div>
@@ -2265,6 +2280,8 @@ async function renderCasesTab() {
     const resp = await fetch('data/status.json?_=' + Date.now());
     const data = await resp.json();
     const sessions = data.all_sessions || data.sessions || [];
+    // Sync case assignments from fresh data
+    sessions.forEach(s => { if (s.assigned_staff) _caseAssignments[s.id] = s.assigned_staff; });
     document.getElementById('sessionsTabCount').textContent = '(' + sessions.length + ' total)';
 
     // Build workspace filter options
@@ -2323,6 +2340,11 @@ async function renderCasesTab() {
           '<td style="font-size:10px;color:var(--text-dim)">' + agoStr + '</td>' +
           '<td style="white-space:nowrap">' +
             questionBadge(s) +
+            '<select onchange="assignStaff(\'' + s.id + '\',this.value)" style="font-size:9px;padding:1px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none;vertical-align:middle;max-width:80px" title="Assign super staff">' +
+              '<option value="">' + (s.assigned_staff || '\u{1F464}') + '</option>' +
+              superStaffCache.map(function(st) { return '<option value="' + st.name.replace(/"/g,'&quot;') + '"' + (s.assigned_staff === st.name ? ' selected' : '') + '>' + st.name + '</option>'; }).join('') +
+              (s.assigned_staff ? '<option value="__unassign__" style="color:var(--red)">\u2715 Unassign</option>' : '') +
+            '</select> ' +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\')">Stop</button>' : '') +
              (s.state !== 'thinking' && s.state !== 'running-tools' ? ' <button class="send-btn" data-sid="' + s.id + '" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
@@ -2334,6 +2356,31 @@ async function renderCasesTab() {
     el.innerHTML = html;
   } catch (e) {
     el.innerHTML = '<div style="font-size:12px;color:var(--red)">Error loading cases: ' + e.message + '</div>';
+  }
+}
+
+let _caseAssignments = {};
+
+async function assignStaff(sessionId, staffName) {
+  if (!staffName) return;
+  const isUnassign = staffName === '__unassign__';
+  const name = isUnassign ? '' : staffName;
+  try {
+    const resp = await fetch('/api/super-staff-assign', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId, staffName: name })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      if (isUnassign) delete _caseAssignments[sessionId];
+      else _caseAssignments[sessionId] = staffName;
+      showToast(isUnassign ? 'Assignment removed' : 'Assigned: ' + staffName, 'success');
+      renderCasesTab();
+    } else {
+      showToast('Error: ' + data.message, 'error');
+    }
+  } catch (e) {
+    showToast('Error: ' + e.message, 'error');
   }
 }
 
