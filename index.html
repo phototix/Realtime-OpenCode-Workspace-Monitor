@@ -1453,15 +1453,14 @@ function renderDashboard(data) {
     }
 
     let deskName = 'Vacant';
+    let deskGif = 'assets/working-desk-empty.png';
     if (isOccupied) {
       if (worker.superStaff) deskName = worker.superStaff;
       else if (isVirt) deskName = _claimName();
       else deskName = getMappedName(worker.pid, worker.name);
+      const deskGender = worker.superStaff ? (worker.staffGender === 'female' ? 'F' : 'M') : getWorkerGender(worker.pid, worker.sessionTitle);
+      deskGif = deskGender === 'F' ? 'assets/working-staff-loop-female.gif' : 'assets/working-staff-loop.gif';
     }
-    const deskGender = worker.superStaff ? (worker.staffGender === 'female' ? 'F' : 'M') : getWorkerGender(worker.pid, worker.sessionTitle);
-    const deskGif = isOccupied
-      ? (deskGender === 'F' ? 'assets/working-staff-loop-female.gif' : 'assets/working-staff-loop.gif')
-      : 'assets/working-desk-empty.png';
     const card = document.createElement('div');
     card.className = 'desk-card' + (isOccupied ? ' occupied' : ' vacant');
     card.innerHTML = `
