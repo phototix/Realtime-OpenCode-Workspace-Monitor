@@ -2540,6 +2540,7 @@ async function startNewSession() {
 
   // Prepend Roles & Scope if a Super Staff agent is selected
   const staff = getStaffForMode(mode);
+  const finalMode = staff ? staff.mode : mode;
   const finalMessage = staff ? (staff.description + '\n\n' + message) : message;
   const finalModel = staff && staff.model ? staff.model : model;
 
@@ -2551,7 +2552,7 @@ async function startNewSession() {
     const resp = await fetch('/api/new-session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, message: finalMessage, mode, model: finalModel, directory })
+      body: JSON.stringify({ title, message: finalMessage, mode: finalMode, model: finalModel, directory })
     });
     const data = await resp.json();
     if (!data.ok) {
@@ -2625,6 +2626,7 @@ async function sessionInstructView(id, dir) {
   const staff = getStaffForMode(mode);
   const message = input ? input.value.trim() : '';
   if (!message) { showToast('Please enter an instruction', 'error'); return; }
+  const finalMode = staff ? staff.mode : mode;
   const finalMessage = staff ? (staff.description + '\n\n' + message) : message;
 
   // Close modal immediately
@@ -2661,7 +2663,7 @@ async function sessionInstructView(id, dir) {
       body: JSON.stringify({
         id, message: finalMessage,
         model: staff && staff.model ? staff.model : (modelSel ? modelSel.value : ''),
-        mode,
+        mode: finalMode,
         directory: dir || ''
       })
     });
