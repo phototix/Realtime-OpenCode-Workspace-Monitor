@@ -155,6 +155,23 @@ main_elapsed = ''
 if main_pid:
   main_elapsed = subprocess.run(['ps', '-o', 'etime=', '-p', str(main_pid)], capture_output=True, text=True).stdout.strip()
 
+# Detect engine restart by comparing main_pid with previous run
+engine_restarted_at = None
+prev_main_pid = 0
+if os.path.exists(status_file):
+  try:
+    with open(status_file) as f:
+      prev_data = json.load(f)
+    prev_main_pid = prev_data.get('summary', {}).get('main_pid', 0)
+    if prev_main_pid and main_pid and prev_main_pid != main_pid:
+      engine_restarted_at = timestamp
+      log_activity_py(f"Engine restart detected: PID {prev_main_pid} -> {main_pid}")
+      # Clear stale session detail cache — old sessions are invalid
+      if os.path.exists(session_details_file):
+        try: os.remove(session_details_file)
+        except: pass
+  except: pass
+
 # Fetch opencode session list and match to agents with codenames
 adjectives = ['cosmic', 'mighty', 'swift', 'brave', 'calm', 'eager', 'fancy', 'grand', 'happy', 'jolly', 'keen', 'lively', 'merry', 'noble', 'proud', 'quiet', 'rapid', 'sharp', 'tidy', 'vivid', 'warm', 'zesty', 'amber', 'bliss', 'crisp', 'dusk', 'ember', 'frost', 'gleam', 'haze', 'iris', 'jade', 'lunar', 'mist', 'nova', 'onyx', 'pearl', 'ripple', 'solar', 'twist', 'umbra', 'vapor', 'whim', 'zen']
 nouns = ['engine', 'fox', 'hawk', 'wolf', 'bear', 'deer', 'owl', 'swan', 'wren', 'heron', 'elm', 'oak', 'pine', 'maple', 'ash', 'willow', 'coral', 'ridge', 'peak', 'vale', 'brook', 'lake', 'stone', 'cloud', 'storm', 'comet', 'orbit', 'prism', 'beacon', 'pilot', 'sailor', 'knight', 'rogue', 'sage', 'spark', 'whisper', 'echo', 'pulse', 'drift', 'glide', 'bloom', 'root', 'node', 'core', 'cell', 'gear', 'quill', 'flame']
@@ -756,6 +773,8 @@ payload = {
     'agent_count': len([a for a in agent_list if a.get('status') != 'finished']),
     'total_procs': len(proc_list),
     'main_pid': main_pid,
+    'prev_main_pid': prev_main_pid,
+    'engine_restarted_at': engine_restarted_at,
     'uptime': main_elapsed or 'N/A',
     'total_cpu': total_cpu,
     'total_cpu_str': f'{total_cpu}%',

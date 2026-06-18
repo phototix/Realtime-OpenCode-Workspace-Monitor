@@ -115,20 +115,66 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'message': 'Missing session id or message'}, 400)
                 return
             try:
+                # Check if engine restarted since this session was created
+                status_path = os.path.join(DATA_DIR, 'status.json')
+                engine_restarted = False
+                if os.path.exists(status_path):
+                    try:
+                        with open(status_path) as f:
+                            sd = json.load(f)
+                        if sd.get('summary', {}).get('engine_restarted_at'):
+                            engine_restarted = True
+                    except:
+                        pass
+
                 cwd = directory or None
                 attach = get_attach_url()
-                cmd = ['opencode', 'run', '-s', sid, '--attach', attach]
-                if model:
-                    cmd.extend(['-m', model])
-                if mode_val:
-                    cmd.extend(['--agent', mode_val])
-                cmd.append(message)
+                password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
+
+                def _build_cmd(with_session=True):
+                    c = ['opencode', 'run']
+                    if with_session:
+                        c.extend(['-s', sid])
+                    c.extend(['--attach', attach])
+                    if password:
+                        c.extend(['-p', password])
+                    if model:
+                        c.extend(['-m', model])
+                    if mode_val:
+                        c.extend(['--agent', mode_val])
+                    c.append(message)
+                    return c
+
+                cmd = _build_cmd(with_session=True)
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: instructed session {sid}")
                     self._json({'ok': True, 'message': 'Instruction sent'})
-                else:
-                    self._json({'ok': False, 'message': r.stderr.strip()[:200] or 'Unknown error'}, 500)
+                    return
+
+                err_text = r.stderr.strip()[:200] or r.stdout.strip()[:200] or 'Unknown error'
+
+                # If engine restarted, sessions are all invalid
+                if engine_restarted:
+                    log(f"Admin: engine restart detected, session {sid} invalid")
+                    self._json({'ok': False, 'message': 'OpenCode engine was restarted — all prior sessions are invalid. Create a new session.', 'code': 'engine_restarted'}, 500)
+                    return
+
+                # If session not found (completed/archived), fall back to creating a new session
+                if 'not found' in err_text.lower():
+                    log(f"Admin: session {sid} not found, falling back to new session")
+                    cmd_fallback = _build_cmd(with_session=False)
+                    r2 = subprocess.run(cmd_fallback, capture_output=True, text=True, timeout=120, cwd=cwd)
+                    if r2.returncode == 0:
+                        log(f"Admin: created new session from continue (was {sid})")
+                        self._json({'ok': True, 'message': 'This case has ended — a new case was created with your instruction.'})
+                        return
+                    fb_err = r2.stderr.strip()[:200] or r2.stdout.strip()[:200] or 'Unknown error'
+                    log(f"Admin: fallback new session also failed: {fb_err[:100]}")
+                    self._json({'ok': False, 'message': fb_err}, 500)
+                    return
+
+                self._json({'ok': False, 'message': err_text}, 500)
             except subprocess.TimeoutExpired:
                 self._json({'ok': False, 'message': 'Timeout sending instruction'}, 500)
             except Exception as e:
@@ -158,11 +204,14 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                                 break
                     except:
                         pass
+                password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
                 cmd = ['opencode', 'run']
                 if last_sid:
                     cmd.extend(['-s', last_sid, '--attach', attach])
                 else:
                     cmd.extend(['-c', '--attach', attach])
+                if password:
+                    cmd.extend(['-p', password])
                 if title:
                     cmd.extend(['--title', title])
                 if model:
@@ -172,7 +221,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 if directory:
                     cmd.extend(['--dir', directory])
                 cmd.append(message)
-                r = subprocess.run(cmd, capture_output=True, text=True, timeout=15, cwd=cwd)
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: new session started \"{title or message[:40]}\"")
                     self._json({'ok': True, 'message': 'Session started'})
@@ -190,6 +239,18 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'message': 'Missing session id or answers'}, 400)
                 return
             try:
+                # Check if engine restarted since this session was created
+                status_path = os.path.join(DATA_DIR, 'status.json')
+                engine_restarted = False
+                if os.path.exists(status_path):
+                    try:
+                        with open(status_path) as f:
+                            sd = json.load(f)
+                        if sd.get('summary', {}).get('engine_restarted_at'):
+                            engine_restarted = True
+                    except:
+                        pass
+
                 cwd = body.get('directory') or None
                 attach = get_attach_url()
                 answer_text = 'I choose: ' + '; '.join(str(a) for a in answers)
@@ -198,6 +259,9 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 if r.returncode == 0:
                     log(f"Admin: answered session {sid}")
                     self._json({'ok': True, 'message': 'Answer sent'})
+                elif engine_restarted or 'Session not found' in (r.stderr or ''):
+                    log(f"Admin: session {sid} stale for answer (engine restart)")
+                    self._json({'ok': False, 'message': 'Session no longer available — the engine was restarted.', 'code': 'engine_restarted'}, 500)
                 elif 'already running' in (r.stderr or '').lower() or 'already active' in (r.stderr or '').lower():
                     log(f"Admin: session {sid} already busy, answer queued")
                     self._json({'ok': True, 'message': 'Session is busy — answer will be picked up when ready'})
