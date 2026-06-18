@@ -581,22 +581,23 @@
   .desk-card .desk-active-dot.idle { background: var(--text-dim); }
 
   /* Discussion Desk */
-  .discussion-desk { background: var(--surface); border: 1px solid var(--border);
+  .discussion-desk { display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border);
     border-left: 3px solid var(--yellow); border-radius: 12px;
     padding: 14px 16px; margin-bottom: 16px; }
   .discussion-item { display: flex; align-items: flex-start; gap: 10px;
     background: var(--surface2); border: 1px solid var(--border);
-    border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; }
-  .discussion-item:last-child { margin-bottom: 0; }
+    border-radius: 10px; padding: 10px 12px; }
+  .discussion-item:only-child { grid-column: 1 / -1; }
   .discussion-item .di-icon { flex-shrink: 0; margin-top: 2px; }
-  .discuss-icon-img { width: 160px; height: 160px; border-radius: 8px; object-fit: cover; }
+  .discuss-icon-img { width: 80px; height: 80px; border-radius: 8px; object-fit: cover; }
   .discussion-item .di-body { flex: 1; min-width: 0; }
   .discussion-item .di-title { font-size: 12px; font-weight: 600; }
   .discussion-item .di-meta { font-size: 10px; color: var(--text-dim); }
   .discussion-item .di-staff { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
   .discussion-item .di-staff span { font-size: 10px; background: var(--surface);
     padding: 3px 8px; border-radius: 6px; color: var(--text); font-weight: 500; }
-  .discuss-empty-wrapper { display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .discuss-empty-wrapper { display: flex; align-items: center; justify-content: center; padding: 20px; grid-column: 1 / -1; }
   .discuss-empty-img { width: 160px; height: 160px; opacity: 0.5; }
 
   .rest-room-grid { display: grid; grid-template-columns: repeat(3, 1fr);
@@ -1926,6 +1927,7 @@ setInterval(poll, POLL_INTERVAL);
       <div class="admin-tab" data-tab="settings" onclick="switchTab('settings')">⚙ Settings</div>
       <div class="admin-tab" data-tab="providers" onclick="switchTab('providers')">🔌 Provider</div>
       <div class="admin-tab" data-tab="super-staff" onclick="switchTab('super-staff')">🧑‍💼 Super Staff</div>
+      <div class="admin-tab" data-tab="cron" onclick="switchTab('cron')">⏰ Cron</div>
       <div class="admin-tab" data-tab="security" onclick="switchTab('security')">🔒 Security</div>
       <div class="admin-tab" data-tab="logs" onclick="switchTab('logs')">📄 Logs</div>
     </div>
@@ -1997,6 +1999,10 @@ setInterval(poll, POLL_INTERVAL);
             <input type="range" min="5" max="120" step="5" value="30" id="retentionRange" oninput="updateSettingPreview('retention')">
           </div>
           <div class="settings-group">
+            <label>Cron Check Interval <span class="range-val" id="cronIntervalVal">30</span> sec</label>
+            <input type="range" min="10" max="300" step="10" value="30" id="cronIntervalRange" oninput="updateSettingPreview('cronInterval')">
+          </div>
+          <div class="settings-group">
             <label>Max Activity Log Lines <span class="range-val" id="logLinesVal">100</span></label>
             <input type="range" min="20" max="500" step="10" value="100" id="logLinesRange" oninput="updateSettingPreview('logLines')">
           </div>
@@ -2025,6 +2031,16 @@ setInterval(poll, POLL_INTERVAL);
         <div id="superStaffTabContent">
           <div style="font-size:12px;color:var(--text-dim)">Loading staff...</div>
         </div>
+      </div>
+
+      <!-- Cron Tab -->
+      <div class="tab-content" id="tab-cron">
+        <h3>⏰ Cron Jobs</h3>
+        <div class="desc">Schedule automated instructions to run on a timer</div>
+        <div class="inline-form" style="margin-bottom:12px">
+          <button class="btn btn-sm btn-primary" onclick="openCronModal()" style="margin-left:auto">+ New Cron Job</button>
+        </div>
+        <div id="cronTabContent"><div style="font-size:12px;color:var(--text-dim)">Loading cron jobs...</div></div>
       </div>
 
       <!-- Security Tab -->
@@ -2194,6 +2210,17 @@ setInterval(poll, POLL_INTERVAL);
   </div>
 </div>
 
+<!-- Cron Job Modal -->
+<div class="modal-overlay" id="cronModal" style="display:none">
+  <div class="login-modal" style="width:650px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:18px" id="cronModalTitle">New Cron Job</h2>
+      <button class="admin-close" onclick="closeCronModal()">&times;</button>
+    </div>
+    <div id="cronModalBody"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"><span id="toastMessage"></span><span class="toast-close" onclick="dismissToast()">&times;</span></div>
 
 <script>
@@ -2357,6 +2384,7 @@ function switchTab(tabId) {
   if (tabId === 'logs') renderLogsTab();
   if (tabId === 'providers') renderProvidersTab();
   if (tabId === 'super-staff') renderSuperStaffTab();
+  if (tabId === 'cron') renderCronTab();
 }
 
 // ── SESSIONS TAB ──
@@ -2691,6 +2719,9 @@ async function loadModels(selectId, selected) {
 }
 
 async function sessionInstructView(id, dir) {
+  const escId = id.replace(/[^a-zA-Z0-9]/g,'_');
+  const branch = document.getElementById('branch-' + escId) ? document.getElementById('branch-' + escId).checked : false;
+
   // Pre-check: fetch latest status.json to verify session still exists
   try {
     const checkResp = await fetch('data/status.json?_=' + Date.now());
@@ -2700,23 +2731,24 @@ async function sessionInstructView(id, dir) {
       renderCasesTab();
       return;
     }
-    const stillExists = (checkData.all_sessions || []).some(function(s) { return s.id === id; });
-    if (!stillExists) {
-      showToast('This case no longer exists \u2014 the engine was restarted. Create a new case.', 'error');
-      renderCasesTab();
-      return;
-    }
-    const updated = (checkData.all_sessions || []).find(function(s) { return s.id === id; });
-    if (updated && (updated.state === 'thinking' || updated.state === 'running-tools')) {
-      showToast('This case is already active — wait for it to complete, then try again.', 'error');
-      renderCasesTab();
-      return;
+    if (!branch) {
+      const stillExists = (checkData.all_sessions || []).some(function(s) { return s.id === id; });
+      if (!stillExists) {
+        showToast('This case no longer exists \u2014 the engine was restarted. Create a new case.', 'error');
+        renderCasesTab();
+        return;
+      }
+      const updated = (checkData.all_sessions || []).find(function(s) { return s.id === id; });
+      if (updated && (updated.state === 'thinking' || updated.state === 'running-tools')) {
+        showToast('This case is already active — wait for it to complete, then try again.', 'error');
+        renderCasesTab();
+        return;
+      }
     }
   } catch (e) {
     // Silent fail on pre-check, let the main request handle it
   }
 
-  const escId = id.replace(/[^a-zA-Z0-9]/g,'_');
   const input = document.getElementById('instruct-' + escId);
   const modelSel = document.getElementById('model-' + escId);
   const modeSel = document.getElementById('mode-' + escId);
@@ -2726,7 +2758,6 @@ async function sessionInstructView(id, dir) {
   if (!message) { showToast('Please enter an instruction', 'error'); return; }
   const finalMode = staff ? staff.mode : mode;
   const finalMessage = staff ? (staff.description + '\n\n' + message) : message;
-  const branch = document.getElementById('branch-' + escId) ? document.getElementById('branch-' + escId).checked : false;
 
   // Close modal immediately
   closeContinueModal();
@@ -3077,6 +3108,7 @@ function resetAllNames() {
 function updateSettingPreview(id) {
   if (id === 'pollInterval') document.getElementById('pollIntervalVal').textContent = document.getElementById('pollIntervalRange').value;
   if (id === 'retention') document.getElementById('retentionVal').textContent = document.getElementById('retentionRange').value;
+  if (id === 'cronInterval') document.getElementById('cronIntervalVal').textContent = document.getElementById('cronIntervalRange').value;
   if (id === 'logLines') document.getElementById('logLinesVal').textContent = document.getElementById('logLinesRange').value;
 }
 
@@ -3086,6 +3118,7 @@ function saveSettings() {
   const settings = {
     pollInterval: parseInt(document.getElementById('pollIntervalRange').value),
     retention: parseInt(document.getElementById('retentionRange').value),
+    cronInterval: parseInt(document.getElementById('cronIntervalRange').value),
     logLines: parseInt(document.getElementById('logLinesRange').value)
   };
   localStorage.setItem('dashboard_settings', JSON.stringify(settings));
@@ -3539,6 +3572,236 @@ function closeContinueModal() {
 function closeNewSessionModal() {
   const el = document.getElementById('newSessionModal') || document.querySelector('#newSessionModal');
   if (el) el.style.display = 'none';
+}
+
+// ── Cron Jobs ──
+let _cronJobsCache = [];
+
+async function renderCronTab() {
+  const el = document.getElementById('cronTabContent');
+  el.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">Loading cron jobs...</div>';
+  try {
+    const r = await fetch('/api/cron-jobs');
+    const d = await r.json();
+    if (!d.ok) { el.innerHTML = '<div style="color:var(--danger)">Failed to load cron jobs</div>'; return; }
+    _cronJobsCache = d.jobs || [];
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--danger)">Error loading cron jobs</div>';
+    return;
+  }
+  if (!_cronJobsCache.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-dim)"><div style="font-size:40px;margin-bottom:12px">⏰</div><div>No cron jobs scheduled</div></div>';
+    return;
+  }
+  let html = '';
+  for (const job of _cronJobsCache) {
+    const enabled = job.enabled !== false;
+    const lastRun = job.last_run ? humanAgo(job.last_run * 1000) : 'Never';
+    const lastStatus = job.last_status || '—';
+    const intervalMin = Math.round((job.interval_sec || 300) / 60);
+    const action = job.action || {};
+    const typeLabel = action.type === 'session' ? 'Continue Session' : 'New Case';
+    const msg = (action.message || '').substring(0, 80);
+    html += `<div class="admin-card" style="opacity:${enabled ? 1 : 0.5}">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:12px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:600;margin-bottom:4px">${escHtml(job.name)}</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">
+            <span class="badge" style="background:var(--surface2)">${typeLabel}</span>
+            <span class="badge" style="background:var(--surface2)">every ${intervalMin}m</span>
+            ${action.staff ? `<span class="badge badge-staff">${escHtml(action.staff)}</span>` : ''}
+          </div>
+          <div style="font-size:12px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">“${escHtml(msg)}${(action.message||'').length > 80 ? '…' : ''}”</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:4px">Last: ${lastRun} — ${escHtml(lastStatus)}</div>
+        </div>
+        <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
+          <label class="toggle-switch" style="margin:0">
+            <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleCronJob('${job.id}')">
+            <span class="toggle-slider"></span>
+          </label>
+          <button class="btn btn-sm" onclick="openCronModal('${job.id}')" title="Edit">✏️</button>
+          <button class="btn btn-sm" onclick="deleteCronJob('${job.id}')" title="Delete">🗑️</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+async function openCronModal(jobId) {
+  const overlay = document.getElementById('cronModal');
+  const body = document.getElementById('cronModalBody');
+  const title = document.getElementById('cronModalTitle');
+  let job = null;
+  if (jobId) {
+    job = _cronJobsCache.find(j => j.id === jobId) || null;
+    title.textContent = 'Edit Cron Job';
+  } else {
+    title.textContent = 'New Cron Job';
+  }
+  const name = job ? escHtml(job.name) : '';
+  const intervalMin = job ? Math.round((job.interval_sec || 300) / 60) : 5;
+  const action = job ? (job.action || {}) : {};
+  const typeVal = action.type || 'workspace';
+  const staffName = escHtml(action.staff || '');
+  const model = escHtml(action.model || '');
+  const modeVal = escHtml(action.mode || '');
+  const dirVal = escHtml(action.directory || '');
+  const sidVal = escHtml(action.session_id || '');
+  const forkCheck = action.fork ? 'checked' : '';
+  const msgVal = escHtml(action.message || '');
+  body.innerHTML = `
+    <div class="form-group">
+      <label>Job Name</label>
+      <input type="text" id="cronName" value="${name}" placeholder="e.g. Daily Standup Summary">
+    </div>
+    <div class="form-group">
+      <label>Interval (minutes)</label>
+      <input type="number" id="cronInterval" value="${intervalMin}" min="1" style="width:100px">
+    </div>
+    <div class="form-group">
+      <label>Type</label>
+      <select id="cronType" onchange="toggleCronType()" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+        <option value="workspace" ${typeVal === 'workspace' ? 'selected' : ''}>New Case (workspace)</option>
+        <option value="session" ${typeVal === 'session' ? 'selected' : ''}>Continue Existing Session</option>
+      </select>
+    </div>
+    <div id="cronSessionFields" style="display:${typeVal === 'session' ? 'block' : 'none'}">
+      <div class="form-group">
+        <label>Session ID</label>
+        <input type="text" id="cronSessionId" value="${sidVal}" placeholder="opencode_…" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label style="display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="cronFork" ${forkCheck}>
+          Fork as new case instead
+        </label>
+      </div>
+    </div>
+    <div id="cronWorkspaceFields" style="display:${typeVal === 'session' ? 'none' : 'block'}">
+      <div class="form-group">
+        <label>Workspace Directory (optional)</label>
+        <input type="text" id="cronDirectory" value="${dirVal}" placeholder="~ or absolute path" style="width:100%">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Message / Instruction</label>
+      <textarea id="cronMessage" rows="3" style="width:100%;resize:vertical;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none;font-family:inherit">${msgVal}</textarea>
+    </div>
+    <div class="form-group">
+      <label>Super Staff (optional)</label>
+      <select id="cronStaff" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+        <option value="">None</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Mode (optional, overridden by Super Staff)</label>
+      <select id="cronMode" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+        <option value="">Default</option>
+        <option value="plan" ${modeVal === 'plan' ? 'selected' : ''}>Plan</option>
+        <option value="build" ${modeVal === 'build' ? 'selected' : ''}>Build</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Model (optional, overridden by Super Staff)</label>
+      <input type="text" id="cronModel" value="${model}" placeholder="e.g. openai/gpt-4o" style="width:100%">
+    </div>
+    <div class="form-error" id="cronModalErr" style="display:none"></div>
+    <button class="btn btn-primary" onclick="saveCronJob('${jobId || ''}')" style="width:100%;margin-top:8px">${jobId ? 'Update' : 'Create'} Cron Job</button>
+  `;
+  overlay.style.display = 'flex';
+  // Load super staff into dropdown
+  try {
+    const sr = await fetch('/api/super-staff');
+    const sd = await sr.json();
+    if (sd.ok && sd.staff) {
+      const sel = document.getElementById('cronStaff');
+      for (const s of sd.staff) {
+        const opt = document.createElement('option');
+        opt.value = s.name;
+        opt.textContent = s.name + (s.model ? ' (' + s.model + ')' : '');
+        if (s.name === staffName) opt.selected = true;
+        sel.appendChild(opt);
+      }
+    }
+  } catch(e) {}
+}
+
+function closeCronModal() {
+  document.getElementById('cronModal').style.display = 'none';
+}
+
+function toggleCronType() {
+  const t = document.getElementById('cronType').value;
+  document.getElementById('cronSessionFields').style.display = t === 'session' ? 'block' : 'none';
+  document.getElementById('cronWorkspaceFields').style.display = t === 'session' ? 'none' : 'block';
+}
+
+async function saveCronJob(jobId) {
+  const name = document.getElementById('cronName').value.trim();
+  const intervalMin = parseInt(document.getElementById('cronInterval').value) || 5;
+  const type = document.getElementById('cronType').value;
+  const message = document.getElementById('cronMessage').value.trim();
+  const errEl = document.getElementById('cronModalErr');
+  if (!name || !message) {
+    errEl.textContent = 'Name and message are required';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+  const action = {
+    type: type,
+    message: message,
+    staff: document.getElementById('cronStaff').value || '',
+    mode: document.getElementById('cronMode').value || '',
+    model: document.getElementById('cronModel').value.trim() || '',
+  };
+  if (type === 'session') {
+    action.session_id = document.getElementById('cronSessionId').value.trim();
+    action.fork = document.getElementById('cronFork').checked;
+    if (!action.session_id) {
+      errEl.textContent = 'Session ID is required for Continue Session type';
+      errEl.style.display = 'block';
+      return;
+    }
+  } else {
+    action.directory = document.getElementById('cronDirectory').value.trim() || '';
+  }
+  const endpoint = jobId ? '/api/cron-jobs/update' : '/api/cron-jobs/create';
+  const payload = jobId ? { id: jobId, name, interval_sec: intervalMin * 60, action } : { name, interval_sec: intervalMin * 60, action };
+  try {
+    const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const d = await r.json();
+    if (!d.ok) {
+      errEl.textContent = d.message || 'Failed to save';
+      errEl.style.display = 'block';
+      return;
+    }
+    closeCronModal();
+    renderCronTab();
+    showToast('Cron job saved', 'success');
+  } catch(e) {
+    errEl.textContent = 'Network error';
+    errEl.style.display = 'block';
+  }
+}
+
+async function deleteCronJob(jobId) {
+  if (!confirm('Delete this cron job?')) return;
+  try {
+    const r = await fetch('/api/cron-jobs/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: jobId }) });
+    const d = await r.json();
+    if (d.ok) {
+      renderCronTab();
+      showToast('Cron job deleted', 'success');
+    }
+  } catch(e) {}
+}
+
+async function toggleCronJob(jobId) {
+  try {
+    await fetch('/api/cron-jobs/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: jobId }) });
+  } catch(e) {}
 }
 
 // Initial auth check on page load
