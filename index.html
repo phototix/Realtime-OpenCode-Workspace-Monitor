@@ -631,11 +631,11 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100%;
+    padding: 48px 20px;
     color: var(--text-dim);
   }
-  .empty-state .icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
-  .empty-state .text { font-size: 14px; }
+  .empty-state .icon { font-size: 32px; line-height: 1; opacity: 0.7; }
+  .empty-state .text { font-size: 13px; margin-top: 8px; }
 
   .timestamp-tooltip {
     font-size: 11px;
@@ -1081,8 +1081,8 @@
         <div class="section-label" style="margin-bottom:8px">Standalone Processes <span class="count" id="standaloneCount"></span></div>
         <div id="standaloneGrid" class="nodes-grid"></div>
         <div class="empty-state" id="emptyState" style="display:none">
-          <div class="icon">&#9673;</div>
-          <div class="text">No unassigned processes</div>
+          <div class="icon">⚙</div>
+          <div class="text">No Other processes running at the moment</div>
         </div>
       </div>
     </div>
