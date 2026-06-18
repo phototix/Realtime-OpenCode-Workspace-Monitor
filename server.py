@@ -90,8 +90,10 @@ def _run_cron_job(job):
         action = job.get('action', {})
         cwd = action.get('directory') or None
         cmd = ['opencode', 'run']
-        if action.get('type') == 'session' and action.get('session_id') and not action.get('fork', False):
+        if action.get('type') == 'session' and action.get('session_id'):
             cmd.extend(['-s', action['session_id']])
+            if action.get('fork', False):
+                cmd.extend(['--fork'])
         else:
             cmd.extend(['-c'])
         cmd.extend(['--attach', attach])
@@ -205,7 +207,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             directory = body.get('directory', '')
             model = body.get('model', '')
             mode_val = body.get('mode', '')
-            branch_val = body.get('branch', False)
+            fork_val = body.get('fork', body.get('branch', False))
             if not sid or not message:
                 self._json({'ok': False, 'message': 'Missing session id or message'}, 400)
                 return
@@ -229,12 +231,11 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                     self._json({'ok': False, 'message': 'OpenCode engine was restarted — all prior sessions are invalid. Create a new case.', 'code': 'engine_restarted'}, 500)
                     return
 
-                def _build_cmd(with_session=True):
+                def _build_cmd(fork=False):
                     c = ['opencode', 'run']
-                    if with_session:
-                        c.extend(['-s', sid])
-                    else:
-                        c.extend(['-c'])
+                    c.extend(['-s', sid])
+                    if fork:
+                        c.extend(['--fork'])
                     c.extend(['--attach', attach])
                     if password:
                         c.extend(['-p', password])
@@ -245,7 +246,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                     c.append(message)
                     return c
 
-                cmd = _build_cmd(with_session=not branch_val)
+                cmd = _build_cmd(fork=fork_val)
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: instructed session {sid}")
@@ -279,7 +280,10 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 if model and ('Model not found' in err_text or 'UnknownError' in err_text):
                     log(f"Admin: retrying session {sid} without model")
                     model = ''
-                    cmd_retry = ['opencode', 'run', '-s', sid, '--attach', attach]
+                    cmd_retry = ['opencode', 'run', '-s', sid]
+                    if fork_val:
+                        cmd_retry.append('--fork')
+                    cmd_retry.extend(['--attach', attach])
                     if password:
                         cmd_retry.extend(['-p', password])
                     if mode_val:

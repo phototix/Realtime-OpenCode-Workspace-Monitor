@@ -2796,7 +2796,7 @@ async function sessionInstructView(id, dir) {
         model: staff && staff.model ? staff.model : (modelSel ? modelSel.value : ''),
         mode: finalMode,
         directory: dir || '',
-        branch: branch
+        fork: branch
       })
     });
     const data = await resp.json();
