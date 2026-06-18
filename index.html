@@ -3705,7 +3705,9 @@ async function openCronModal(jobId) {
     </div>
     <div class="form-group">
       <label>Model</label>
-      <input type="text" id="cronModel" value="${model}" placeholder="e.g. openai/gpt-4o" style="width:100%">
+      <select id="cronModel" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+        <option value="">Loading models...</option>
+      </select>
     </div>
     <div class="form-error" id="cronModalErr" style="display:none"></div>
     <button class="btn btn-primary" onclick="saveCronJob('${jobId || ''}')" style="width:100%;margin-top:8px">${jobId ? 'Update' : 'Create'} Cron Job</button>
@@ -3732,10 +3734,9 @@ async function openCronModal(jobId) {
         modeSel.appendChild(opt);
       }
     }
-    // Apply initial mode selection effects and restore model
+    // Populate model dropdown and apply mode selection effects
+    loadModels('cronModel', model || '');
     onCronModeChange();
-    const modelInput = document.getElementById('cronModel');
-    if (model && !modelInput.disabled) modelInput.value = model;
     // Populate sessions dropdown (case title + workspace)
     const sidSel = document.getElementById('cronSessionId');
     sidSel.innerHTML = '<option value="">Select a case...</option>';
