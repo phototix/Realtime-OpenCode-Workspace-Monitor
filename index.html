@@ -1193,6 +1193,13 @@ function getRandomName() {
   return entry ? entry.name : 'Staff';
 }
 
+function getWorkerGender(pid) {
+  const cfg = getNamesConfig();
+  const idx = Math.abs((pid || 0) * 7 + 13) % 26;
+  const entry = cfg[NAMES_LETTERS[idx]];
+  return entry ? entry.gender : 'M';
+}
+
 function switchContentTab(tab) {
   document.querySelectorAll('.content-tab').forEach(t => t.classList.toggle('active', t.dataset.panel === tab));
   document.querySelectorAll('.content-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + tab));
@@ -1416,12 +1423,15 @@ function renderDashboard(data) {
       isVirt = worker.virtual;
     }
 
+    const deskGif = isOccupied
+      ? (getWorkerGender(worker.pid) === 'F' ? 'assets/working-staff-loop-female.gif' : 'assets/working-staff-loop.gif')
+      : 'assets/working-desk-empty.png';
     const card = document.createElement('div');
     card.className = 'desk-card' + (isOccupied ? ' occupied' : ' vacant');
     card.innerHTML = `
       <div class="desk-number">#${deskNum}</div>
       ${isOccupied ? `<div class="desk-active-dot ${isActive ? 'active' : 'idle'}"></div>` : ''}
-      <div class="desk-avatar ${isOccupied ? 'occupied' : 'vacant'}">${isOccupied ? (() => { const g = ['assets/working-staff-loop.gif','assets/working-staff-loop-female.gif']; return '<img src=\"' + g[Math.abs((worker.pid || deskNum) * 7 + 13) % g.length] + '\" class=\"desk-img\" alt=\"working\">'; })() : '<img src=\"assets/working-desk-empty.png\" class=\"desk-img\" alt=\"vacant\">'}</div>
+      <div class="desk-avatar ${isOccupied ? 'occupied' : 'vacant'}"><img src="${deskGif}" class="desk-img" alt=""></div>
       <div class="desk-name">${isOccupied ? (isVirt ? getRandomName() : getMappedName(worker.pid, worker.name)) : 'Vacant'}</div>
       ${isOccupied ? `
         <div class="desk-session" style="background:${stateStyle.color}22;color:${stateStyle.color}">${isVirt ? (isActive ? '\u{1F4AD}' : '\u2713') + ' ' + stateStyle.label : sessionLabel.length > 20 ? sessionLabel.slice(0,18)+'...' : sessionLabel}</div>
@@ -2763,7 +2773,7 @@ function renderNamesTab() {
   document.getElementById('namesTabCount').textContent = '(' + letters.length + ' names)';
 
   let html = '<table class="admin-table"><thead><tr><th style="width:50px">Letter</th><th>Name</th><th style="width:60px">Gender</th><th style="width:80px"></th></tr></thead><tbody>';
-  letters.forEach(l => {
+  letters.split('').forEach(l => {
     const entry = cfg[l] || DEFAULT_NAMES[l] || { name: '?', gender: '?' };
     const genderColor = entry.gender === 'F' ? 'var(--pink)' : 'var(--blue)';
     html += '<tr>' +
