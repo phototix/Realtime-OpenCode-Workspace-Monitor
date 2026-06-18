@@ -1161,10 +1161,23 @@ function switchContentTab(tab) {
   document.querySelectorAll('.content-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + tab));
 }
 
+var _lastMainPid = 0;
+
 function renderDashboard(data) {
   if (!data) return;
 
   const s = data.summary;
+
+  // Detect engine restart — PID changed since last render
+  if (_lastMainPid && s.main_pid && _lastMainPid !== s.main_pid) {
+    console.log('Engine restart detected: PID', _lastMainPid, '->', s.main_pid);
+    showToast('OpenCode engine restarted \u2014 refreshing...', 'info');
+    _lastMainPid = s.main_pid;
+    setTimeout(function() { location.reload(); }, 1500);
+  }
+  if (!_lastMainPid && s.main_pid) {
+    _lastMainPid = s.main_pid;
+  }
 
   document.getElementById('lastUpdated').textContent = formatTime(data.timestamp);
   document.getElementById('staffCount').textContent = s.cpu_core_count || '?';
@@ -1371,7 +1384,7 @@ function renderDashboard(data) {
     card.innerHTML = `
       <div class="desk-number">#${deskNum}</div>
       ${isOccupied ? `<div class="desk-active-dot ${isActive ? 'active' : 'idle'}"></div>` : ''}
-      <div class="desk-avatar ${isOccupied ? 'occupied' : 'vacant'}">${isOccupied ? '<img src=\"assets/working-staff-loop.gif\" class=\"desk-img\" alt=\"working\">' : '<img src=\"assets/working-desk-empty.png\" class=\"desk-img\" alt=\"vacant\">'}</div>
+      <div class="desk-avatar ${isOccupied ? 'occupied' : 'vacant'}">${isOccupied ? (() => { const g = ['assets/working-staff-loop.gif','assets/working-staff-loop-female.gif']; return '<img src=\"' + g[Math.abs((worker.pid || deskNum) * 7 + 13) % g.length] + '\" class=\"desk-img\" alt=\"working\">'; })() : '<img src=\"assets/working-desk-empty.png\" class=\"desk-img\" alt=\"vacant\">'}</div>
       <div class="desk-name">${isOccupied ? (isVirt ? sessionLabel.slice(0, 14) + (sessionLabel.length > 14 ? '...' : '') : worker.name) : 'Vacant'}</div>
       ${isOccupied ? `
         <div class="desk-session" style="background:${stateStyle.color}22;color:${stateStyle.color}">${isVirt ? (isActive ? '\u{1F4AD}' : '\u2713') + ' ' + stateStyle.label : sessionLabel.length > 20 ? sessionLabel.slice(0,18)+'...' : sessionLabel}</div>
@@ -2168,7 +2181,7 @@ async function renderCasesTab() {
             questionBadge(s) +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\')">Stop</button>' : '') +
-            (s.state === 'complete' ? ' <button class="send-btn" data-sid="' + s.id + '" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
+             (s.state !== 'thinking' && s.state !== 'running-tools' ? ' <button class="send-btn" data-sid="' + s.id + '" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
           '</td>' +
         '</tr>';
       });
@@ -2243,14 +2256,18 @@ function continueSession(id) {
   }
   if (!modal || !body) { showToast('Continue modal not available', 'error'); return; }
   fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
+    if (data.summary && data.summary.engine_restarted_at) {
+      showToast('Cannot continue \u2014 OpenCode engine was restarted. All prior sessions are invalid.', 'error');
+      return;
+    }
     const s = (data.all_sessions || data.sessions || []).find(x => x.id === id);
     if (!s) {
       body.innerHTML = '<div style="font-size:12px;color:var(--red)">Case not found</div>';
       modal.style.display = 'flex';
       return;
     }
-    if (s.state !== 'complete') {
-      showToast('Continue not available for this case', 'error');
+    if (s.state === 'thinking' || s.state === 'running-tools') {
+      showToast('This case is already active — wait for it to complete before continuing.', 'error');
       return;
     }
     titleEl.textContent = 'Continue Case \u2014 ' + (s.title || '?');
@@ -2369,6 +2386,31 @@ async function loadModels(selectId, selected) {
 }
 
 async function sessionInstructView(id, dir) {
+  // Pre-check: fetch latest status.json to verify session still exists
+  try {
+    const checkResp = await fetch('data/status.json?_=' + Date.now());
+    const checkData = await checkResp.json();
+    if (checkData.summary && checkData.summary.engine_restarted_at) {
+      showToast('Cannot continue \u2014 OpenCode engine restarted. Please refresh and create a new case.', 'error');
+      renderCasesTab();
+      return;
+    }
+    const stillExists = (checkData.all_sessions || []).some(function(s) { return s.id === id; });
+    if (!stillExists) {
+      showToast('This case no longer exists \u2014 the engine was restarted. Create a new case.', 'error');
+      renderCasesTab();
+      return;
+    }
+    const updated = (checkData.all_sessions || []).find(function(s) { return s.id === id; });
+    if (updated && (updated.state === 'thinking' || updated.state === 'running-tools')) {
+      showToast('This case is already active — wait for it to complete, then try again.', 'error');
+      renderCasesTab();
+      return;
+    }
+  } catch (e) {
+    // Silent fail on pre-check, let the main request handle it
+  }
+
   const escId = id.replace(/[^a-zA-Z0-9]/g,'_');
   const input = document.getElementById('instruct-' + escId);
   const modelSel = document.getElementById('model-' + escId);
@@ -2388,6 +2430,17 @@ async function sessionInstructView(id, dir) {
     if (dot) { dot.style.background = 'var(--yellow)'; }
   }
 
+  // Revert UI helper function
+  function _revertUI() {
+    if (card) {
+      const badge = card.querySelector('.sc-state-badge');
+      if (badge) { badge.textContent = 'Complete'; badge.style.color = 'var(--green)'; badge.style.background = '#3fb95033'; }
+      const dot = card.querySelector('.sc-status-dot');
+      if (dot) { dot.style.background = 'var(--green)'; }
+    }
+    if (adminBtn) { adminBtn.textContent = 'Continue'; adminBtn.disabled = false; }
+  }
+
   // Update admin table Continue button to "Sending..."
   const adminBtn = document.querySelector('.send-btn[data-sid="' + CSS.escape(id) + '"]');
   if (adminBtn) { adminBtn.textContent = 'Sending...'; adminBtn.disabled = true; }
@@ -2405,20 +2458,19 @@ async function sessionInstructView(id, dir) {
     });
     const data = await resp.json();
     if (data.ok) {
-      showToast('Instruction sent \u2014 case continued', 'success');
+      // "new_session" means a new session was created as fallback
+      showToast(data.message, 'success');
       if (input) input.value = '';
     } else {
-      // Revert UI on error
-      if (card) {
-        const badge = card.querySelector('.sc-state-badge');
-        if (badge) { badge.textContent = 'Complete'; badge.style.color = 'var(--green)'; badge.style.background = '#3fb95033'; }
-        const dot = card.querySelector('.sc-status-dot');
-        if (dot) { dot.style.background = 'var(--green)'; }
+      _revertUI();
+      if (data.code === 'engine_restarted') {
+        showToast('Engine restarted \u2014 refresh the page to see active sessions.', 'error');
+      } else {
+        showToast('Error: ' + data.message, 'error');
       }
-      if (adminBtn) { adminBtn.textContent = 'Continue'; adminBtn.disabled = false; }
-      showToast('Error: ' + data.message, 'error');
     }
   } catch (e) {
+    _revertUI();
     showToast('Error: ' + e.message, 'error');
   }
   renderCasesTab();
