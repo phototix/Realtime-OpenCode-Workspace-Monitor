@@ -142,6 +142,52 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
             except Exception as e:
                 self._json({'ok': False, 'message': str(e)[:200]}, 500)
 
+        elif path == '/api/super-staff-update':
+            original_name = body.get('originalName', '').strip()
+            name = body.get('name', '').strip()
+            if not original_name or not name:
+                self._json({'ok': False, 'message': 'Missing name'}, 400)
+                return
+            description = body.get('description', '').strip()
+            mode_val = body.get('mode', 'build')
+            model = body.get('model', '')
+            agent_path = body.get('path', os.path.expanduser('~'))
+            try:
+                staff_file = os.path.join(DATA_DIR, 'super_staff.json')
+                if os.path.exists(staff_file):
+                    with open(staff_file) as f:
+                        staff = json.load(f)
+                    for s in staff:
+                        if s['name'] == original_name:
+                            s['name'] = name
+                            s['description'] = description
+                            s['mode'] = mode_val
+                            s['model'] = model
+                            s['path'] = agent_path
+                            break
+                    with open(staff_file, 'w') as f:
+                        json.dump(staff, f, indent=2)
+                agent_dir = os.path.join(agent_path, '.opencode', 'agents')
+                agent_file = os.path.join(agent_dir, name.replace(' ', '_').lower() + '.json')
+                agent_config = {
+                    'name': name,
+                    'description': description,
+                    'mode': 'all',
+                    'model': model or None,
+                    'permissions': ['*'],
+                }
+                os.makedirs(agent_dir, exist_ok=True)
+                with open(agent_file, 'w') as f:
+                    json.dump(agent_config, f, indent=2)
+                if name != original_name:
+                    old_file = os.path.join(agent_dir, original_name.replace(' ', '_').lower() + '.json')
+                    if os.path.exists(old_file):
+                        os.remove(old_file)
+                log(f"Admin: updated super staff '{original_name}' -> '{name}'")
+                self._json({'ok': True, 'message': f'Agent {name} updated'})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
         elif path == '/api/restart-daemon':
             try:
                 if os.path.exists(PID_FILE):

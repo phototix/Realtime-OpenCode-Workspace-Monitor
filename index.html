@@ -2035,6 +2035,49 @@ setInterval(poll, POLL_INTERVAL);
   </div>
 </div>
 
+<!-- Super Staff Modal -->
+<div class="modal-overlay" id="staffModal" style="display:none">
+  <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:18px" id="staffModalTitle">Create Staff Member</h2>
+      <button class="admin-close" onclick="closeStaffModal()">&times;</button>
+    </div>
+    <div id="staffModalBody">
+      <div class="form-group">
+        <label>Name</label>
+        <input type="text" id="staffName" placeholder="e.g. Code Reviewer">
+      </div>
+      <div class="form-group">
+        <label>Roles & Scope</label>
+        <textarea id="staffDescription" placeholder="Describe what this agent does and its responsibilities..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:80px;font-family:inherit"></textarea>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <div class="form-group" style="flex:1;min-width:150px">
+          <label>Mode</label>
+          <select id="staffMode" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+            <option value="build">Build</option>
+            <option value="plan">Plan</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:2;min-width:200px">
+          <label>Model</label>
+          <select id="staffModel" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+            <option value="">Loading models...</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Workspace Path</label>
+        <select id="staffPath" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+          <option value="">~ (home)</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" onclick="saveStaff()" style="width:100%;margin-top:8px">Save</button>
+      <div class="form-error" id="staffModalErr" style="margin-top:8px;display:none"></div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"><span id="toastMessage"></span><span class="toast-close" onclick="dismissToast()">&times;</span></div>
 
 <script>
@@ -3104,6 +3147,8 @@ async function ollamaRemove(url) {
 // ── SUPER STAFF TAB ──
 let superStaffCache = [];
 
+let editingStaffName = null;
+
 async function renderSuperStaffTab() {
   const el = document.getElementById('superStaffTabContent');
   try {
@@ -3115,16 +3160,17 @@ async function renderSuperStaffTab() {
     let html = '';
 
     // Staff list
-    html += '<div class="admin-card"><h4>Staff Members</h4>';
+    html += '<div class="admin-card"><h4>Staff Members <button class="btn btn-sm btn-primary" onclick="openStaffModal(null)" style="float:right;margin-top:-4px">+ New Staff</button></h4>';
     if (superStaffCache.length > 0) {
       html += '<table class="admin-table"><thead><tr><th>Name</th><th>Mode</th><th>Model</th><th>Description</th><th>Path</th><th></th></tr></thead><tbody>';
       superStaffCache.forEach(s => {
-        html += '<tr><td>' + escapeHtml(s.name) + '</td>' +
+        const escName = escapeHtml(s.name);
+        html += '<tr><td>' + escName + '</td>' +
           '<td><span style="color:' + (s.mode === 'plan' ? 'var(--purple)' : 'var(--blue)') + '">' + escapeHtml(s.mode) + '</span></td>' +
           '<td style="font-size:10px;color:var(--text-dim)">' + escapeHtml(s.model || 'default') + '</td>' +
           '<td style="font-size:10px;color:var(--text-dim);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + escapeHtml(s.description) + '">' + (s.description ? s.description.slice(0,40) + (s.description.length > 40 ? '...' : '') : '—') + '</td>' +
           '<td style="font-size:10px;color:var(--text-dim)">' + escapeHtml((s.path || '~').split('/').pop()) + '</td>' +
-          '<td><button class="stop-btn" onclick="deleteSuperStaff(\'' + escapeHtml(s.name) + '\')">Delete</button></td></tr>';
+          '<td><button class="view-btn" onclick="openStaffModal(\'' + escName.replace(/'/g,"\\'") + '\')" style="margin-right:4px">Edit</button><button class="stop-btn" onclick="deleteSuperStaff(\'' + escName.replace(/'/g,"\\'") + '\')">Delete</button></td></tr>';
       });
       html += '</tbody></table>';
     } else {
@@ -3132,64 +3178,97 @@ async function renderSuperStaffTab() {
     }
     html += '</div>';
 
-    // Create form
-    html += '<div class="admin-card"><h4>Create Staff Member</h4>';
-    html += '<div class="form-group"><label>Name</label><input type="text" id="ssName" placeholder="e.g. Code Reviewer"></div>';
-    html += '<div class="form-group"><label>Roles & Scope</label><textarea id="ssDescription" placeholder="Describe what this agent does and its responsibilities..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none;resize:vertical;min-height:60px;font-family:inherit"></textarea></div>';
-    html += '<div style="display:flex;gap:12px;flex-wrap:wrap">';
-    html += '<div class="form-group" style="flex:1;min-width:150px"><label>Mode</label><select id="ssMode" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none"><option value="build">Build</option><option value="plan">Plan</option></select></div>';
-    html += '<div class="form-group" style="flex:2;min-width:200px"><label>Model</label><select id="ssModel" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none"><option value="">Default</option></select></div>';
-    html += '</div>';
-    html += '<div class="form-group"><label>Workspace Path</label><select id="ssPath" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none"><option value="' + window.location.origin.replace('http://localhost:5500','').replace('http://127.0.0.1:5500','') + '">~ (home)</option></select></div>';
-    html += '<button class="btn btn-sm btn-primary" onclick="createSuperStaff()">Create Staff</button>';
-    html += '<div class="form-success" id="ssMsg" style="margin-top:8px;display:none"></div>';
-    html += '<div class="form-error" id="ssErr" style="margin-top:8px;display:none"></div>';
-    html += '</div>';
-
     el.innerHTML = html;
-
-    // Populate model dropdown
-    loadModels('ssModel', '');
-    // Populate workspace paths
-    const pathSel = document.getElementById('ssPath');
-    try {
-      const resp2 = await fetch('data/status.json?_=' + Date.now());
-      const statusData = await resp2.json();
-      const dirs = [...new Set((statusData.all_sessions || []).map(s => s.directory).filter(Boolean))].sort();
-      dirs.forEach(d => {
-        const opt = document.createElement('option');
-        opt.value = d;
-        opt.textContent = d.split('/').pop() || d;
-        opt.title = d;
-        pathSel.appendChild(opt);
-      });
-    } catch {}
   } catch (e) {
     el.innerHTML = '<div style="font-size:12px;color:var(--red)">Error: ' + e.message + '</div>';
   }
 }
 
-async function createSuperStaff() {
-  const name = document.getElementById('ssName').value.trim();
-  const description = document.getElementById('ssDescription').value.trim();
-  const mode = document.getElementById('ssMode').value;
-  const model = document.getElementById('ssModel').value;
-  const path = document.getElementById('ssPath').value;
-  const msg = document.getElementById('ssMsg');
-  const err = document.getElementById('ssErr');
-  msg.style.display = 'none'; err.style.display = 'none';
+function openStaffModal(originalName) {
+  editingStaffName = originalName;
+  const modal = document.getElementById('staffModal');
+  const titleEl = document.getElementById('staffModalTitle');
+  const nameInput = document.getElementById('staffName');
+  const descInput = document.getElementById('staffDescription');
+  const modeSel = document.getElementById('staffMode');
+  const modelSel = document.getElementById('staffModel');
+  const pathSel = document.getElementById('staffPath');
+  const err = document.getElementById('staffModalErr');
+  err.style.display = 'none';
+
+  if (originalName) {
+    titleEl.textContent = 'Edit Staff Member';
+    const staff = superStaffCache.find(s => s.name === originalName);
+    if (staff) {
+      nameInput.value = staff.name;
+      descInput.value = staff.description || '';
+      modeSel.value = staff.mode || 'build';
+      loadModels('staffModel', staff.model || '');
+    }
+  } else {
+    titleEl.textContent = 'Create Staff Member';
+    nameInput.value = '';
+    descInput.value = '';
+    modeSel.value = 'build';
+    loadModels('staffModel', '');
+  }
+
+  // Populate workspace paths
+  pathSel.innerHTML = '<option value="' + window.location.origin.replace('http://localhost:5500','').replace('http://127.0.0.1:5500','') + '">~ (home)</option>';
+  fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(sd => {
+    const dirs = [...new Set((sd.all_sessions || []).map(s => s.directory).filter(Boolean))].sort();
+    dirs.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = d.split('/').pop() || d;
+      opt.title = d;
+      if (originalName) {
+        const staff = superStaffCache.find(s => s.name === originalName);
+        if (staff && staff.path === d) opt.selected = true;
+      }
+      pathSel.appendChild(opt);
+    });
+  }).catch(() => {});
+
+  if (originalName) {
+    const staff = superStaffCache.find(s => s.name === originalName);
+    if (staff && staff.path) pathSel.value = staff.path;
+  }
+
+  modal.style.display = 'flex';
+}
+
+function closeStaffModal() {
+  document.getElementById('staffModal').style.display = 'none';
+}
+
+async function saveStaff() {
+  const name = document.getElementById('staffName').value.trim();
+  const description = document.getElementById('staffDescription').value.trim();
+  const mode = document.getElementById('staffMode').value;
+  const model = document.getElementById('staffModel').value;
+  const path = document.getElementById('staffPath').value;
+  const err = document.getElementById('staffModalErr');
+  err.style.display = 'none';
+
   if (!name) { err.textContent = 'Name is required'; err.style.display = 'block'; return; }
+
+  const isEdit = !!editingStaffName;
+  const endpoint = isEdit ? '/api/super-staff-update' : '/api/super-staff-create';
+  const body = isEdit
+    ? { originalName: editingStaffName, name, description, mode, model, path }
+    : { name, description, mode, model, path };
+
   try {
-    const resp = await fetch('/api/super-staff-create', {
+    const resp = await fetch(endpoint, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description, mode, model, path })
+      body: JSON.stringify(body)
     });
     const data = await resp.json();
     if (data.ok) {
-      msg.textContent = 'Staff member created!'; msg.style.display = 'block';
-      document.getElementById('ssName').value = '';
-      document.getElementById('ssDescription').value = '';
-      setTimeout(() => { msg.style.display = 'none'; renderSuperStaffTab(); }, 2000);
+      closeStaffModal();
+      showToast(isEdit ? 'Staff member updated' : 'Staff member created', 'success');
+      renderSuperStaffTab();
     } else {
       err.textContent = data.message; err.style.display = 'block';
     }
