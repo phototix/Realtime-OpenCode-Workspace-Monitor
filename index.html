@@ -3606,14 +3606,14 @@ async function renderCronTab() {
     html += `<div class="admin-card" style="opacity:${enabled ? 1 : 0.5}">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:12px">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:600;margin-bottom:4px">${escHtml(job.name)}</div>
+          <div style="font-weight:600;margin-bottom:4px">${escapeHtml(job.name)}</div>
           <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">
             <span class="badge" style="background:var(--surface2)">${typeLabel}</span>
             <span class="badge" style="background:var(--surface2)">every ${intervalMin}m</span>
-            ${action.staff ? `<span class="badge badge-staff">${escHtml(action.staff)}</span>` : ''}
+            ${action.staff ? `<span class="badge badge-staff">${escapeHtml(action.staff)}</span>` : ''}
           </div>
-          <div style="font-size:12px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">“${escHtml(msg)}${(action.message||'').length > 80 ? '…' : ''}”</div>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:4px">Last: ${lastRun} — ${escHtml(lastStatus)}</div>
+          <div style="font-size:12px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">“${escapeHtml(msg)}${(action.message||'').length > 80 ? '…' : ''}”</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:4px">Last: ${lastRun} — ${escapeHtml(lastStatus)}</div>
         </div>
         <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
           <label class="toggle-switch" style="margin:0">
@@ -3640,17 +3640,17 @@ async function openCronModal(jobId) {
   } else {
     title.textContent = 'New Cron Job';
   }
-  const name = job ? escHtml(job.name) : '';
+  const name = job ? escapeHtml(job.name) : '';
   const intervalMin = job ? Math.round((job.interval_sec || 300) / 60) : 5;
   const action = job ? (job.action || {}) : {};
   const typeVal = action.type || 'workspace';
-  const staffName = escHtml(action.staff || '');
-  const model = escHtml(action.model || '');
-  const modeVal = escHtml(action.mode || '');
-  const dirVal = escHtml(action.directory || '');
-  const sidVal = escHtml(action.session_id || '');
+  const staffName = escapeHtml(action.staff || '');
+  const model = escapeHtml(action.model || '');
+  const modeVal = escapeHtml(action.mode || '');
+  const dirVal = escapeHtml(action.directory || '');
+  const sidVal = escapeHtml(action.session_id || '');
   const forkCheck = action.fork ? 'checked' : '';
-  const msgVal = escHtml(action.message || '');
+  const msgVal = escapeHtml(action.message || '');
   body.innerHTML = `
     <div class="form-group">
       <label>Job Name</label>
