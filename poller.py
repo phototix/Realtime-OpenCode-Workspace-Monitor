@@ -814,6 +814,18 @@ try:
 except:
   pass
 
+# Read persisted boss name
+boss_name = 'Brandon'
+try:
+  bn_path = os.path.join(data_dir, 'boss_name.json')
+  if os.path.exists(bn_path):
+    with open(bn_path) as f:
+      bn = json.load(f)
+      if bn.get('name'):
+        boss_name = bn['name']
+except:
+  pass
+
 payload = {
   'timestamp': timestamp,
   'summary': {
@@ -835,6 +847,7 @@ payload = {
     'disk_free': disk_free,
     'disk_total': disk_total,
     'mem_total_gb': mem_total_gb,
+    'boss_name': boss_name,
   },
   'agents': agent_list,
   'standalone': standalone,

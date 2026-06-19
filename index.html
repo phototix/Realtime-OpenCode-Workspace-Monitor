@@ -1116,7 +1116,6 @@
 const STATUS_URL = 'data/status.json';
 let POLL_INTERVAL = 2000;
 let _pollTimer = null;
-let _restartTimer = false;
 
 const TYPE_ICONS = {
   main: '\u2699',
@@ -1271,6 +1270,7 @@ function renderDashboard(data) {
     _lastMainPid = s.main_pid;
   }
 
+  if (s.boss_name) { _serverBossName = s.boss_name; }
   document.getElementById('lastUpdated').textContent = formatTime(data.timestamp);
   document.getElementById('staffCount').textContent = s.cpu_core_count || '?';
   document.getElementById('sessionCount').textContent = (data.sessions || []).length;
@@ -1937,7 +1937,7 @@ async function poll() {
 
 function schedulePoll() {
   _pollTimer = setTimeout(() => {
-    poll().then(() => { if (!_restartTimer) schedulePoll(); });
+    poll().then(() => schedulePoll());
   }, POLL_INTERVAL);
 }
 
@@ -2356,7 +2356,9 @@ function getAuth() {
   try { return JSON.parse(sessionStorage.getItem(AUTH_KEY)); } catch { return null; }
 }
 
+let _serverBossName = '';
 function getBossName() {
+  if (_serverBossName) return _serverBossName;
   try { return localStorage.getItem('dashboard_boss_name') || 'Brandon'; } catch { return 'Brandon'; }
 }
 function setAuth(auth) {
@@ -3228,17 +3230,18 @@ function updateSettingPreview(id) {
 }
 
 function restartPollTimer() {
-  _restartTimer = true;
   if (_pollTimer) clearTimeout(_pollTimer);
   _polling = false;
-  poll();
-  _restartTimer = false;
-  schedulePoll();
+  poll().then(() => schedulePoll());
 }
 
 function saveSettings() {
   const bossName = document.getElementById('bossNameInput').value.trim();
-  if (bossName) localStorage.setItem('dashboard_boss_name', bossName);
+  if (bossName) {
+    localStorage.setItem('dashboard_boss_name', bossName);
+    _serverBossName = bossName;
+    fetch('/api/save-boss-name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bossName }) }).catch(() => {});
+  }
   const newPoll = parseInt(document.getElementById('pollIntervalRange').value);
   const retention = parseInt(document.getElementById('retentionRange').value);
   const cronInterval = parseInt(document.getElementById('cronIntervalRange').value);

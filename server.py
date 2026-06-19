@@ -870,6 +870,19 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 os.remove(dest)
             self._json({'ok': True})
 
+        elif path == '/api/save-boss-name':
+            name = (body.get('name') or '').strip()
+            if not name:
+                self._json({'ok': False, 'message': 'Missing name'}, 400)
+                return
+            try:
+                dest = os.path.join(DATA_DIR, 'boss_name.json')
+                with open(dest, 'w') as f:
+                    json.dump({'name': name}, f)
+                self._json({'ok': True})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
         elif path == '/api/rename-session':
             sid = body.get('id', '')
             new_title = body.get('title', '').strip()
