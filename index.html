@@ -1744,7 +1744,7 @@ function renderDashboard(data) {
   document.getElementById('sessionsCount').textContent = sessions.length > 0 ? '(' + sessions.length + ')' : '';
 
   if (sessions.length === 0) {
-    grid.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:8px"><div style="font-size:32px;line-height:1">📋</div><div style="font-size:13px;color:var(--text-dim)">No Cases working on at the moment</div></div>';
+    grid.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div class="text">No Cases working on at the moment</div></div>';
   }
 
   // Build staff assignment lookup from all_sessions
@@ -2508,7 +2508,7 @@ async function renderCasesTab() {
     if (curVal) filterEl.value = curVal;
 
     if (sessions.length === 0) {
-      el.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:8px"><div style="font-size:32px;line-height:1">📋</div><div style="font-size:13px;color:var(--text-dim)">No Cases working on at the moment</div></div>';
+      el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div class="text">No Cases working on at the moment</div></div>';
       return;
     }
 
@@ -2528,7 +2528,7 @@ async function renderCasesTab() {
     });
 
     if (Object.keys(grouped).length === 0) {
-      el.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 20px;gap:8px"><div style="font-size:32px;line-height:1">📋</div><div style="font-size:13px;color:var(--text-dim)">No Cases working on at the moment</div></div>';
+      el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div class="text">No Cases working on at the moment</div></div>';
       return;
     }
 
