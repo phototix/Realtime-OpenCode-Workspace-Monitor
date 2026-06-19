@@ -240,13 +240,17 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
         return self.headers.get('X-API-Key', '') == _API_KEY
 
     def do_POST(self):
-        if not self._check_api_key():
-            self._json({'ok': False, 'message': 'Unauthorized'}, 401)
-            return
+        global _API_KEY
         length = int(self.headers.get('Content-Length', 0))
         body = json.loads(self.rfile.read(length)) if length else {}
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+        # Public endpoints: no API key required (used by dashboard pollers and admin panel)
+        _PUBLIC_PATHS = ('/api/ping', '/api/providers', '/api/super-staff', '/api/super-staff-assignments', '/api/cron-jobs', '/api/cron-jobs/run', '/api/api-key', '/api/api-key/regenerate')
+        if path not in _PUBLIC_PATHS:
+            if not self._check_api_key():
+                self._json({'ok': False, 'message': 'Unauthorized'}, 401)
+                return
 
         if path == '/api/stop-session':
             sid = body.get('id', '')
@@ -942,7 +946,6 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             self._json({'ok': True, 'key': _API_KEY, 'masked': masked})
 
         elif path == '/api/api-key/regenerate':
-            global _API_KEY
             new_key = secrets.token_urlsafe(32)
             try:
                 with open(API_KEY_FILE, 'w') as _f:
@@ -961,10 +964,13 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         if path.startswith('/api/'):
-            if not self._check_api_key():
-                self._json({'ok': False, 'message': 'Unauthorized'}, 401)
-                return
-            if path in ('/api/ping', '/api/providers', '/api/super-staff', '/api/super-staff-assignments', '/api/cron-jobs', '/api/cron-jobs/run', '/api/api-key'):
+            # Public endpoints: no API key required
+            _PUBLIC_PATHS = ('/api/ping', '/api/providers', '/api/super-staff', '/api/super-staff-assignments', '/api/cron-jobs', '/api/cron-jobs/run', '/api/api-key', '/api/api-key/regenerate')
+            if path not in _PUBLIC_PATHS:
+                if not self._check_api_key():
+                    self._json({'ok': False, 'message': 'Unauthorized'}, 401)
+                    return
+            if path in _PUBLIC_PATHS:
                 self.do_POST()
             else:
                 self._json({'ok': False, 'message': 'Use POST for this endpoint'}, 405)

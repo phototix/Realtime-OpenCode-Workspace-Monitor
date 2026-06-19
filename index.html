@@ -2497,6 +2497,8 @@ async function handleLogin() {
     setAuth({ email: user.email, role: user.role });
     closeLoginModal();
     openAdminModal();
+    // Auto-fetch API key on login so remote clients can use it without manual setup
+    loadApiKey();
   } else {
     err.textContent = 'Invalid email or password';
     err.style.display = 'block';
