@@ -1367,6 +1367,7 @@ function renderDashboard(data) {
           </div>
           <div class="type-badge engine">boss</div>
           <button class="manage-btn" onclick="openLoginModal()">Manage</button>
+          ${getAuth() ? '<button class="manage-btn" onclick="openNewSessionModal()" style="margin-left:6px">+ New Case</button>' : ''}
         </div>
         <div class="card-body" style="display:flex;gap:12px;align-items:center">
           ${profilePhoto ? '<div class="boss-photo"><img src="' + profilePhoto + '" alt="Profile"></div>' : ''}
@@ -1910,14 +1911,21 @@ function renderDashboard(data) {
 }
 
 async function poll() {
-  try {
-    const resp = await fetch(STATUS_URL + '?_=' + Date.now());
-    if (!resp.ok) throw new Error('Status ' + resp.status);
-    const data = await resp.json();
-    renderDashboard(data);
-  } catch (e) {
-    console.log('Poll failed:', e.message);
-    showToast('Poll failed: ' + e.message, 'error');
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const resp = await fetch(STATUS_URL + '?_=' + Date.now());
+      if (!resp.ok) throw new Error('Status ' + resp.status);
+      const data = await resp.json();
+      renderDashboard(data);
+      return;
+    } catch (e) {
+      if (attempt === 0) {
+        await new Promise(r => setTimeout(r, 1000));
+      } else {
+        console.log('Poll failed:', e.message);
+        showToast('Poll failed: ' + e.message, 'error');
+      }
+    }
   }
 }
 
@@ -2292,6 +2300,25 @@ _pollTimer = setInterval(poll, POLL_INTERVAL);
   </div>
 </div>
 
+<!-- Rename Modal -->
+<div class="modal-overlay" id="renameModal" style="display:none">
+  <div class="login-modal" style="width:480px">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:18px">Rename Case</h2>
+      <button class="admin-close" onclick="closeRenameModal()">&times;</button>
+    </div>
+    <div class="form-group">
+      <label>New Title</label>
+      <input type="text" id="renameInput" placeholder="Enter new title..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button class="btn btn-sm" onclick="closeRenameModal()" style="background:var(--surface2);color:var(--text-dim)">Cancel</button>
+      <button class="btn btn-primary btn-sm" onclick="saveRename()" style="flex:1">Save</button>
+    </div>
+    <div class="form-error" id="renameError" style="margin-top:8px;display:none"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"><span id="toastMessage"></span><span class="toast-close" onclick="dismissToast()">&times;</span></div>
 
 <script>
@@ -2542,6 +2569,7 @@ async function renderCasesTab() {
               (s.assigned_staff ? '<option value="__unassign__" style="color:var(--red)">\u2715 Unassign</option>' : '') +
             '</select> ' +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
+            '<button class="view-btn" onclick="renameSession(\'' + s.id + '\',\'' + (s.title||'?').replace(/'/g,"\\'") + '\')" title="Rename">✏️</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\', event)">Stop</button>' : '') +
              (s.state !== 'thinking' && s.state !== 'running-tools' ? ' <button class="send-btn" data-sid="' + s.id + '" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
           '</td>' +
@@ -3734,6 +3762,62 @@ function closeNewSessionModal() {
   const el = document.getElementById('newSessionModal') || document.querySelector('#newSessionModal');
   if (el) el.style.display = 'none';
 }
+
+// ── Rename Case ──
+let _renameSessionId = '';
+
+function renameSession(id, currentTitle) {
+  _renameSessionId = id;
+  const input = document.getElementById('renameInput');
+  if (input) input.value = currentTitle;
+  document.getElementById('renameError').style.display = 'none';
+  document.getElementById('renameModal').style.display = 'flex';
+  setTimeout(() => { if (input) input.focus(); }, 100);
+}
+
+function closeRenameModal() {
+  document.getElementById('renameModal').style.display = 'none';
+  _renameSessionId = '';
+}
+
+async function saveRename() {
+  const input = document.getElementById('renameInput');
+  const newTitle = input ? input.value.trim() : '';
+  const errEl = document.getElementById('renameError');
+  if (!newTitle) {
+    errEl.textContent = 'Title cannot be empty';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!_renameSessionId) return;
+  errEl.style.display = 'none';
+  try {
+    const resp = await fetch('/api/rename-session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: _renameSessionId, title: newTitle })
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      closeRenameModal();
+      showToast('Case renamed', 'success');
+      renderCasesTab();
+    } else {
+      errEl.textContent = data.message;
+      errEl.style.display = 'block';
+    }
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message;
+    errEl.style.display = 'block';
+  }
+}
+
+// Enter key support for rename modal
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && document.getElementById('renameModal').style.display === 'flex') {
+    saveRename();
+  }
+});
 
 // ── Cron Jobs ──
 let _cronJobsCache = [];

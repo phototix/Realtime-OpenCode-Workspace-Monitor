@@ -25,8 +25,10 @@ def log_activity_py(msg):
         with open(activity_file) as f:
             lines = f.readlines()
         if len(lines) > 100:
-            with open(activity_file, 'w') as f:
+            tmp = activity_file + '.tmp'
+            with open(tmp, 'w') as f:
                 f.writelines(lines[-100:])
+            os.replace(tmp, activity_file)
     except:
         pass
 
@@ -348,26 +350,28 @@ export_running = os.path.exists(export_lock_file)
 if export_running:
   try:
     lock_age = time.time() - os.path.getmtime(export_lock_file)
-    if lock_age > 30:
+    if lock_age > 15:
       os.remove(export_lock_file)
       export_running = False
   except: export_running = False
 
-# Find session that needs refresh (most recent without cache or with stale cache)
-needs_refresh = None
+# Find sessions that need refresh (most recent without cache or with stale cache)
+needs_refresh = []
 for s in sessions:
   sid = s.get('id', '')
   updated = s.get('updated', 0)
   cached = detail_cache.get(sid, {})
   if cached.get('updated') != updated:
-    needs_refresh = s
-    break
+    needs_refresh.append(s)
+    if len(needs_refresh) >= 2:
+      break
 
 if needs_refresh and not export_running:
-  sid = needs_refresh['id']
+  session_to_fetch = needs_refresh[0]
+  sid = session_to_fetch['id']
   export_tmp = os.path.join(data_dir, f'export_{sid}.tmp')
   # Use session's directory as cwd if available (for project-scoped sessions)
-  session_dir = needs_refresh.get('directory', '')
+  session_dir = session_to_fetch.get('directory', '')
   if not session_dir or not os.path.isdir(session_dir):
     session_dir = None
   # Mark lock
@@ -468,7 +472,7 @@ if needs_refresh and not export_running:
     model_id = info.get('model', {}).get('id', '')
 
     detail_cache[sid] = {
-      'updated': needs_refresh['updated'],
+      'updated': session_to_fetch['updated'],
       'slug': slug,
       'state': state,
       'last_user_prompt': last_user_prompt,
@@ -484,7 +488,7 @@ if needs_refresh and not export_running:
       'pending_questions': pending_questions
     }
   except Exception as e:
-    pass
+    log_activity_py(f"Export failed for {sid}: {str(e)[:100]}")
   finally:
     if os.path.exists(export_lock_file):
       try: os.remove(export_lock_file)
@@ -617,9 +621,11 @@ for a in agent_list:
         a['session_mode'] = s.get('last_mode', '')
         break
 
-# Save cache
-with open(session_details_file, 'w') as f:
+# Save cache (atomic write)
+tmp = session_details_file + '.tmp'
+with open(tmp, 'w') as f:
   json.dump(detail_cache, f, indent=2, default=str)
+os.replace(tmp, session_details_file)
 
 # Export lock file cleanup
 if os.path.exists(export_lock_file):
@@ -837,11 +843,14 @@ payload = {
   'activity_log': activities
 }
 
-with open(status_file, 'w') as f:
+tmp = status_file + '.tmp'
+with open(tmp, 'w') as f:
   json.dump(payload, f, indent=2, default=str)
+os.replace(tmp, status_file)
 
-# Save current agent PIDs for next cycle
-with open(prev_pids_file, 'w') as f:
+# Save current agent PIDs for next cycle (atomic write)
+tmp = prev_pids_file + '.tmp'
+with open(tmp, 'w') as f:
   to_save = []
   for a in agent_list:
     if a.get('status') == 'finished': continue
@@ -849,3 +858,4 @@ with open(prev_pids_file, 'w') as f:
     if 'opencode session list' in cmd or 'opencode export' in cmd or cmd == '(opencode)': continue
     to_save.append({'pid': a['pid'], 'ppid': a.get('ppid', 0), 'name': a['name'], 'type': a['type'], 'command': cmd})
   json.dump(to_save, f)
+os.replace(tmp, prev_pids_file)

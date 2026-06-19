@@ -34,7 +34,11 @@ def log(msg):
     except:
         pass
 
+_attach_cache = {'url': '', 'time': 0}
 def get_attach_url():
+    now = time.time()
+    if now - _attach_cache.get('time', 0) < 30 and _attach_cache.get('url'):
+        return _attach_cache['url']
     try:
         r = subprocess.run(['lsof', '-i', '-P', '-n'], capture_output=True, text=True, timeout=5)
         for line in r.stdout.split('\n'):
@@ -44,12 +48,16 @@ def get_attach_url():
                     if ':' in p and len(p.split(':')[1]) == 5:
                         try:
                             port = int(p.split(':')[1])
-                            return f'http://127.0.0.1:{port}'
+                            _attach_cache['url'] = f'http://127.0.0.1:{port}'
+                            _attach_cache['time'] = now
+                            return _attach_cache['url']
                         except:
                             pass
     except:
         pass
-    return 'http://127.0.0.1:51384'
+    _attach_cache['url'] = 'http://127.0.0.1:51384'
+    _attach_cache['time'] = now
+    return _attach_cache['url']
 
 def get_engine_restarted():
     status_path = os.path.join(DATA_DIR, 'status.json')
@@ -850,6 +858,24 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 os.remove(dest)
             self._json({'ok': True})
 
+        elif path == '/api/rename-session':
+            sid = body.get('id', '')
+            new_title = body.get('title', '').strip()
+            if not sid or not new_title:
+                self._json({'ok': False, 'message': 'Missing id or title'}, 400)
+                return
+            try:
+                import sqlite3
+                db_path = os.path.expanduser('~/.local/share/opencode/opencode.db')
+                conn = sqlite3.connect(db_path)
+                conn.execute("UPDATE session SET title = ? WHERE id = ?", (new_title, sid))
+                conn.commit()
+                conn.close()
+                log(f"Admin: renamed session {sid[:16]} → \"{new_title}\"")
+                self._json({'ok': True, 'message': 'Case renamed'})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
         else:
             self._json({'ok': False, 'message': 'Not found'}, 404)
 
@@ -862,7 +888,11 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 self._json({'ok': False, 'message': 'Use POST for this endpoint'}, 405)
         else:
-            super().do_GET()
+            try:
+                super().do_GET()
+            except Exception as e:
+                log(f"Static file error: {e}")
+                self.send_error(500, 'Internal Server Error')
 
     def log_message(self, format, *args):
         pass
