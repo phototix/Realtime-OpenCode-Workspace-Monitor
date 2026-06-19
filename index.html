@@ -1376,8 +1376,8 @@ function renderDashboard(data) {
             <div class="meta">NodeService Engine · PID ${brandon.pid} · ${formatUptime(s.uptime) || 'N/A'}</div>
           </div>
           <div class="type-badge engine">boss</div>
-          <button class="manage-btn" onclick="openLoginModal()">Manage</button>
-          ${getAuth() ? '<button class="manage-btn" onclick="openNewSessionModal()" style="margin-left:6px">+ New Case</button>' : ''}
+          ${getAuth() ? '<button class="manage-btn" onclick="openNewSessionModal()">+ New Case</button>' : ''}
+          <button class="manage-btn" onclick="openLoginModal()" ${getAuth() ? 'style="margin-left:6px"' : ''}>Manage</button>
         </div>
         <div class="card-body" style="display:flex;gap:12px;align-items:center">
           ${profilePhoto ? '<div class="boss-photo"><img src="' + profilePhoto + '" alt="Profile"></div>' : ''}
