@@ -10,6 +10,24 @@ from urllib.parse import urlparse
 DATA_DIR = os.path.expanduser('~/.opencode-dashboard/data')
 PID_FILE = os.path.join(DATA_DIR, 'daemon.pid')
 ACTIVITY_FILE = os.path.join(DATA_DIR, 'activity.log')
+API_KEY_FILE = os.path.join(DATA_DIR, 'api_key')
+
+def _load_api_key():
+    """Load API key from env var or the shared key file."""
+    key = os.environ.get('DASHBOARD_API_KEY', '').strip()
+    if key:
+        return key
+    if os.path.exists(API_KEY_FILE):
+        try:
+            with open(API_KEY_FILE) as _f:
+                key = _f.read().strip()
+            if key:
+                return key
+        except Exception:
+            pass
+    return ''
+
+_API_KEY = _load_api_key()
 
 def log(msg):
     try:
@@ -40,7 +58,13 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
     def _cors(self):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type, X-API-Key')
+
+    def _check_api_key(self):
+        """Returns True if the request carries a valid API key (or none is configured)."""
+        if not _API_KEY:
+            return True  # no key configured — allow (backward-compat)
+        return self.headers.get('X-API-Key', '') == _API_KEY
 
     def _json(self, data, status=200):
         self.send_response(status)
@@ -55,6 +79,9 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_POST(self):
+        if not self._check_api_key():
+            self._json({'ok': False, 'message': 'Unauthorized'}, 401)
+            return
         length = int(self.headers.get('Content-Length', 0))
         body = json.loads(self.rfile.read(length)) if length else {}
         parsed = urlparse(self.path)

@@ -10,12 +10,39 @@ import mimetypes
 import threading
 import time
 import base64
+import secrets
+import stat
 
 DATA_DIR = os.path.expanduser('~/.opencode-dashboard/data')
 PID_FILE = os.path.join(DATA_DIR, 'daemon.pid')
 ACTIVITY_FILE = os.path.join(DATA_DIR, 'activity.log')
 CRON_FILE = os.path.join(DATA_DIR, 'cron_jobs.json')
 STATIC_DIR = os.path.expanduser('~/.opencode-dashboard')
+API_KEY_FILE = os.path.join(DATA_DIR, 'api_key')
+
+def _load_or_generate_api_key():
+    """Load API key from env var or file; auto-generate and save if absent."""
+    key = os.environ.get('DASHBOARD_API_KEY', '').strip()
+    if key:
+        return key
+    if os.path.exists(API_KEY_FILE):
+        try:
+            with open(API_KEY_FILE) as _f:
+                key = _f.read().strip()
+            if key:
+                return key
+        except Exception:
+            pass
+    # Generate a secure random key and persist it
+    key = secrets.token_urlsafe(32)
+    os.makedirs(DATA_DIR, exist_ok=True)
+    with open(API_KEY_FILE, 'w') as _f:
+        _f.write(key + '\n')
+    os.chmod(API_KEY_FILE, stat.S_IRUSR | stat.S_IWUSR)  # 0o600
+    print(f'\n[Dashboard] New API key generated — copy this to your Android app Settings > API Key:\n  {key}\n  (saved to {API_KEY_FILE})\n', flush=True)
+    return key
+
+_API_KEY = _load_or_generate_api_key()
 
 import re
 
@@ -208,7 +235,14 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data).encode())
 
+    def _check_api_key(self):
+        """Returns True if the request carries a valid API key."""
+        return self.headers.get('X-API-Key', '') == _API_KEY
+
     def do_POST(self):
+        if not self._check_api_key():
+            self._json({'ok': False, 'message': 'Unauthorized'}, 401)
+            return
         length = int(self.headers.get('Content-Length', 0))
         body = json.loads(self.rfile.read(length)) if length else {}
         parsed = urllib.parse.urlparse(self.path)
@@ -902,6 +936,24 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 self._json({'ok': False, 'message': str(e)[:200]}, 500)
 
+        elif path == '/api/api-key':
+            # Request is already authenticated — return the full key so admin can copy it
+            masked = (_API_KEY[:6] + '…' + _API_KEY[-4:]) if len(_API_KEY) > 10 else '****'
+            self._json({'ok': True, 'key': _API_KEY, 'masked': masked})
+
+        elif path == '/api/api-key/regenerate':
+            global _API_KEY
+            new_key = secrets.token_urlsafe(32)
+            try:
+                with open(API_KEY_FILE, 'w') as _f:
+                    _f.write(new_key + '\n')
+                os.chmod(API_KEY_FILE, stat.S_IRUSR | stat.S_IWUSR)  # 0o600
+                _API_KEY = new_key
+                log('Admin: API key regenerated')
+                self._json({'ok': True, 'key': new_key})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
         else:
             self._json({'ok': False, 'message': 'Not found'}, 404)
 
@@ -909,7 +961,10 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         if path.startswith('/api/'):
-            if path in ('/api/ping', '/api/providers', '/api/super-staff', '/api/super-staff-assignments', '/api/cron-jobs', '/api/cron-jobs/run'):
+            if not self._check_api_key():
+                self._json({'ok': False, 'message': 'Unauthorized'}, 401)
+                return
+            if path in ('/api/ping', '/api/providers', '/api/super-staff', '/api/super-staff-assignments', '/api/cron-jobs', '/api/cron-jobs/run', '/api/api-key'):
                 self.do_POST()
             else:
                 self._json({'ok': False, 'message': 'Use POST for this endpoint'}, 405)

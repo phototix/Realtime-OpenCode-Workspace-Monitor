@@ -1135,6 +1135,28 @@
 </div>
 
 <script>
+// ── API KEY FETCH INTERCEPTOR ──
+// Automatically attaches X-API-Key to every /api/ request so the web
+// dashboard works the same way as the Android app without touching each
+// individual fetch() call.
+(function () {
+  const _origFetch = window.fetch;
+  window.fetch = function (input, init) {
+    const url = typeof input === 'string' ? input
+      : (input instanceof URL ? input.toString() : (input && input.url) || '');
+    if (/\/api\//.test(url) && !url.startsWith('http')) {
+      const key = localStorage.getItem('dashboard_api_key') || '';
+      if (key) {
+        init = init ? Object.assign({}, init) : {};
+        const headers = new Headers(init.headers || {});
+        headers.set('X-API-Key', key);
+        init.headers = headers;
+      }
+    }
+    return _origFetch.call(this, input, init);
+  };
+})();
+
 const STATUS_URL = 'data/status.json';
 let POLL_INTERVAL = 2000;
 let _pollTimer = null;
@@ -2108,6 +2130,14 @@ schedulePoll();
             <input type="text" id="bossNameInput" placeholder="Brandon" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
           </div>
           <div class="settings-group">
+            <label>API Key <span style="font-size:11px;color:var(--text-dim)">(required for Android app &amp; remote clients)</span></label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="password" id="apiKeyInput" placeholder="Paste your server API key here" autocomplete="off" style="flex:1;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
+              <button class="btn btn-sm" id="apiKeyToggleBtn" onclick="toggleApiKeyVisibility()" style="white-space:nowrap">Show</button>
+            </div>
+            <div style="font-size:11px;color:var(--text-dim);margin-top:4px">Copy this key from the server startup log or <code style="background:var(--surface2);padding:1px 4px;border-radius:3px">~/.opencode-dashboard/data/api_key</code></div>
+          </div>
+          <div class="settings-group">
             <label>Profile Photo</label>
             <div style="display:flex;align-items:center;gap:12px;margin-top:4px">
               <img id="settingsPhotoPreview" src="" style="width:60px;height:60px;border-radius:8px;object-fit:cover;background:var(--surface2);display:none">
@@ -2171,6 +2201,25 @@ schedulePoll();
           <div class="form-success" id="secMsg" style="margin-top:8px"></div>
           <div class="form-error" id="secErr" style="margin-top:8px"></div>
         </div>
+
+        <!-- API Key Management -->
+        <div class="admin-card">
+          <h4>🔑 API Key</h4>
+          <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Used by the Android app and other remote clients to authenticate API requests.</div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+            <input type="text" id="apiKeyDisplay" readonly placeholder="Loading…"
+              style="flex:1;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:monospace;outline:none;cursor:default">
+            <button class="btn btn-sm" id="apiKeyCopyBtn" onclick="copyApiKey()" style="white-space:nowrap">Copy</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn btn-sm" onclick="loadApiKey()" style="background:var(--surface2);color:var(--text-dim)">Reveal Key</button>
+            <button class="btn btn-sm btn-primary" onclick="regenerateApiKey()">Regenerate Key</button>
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:8px">⚠ Regenerating invalidates the current key — update it in the Android app Settings afterwards.</div>
+          <div class="form-success" id="apiKeyMsg" style="margin-top:8px"></div>
+          <div class="form-error" id="apiKeyErr" style="margin-top:8px"></div>
+        </div>
+
         <div class="admin-card">
           <h4>Active Cases</h4>
           <div style="font-size:12px;color:var(--text-dim)" id="secCasesInfo">Only one admin session at a time (browser tab)</div>
@@ -3277,6 +3326,12 @@ function saveSettings() {
     _serverBossName = bossName;
     fetch('/api/save-boss-name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bossName }) }).catch(() => {});
   }
+  const apiKey = document.getElementById('apiKeyInput').value.trim();
+  if (apiKey) {
+    localStorage.setItem('dashboard_api_key', apiKey);
+  } else {
+    localStorage.removeItem('dashboard_api_key');
+  }
   const newPoll = parseInt(document.getElementById('pollIntervalRange').value);
   const retention = parseInt(document.getElementById('retentionRange').value);
   const cronInterval = parseInt(document.getElementById('cronIntervalRange').value);
@@ -3303,8 +3358,22 @@ function loadSettings() {
       if (s.logLines) { document.getElementById('logLinesRange').value = s.logLines; document.getElementById('logLinesVal').textContent = s.logLines; }
     }
     document.getElementById('bossNameInput').value = getBossName();
+    const savedKey = localStorage.getItem('dashboard_api_key') || '';
+    document.getElementById('apiKeyInput').value = savedKey;
   } catch {}
   updatePhotoPreview();
+}
+
+function toggleApiKeyVisibility() {
+  const input = document.getElementById('apiKeyInput');
+  const btn = document.getElementById('apiKeyToggleBtn');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = 'Hide';
+  } else {
+    input.type = 'password';
+    btn.textContent = 'Show';
+  }
 }
 
 // ── PROFILE PHOTO ──
@@ -3386,6 +3455,69 @@ function updatePhotoPreview() {
 }
 
 // ── SECURITY TAB ──
+// ── API KEY MANAGEMENT ──
+let _apiKeyFull = ''; // holds the full key after Reveal or Regenerate
+
+async function loadApiKey() {
+  const input = document.getElementById('apiKeyDisplay');
+  const msg = document.getElementById('apiKeyMsg');
+  const err = document.getElementById('apiKeyErr');
+  msg.style.display = 'none'; err.style.display = 'none';
+  try {
+    const r = await fetch('/api/api-key');
+    const d = await r.json();
+    if (d.ok) {
+      // Server returns the full key (already authenticated via X-API-Key header)
+      _apiKeyFull = d.key || '';
+      input.value = _apiKeyFull || d.masked || '—';
+      // Also update localStorage so the interceptor picks it up automatically
+      if (_apiKeyFull) localStorage.setItem('dashboard_api_key', _apiKeyFull);
+    } else {
+      err.textContent = d.message || 'Failed to load key'; err.style.display = 'block';
+    }
+  } catch (e) {
+    err.textContent = 'Request failed — check the API key in Settings first'; err.style.display = 'block';
+  }
+}
+
+async function regenerateApiKey() {
+  const input = document.getElementById('apiKeyDisplay');
+  const msg = document.getElementById('apiKeyMsg');
+  const err = document.getElementById('apiKeyErr');
+  msg.style.display = 'none'; err.style.display = 'none';
+  if (!confirm('Generate a new API key? The current key will stop working immediately.')) return;
+  try {
+    const r = await fetch('/api/api-key/regenerate', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    const d = await r.json();
+    if (d.ok && d.key) {
+      _apiKeyFull = d.key;
+      input.value = _apiKeyFull;
+      localStorage.setItem('dashboard_api_key', _apiKeyFull);
+      msg.textContent = '✓ New key generated — copy it to your Android app Settings now.';
+      msg.style.display = 'block';
+    } else {
+      err.textContent = d.message || 'Regeneration failed'; err.style.display = 'block';
+    }
+  } catch (e) {
+    err.textContent = 'Request failed'; err.style.display = 'block';
+  }
+}
+
+async function copyApiKey() {
+  const val = document.getElementById('apiKeyDisplay').value;
+  if (!val || val === 'Loading…' || val === '—') return;
+  try {
+    await navigator.clipboard.writeText(val);
+    const btn = document.getElementById('apiKeyCopyBtn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = 'Copy'; }, 2000);
+  } catch {
+    document.getElementById('apiKeyErr').textContent = 'Clipboard access denied — copy manually.';
+    document.getElementById('apiKeyErr').style.display = 'block';
+  }
+}
+
 async function changePassword() {
   const current = document.getElementById('secCurrentPw').value;
   const newPw = document.getElementById('secNewPw').value;
