@@ -263,7 +263,11 @@
     margin-top: 8px;
   }
   .node-card .card-body .item {
-    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 72px;
     padding: 6px;
     background: var(--surface2);
     border-radius: 6px;
@@ -653,10 +657,12 @@
     align-items: center;
     justify-content: center;
     padding: 48px 20px;
+    gap: 8px;
+    min-height: 120px;
     color: var(--text-dim);
   }
   .empty-state .icon { font-size: 32px; line-height: 1; opacity: 0.7; }
-  .empty-state .text { font-size: 13px; margin-top: 8px; }
+  .empty-state .text { font-size: 13px; }
 
   .timestamp-tooltip {
     font-size: 11px;
@@ -974,6 +980,13 @@
   .question-btn:hover { background: var(--yellow); color: #000; }
   .question-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+  .rename-btn {
+    font-size: 10px; padding: 3px 10px; border: none; border-radius: 4px;
+    cursor: pointer; font-weight: 500; transition: all 0.2s;
+    background: #d2992233; color: var(--yellow);
+  }
+  .rename-btn:hover { background: var(--yellow); color: #000; }
+
   .send-btn {
     font-size: 10px; padding: 3px 10px; border: none; border-radius: 4px;
     cursor: pointer; font-weight: 500; transition: all 0.2s;
@@ -1112,7 +1125,7 @@
       <div class="content-panel" id="panel-others">
         <div class="section-label" style="margin-bottom:8px">Standalone Processes <span class="count" id="standaloneCount"></span></div>
         <div id="standaloneGrid" class="nodes-grid"></div>
-        <div class="empty-state" id="emptyState" style="display:none">
+        <div class="empty-state" id="emptyState">
           <div class="icon">⚙</div>
           <div class="text">No Other processes running at the moment</div>
         </div>
@@ -1482,10 +1495,20 @@ function renderDashboard(data) {
 
   const deskPids = new Set(desks.filter(d => d).map(d => d.pid));
 
-  // Split virtual workers: discussing (thinking/running-tools) vs resting
+  // Split virtual workers: discussing (thinking/running-tools) vs resting, deduplicated by session
   const virtuals = allWorkers.filter(w => w.virtual && !deskPids.has(w.pid));
-  const discussingPool = virtuals.filter(w => w.sessionState === 'thinking' || w.sessionState === 'running-tools');
-  const restingVirtuals = virtuals.filter(w => w.sessionState !== 'thinking' && w.sessionState !== 'running-tools');
+  const seenDiscuss = new Set();
+  const discussingPool = [];
+  const restingVirtuals = [];
+  const seenRest = new Set();
+  virtuals.forEach(w => {
+    const isDiscuss = w.sessionState === 'thinking' || w.sessionState === 'running-tools';
+    const seen = isDiscuss ? seenDiscuss : seenRest;
+    if (!w.sessionTitle || seen.has(w.sessionTitle)) return;
+    seen.add(w.sessionTitle);
+    if (isDiscuss) discussingPool.push(w);
+    else restingVirtuals.push(w);
+  });
 
   // Assign up to 3 discussing agents to discussion room slots
   const DISCUSS_SLOTS = 3;
@@ -2332,9 +2355,9 @@ schedulePoll();
       <label>New Title</label>
       <input type="text" id="renameInput" placeholder="Enter new title..." style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;outline:none">
     </div>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button class="btn btn-sm" onclick="closeRenameModal()" style="background:var(--surface2);color:var(--text-dim)">Cancel</button>
-      <button class="btn btn-primary btn-sm" onclick="saveRename()" style="flex:1">Save</button>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-sm" onclick="closeRenameModal()">Cancel</button>
+      <button class="btn btn-sm btn-primary" onclick="saveRename()">Save</button>
     </div>
     <div class="form-error" id="renameError" style="margin-top:8px;display:none"></div>
   </div>
@@ -2595,7 +2618,7 @@ async function renderCasesTab() {
               (s.assigned_staff ? '<option value="__unassign__" style="color:var(--red)">\u2715 Unassign</option>' : '') +
             '</select> ' +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
-            '<button class="view-btn" onclick="renameSession(\'' + s.id + '\',\'' + (s.title||'?').replace(/'/g,"\\'") + '\')" title="Rename">✏️</button> ' +
+            '<button class="rename-btn" onclick="renameSession(\'' + s.id + '\',\'' + (s.title||'?').replace(/'/g,"\\'") + '\')">Rename</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\', event)">Stop</button>' : '') +
              (s.state !== 'thinking' && s.state !== 'running-tools' ? ' <button class="send-btn" data-sid="' + s.id + '" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
           '</td>' +
