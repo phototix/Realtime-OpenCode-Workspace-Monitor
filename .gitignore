@@ -3,3 +3,18 @@ __pycache__/
 *.pyc
 .DS_Store
 https:
+
+# Android/Gradle local and generated files
+android-apk-dev/.gradle/
+android-apk-dev/**/build/
+android-apk-dev/local.properties
+android-apk-dev/*.iml
+android-apk-dev/**/.cxx/
+android-apk-dev/**/captures/
+
+# Common signing/secrets artifacts
+*.jks
+*.keystore
+*.pem
+*.key
+*.p12
