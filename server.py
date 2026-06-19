@@ -35,9 +35,9 @@ def log(msg):
         pass
 
 _attach_cache = {'url': '', 'time': 0}
-def get_attach_url():
+def get_attach_url(force=False):
     now = time.time()
-    if now - _attach_cache.get('time', 0) < 30 and _attach_cache.get('url'):
+    if not force and now - _attach_cache.get('time', 0) < 30 and _attach_cache.get('url'):
         return _attach_cache['url']
     try:
         r = subprocess.run(['lsof', '-i', '-P', '-n'], capture_output=True, text=True, timeout=5)
@@ -58,6 +58,19 @@ def get_attach_url():
     _attach_cache['url'] = 'http://127.0.0.1:51384'
     _attach_cache['time'] = now
     return _attach_cache['url']
+
+def _check_engine(attach=None):
+    """Check engine reachability, retrying once if cache is stale."""
+    password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
+    if attach is None:
+        attach = get_attach_url()
+    if engine_is_reachable(attach, password):
+        return attach
+    # Cache may be stale (port changed on restart), force re-detect
+    attach = get_attach_url(force=True)
+    if engine_is_reachable(attach, password):
+        return attach
+    return None
 
 def get_engine_restarted():
     status_path = os.path.join(DATA_DIR, 'status.json')
@@ -230,16 +243,15 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 return
             try:
                 cwd = directory or None
-                attach = get_attach_url()
-                password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
 
                 # Check engine reachability before anything else
                 engine_restarted = get_engine_restarted()
-                if not engine_is_reachable(attach, password):
+                attach = _check_engine()
+                if not attach:
                     msg = 'OpenCode engine is not reachable — please relaunch the app.'
                     if engine_restarted:
                         msg += ' (Engine was restarted)'
-                    log(f"Admin: engine not reachable at {attach}")
+                    log(f"Admin: engine not reachable")
                     self._json({'ok': False, 'message': msg, 'code': 'engine_unreachable'}, 500)
                     return
 
@@ -330,15 +342,13 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 return
             try:
                 cwd = body.get('directory') or None
-                attach = get_attach_url()
-                password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
                 engine_restarted = get_engine_restarted()
-
-                if not engine_is_reachable(attach, password):
+                attach = _check_engine()
+                if not attach:
                     msg = 'OpenCode engine is not reachable — cannot send answer.'
                     if engine_restarted:
                         msg += ' (Engine was restarted)'
-                    log(f"Admin: answer failed — engine not reachable at {attach}")
+                    log(f"Admin: answer failed — engine not reachable")
                     self._json({'ok': False, 'message': msg, 'code': 'engine_unreachable'}, 500)
                     return
 
@@ -380,13 +390,12 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 return
             try:
                 cwd = directory or None
-                attach = get_attach_url()
-                password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
 
                 # Check engine reachability
-                if not engine_is_reachable(attach, password):
+                attach = _check_engine()
+                if not attach:
                     msg = 'OpenCode engine is not reachable — please relaunch the app.'
-                    log(f"Admin: new session failed — engine not reachable at {attach}")
+                    log(f"Admin: new session failed — engine not reachable")
                     self._json({'ok': False, 'message': msg, 'code': 'engine_unreachable'}, 500)
                     return
 
