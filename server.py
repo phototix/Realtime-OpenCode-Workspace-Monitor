@@ -9,6 +9,7 @@ import urllib.parse
 import mimetypes
 import threading
 import time
+import base64
 
 DATA_DIR = os.path.expanduser('~/.opencode-dashboard/data')
 PID_FILE = os.path.join(DATA_DIR, 'daemon.pid')
@@ -826,6 +827,28 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 except:
                     pass
             self._json({'ok': True, 'daemon_alive': daemon_alive, 'timestamp': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
+
+        elif path == '/api/upload-photo':
+            data_url = body.get('dataUrl', '')
+            if not data_url or not data_url.startswith('data:image/'):
+                self._json({'ok': False, 'message': 'Invalid image data'}, 400)
+                return
+            header, _, b64 = data_url.partition(',')
+            try:
+                img_data = base64.b64decode(b64)
+                dest = os.path.join(STATIC_DIR, 'assets', 'profile_photo.png')
+                os.makedirs(os.path.dirname(dest), exist_ok=True)
+                with open(dest, 'wb') as f:
+                    f.write(img_data)
+                self._json({'ok': True, 'url': '/assets/profile_photo.png?t=' + str(int(time.time()))})
+            except Exception as e:
+                self._json({'ok': False, 'message': str(e)[:200]}, 500)
+
+        elif path == '/api/remove-photo':
+            dest = os.path.join(STATIC_DIR, 'assets', 'profile_photo.png')
+            if os.path.exists(dest):
+                os.remove(dest)
+            self._json({'ok': True})
 
         else:
             self._json({'ok': False, 'message': 'Not found'}, 404)

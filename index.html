@@ -3195,11 +3195,6 @@ function restartPollTimer() {
 function saveSettings() {
   const bossName = document.getElementById('bossNameInput').value.trim();
   if (bossName) localStorage.setItem('dashboard_boss_name', bossName);
-  const photoBase64 = document.getElementById('settingsPhotoPreview').src;
-  if (photoBase64 && photoBase64.startsWith('data:image')) {
-    localStorage.setItem('dashboard_boss_photo', photoBase64);
-    profilePhoto = photoBase64;
-  }
   const newPoll = parseInt(document.getElementById('pollIntervalRange').value);
   const retention = parseInt(document.getElementById('retentionRange').value);
   const cronInterval = parseInt(document.getElementById('cronIntervalRange').value);
@@ -3256,16 +3251,28 @@ function closeCropModal() {
   if (cropper) { cropper.destroy(); cropper = null; }
 }
 
-function cropAndSave() {
+async function cropAndSave() {
   if (!cropper) return;
   const canvas = cropper.getCroppedCanvas({ width: 256, height: 256 });
-  profilePhoto = canvas.toDataURL();
-  localStorage.setItem('dashboard_boss_photo', profilePhoto);
-  closeCropModal();
-  updatePhotoPreview();
+  const dataUrl = canvas.toDataURL();
+  try {
+    const r = await fetch('/api/upload-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataUrl }) });
+    const d = await r.json();
+    if (d.ok) {
+      profilePhoto = d.url;
+      localStorage.setItem('dashboard_boss_photo', d.url);
+      closeCropModal();
+      updatePhotoPreview();
+    }
+  } catch(e) {
+    showToast('Failed to upload photo', 'error');
+  }
 }
 
-function removeProfilePhoto() {
+async function removeProfilePhoto() {
+  try {
+    await fetch('/api/remove-photo', { method: 'POST' });
+  } catch(e) {}
   profilePhoto = '';
   localStorage.removeItem('dashboard_boss_photo');
   updatePhotoPreview();
