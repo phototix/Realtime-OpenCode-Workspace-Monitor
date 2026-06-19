@@ -1116,6 +1116,7 @@
 const STATUS_URL = 'data/status.json';
 let POLL_INTERVAL = 2000;
 let _pollTimer = null;
+let _restartTimer = false;
 
 const TYPE_ICONS = {
   main: '\u2699',
@@ -1910,13 +1911,17 @@ function renderDashboard(data) {
   }
 }
 
+let _polling = false;
 async function poll() {
+  if (_polling) return;
+  _polling = true;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const resp = await fetch(STATUS_URL + '?_=' + Date.now());
       if (!resp.ok) throw new Error('Status ' + resp.status);
       const data = await resp.json();
       renderDashboard(data);
+      _polling = false;
       return;
     } catch (e) {
       if (attempt === 0) {
@@ -1927,6 +1932,13 @@ async function poll() {
       }
     }
   }
+  _polling = false;
+}
+
+function schedulePoll() {
+  _pollTimer = setTimeout(() => {
+    poll().then(() => { if (!_restartTimer) schedulePoll(); });
+  }, POLL_INTERVAL);
 }
 
 // Request notification permission
@@ -1935,7 +1947,7 @@ if ('Notification' in window && Notification.permission === 'default') {
 }
 
 poll();
-_pollTimer = setInterval(poll, POLL_INTERVAL);
+schedulePoll();
 </script>
 
 <!-- LOGIN MODAL -->
@@ -3216,8 +3228,12 @@ function updateSettingPreview(id) {
 }
 
 function restartPollTimer() {
-  if (_pollTimer) clearInterval(_pollTimer);
-  _pollTimer = setInterval(poll, POLL_INTERVAL);
+  _restartTimer = true;
+  if (_pollTimer) clearTimeout(_pollTimer);
+  _polling = false;
+  poll();
+  _restartTimer = false;
+  schedulePoll();
 }
 
 function saveSettings() {
@@ -3257,7 +3273,19 @@ function loadSettings() {
 let profilePhoto = localStorage.getItem('dashboard_boss_photo') || '';
 let cropper = null;
 
+async function checkProfilePhoto() {
+  if (profilePhoto) return; // already cached in localStorage
+  try {
+    const r = await fetch('/assets/profile_photo.png', { method: 'HEAD' });
+    if (r.ok) {
+      profilePhoto = '/assets/profile_photo.png?t=' + Date.now();
+      localStorage.setItem('dashboard_boss_photo', profilePhoto);
+    }
+  } catch(e) {}
+}
+
 loadSettings();
+checkProfilePhoto();
 
 function openCropModal(event) {
   const file = event.target.files[0];

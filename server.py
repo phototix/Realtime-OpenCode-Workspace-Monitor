@@ -243,6 +243,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 return
             try:
                 cwd = directory or None
+                password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
 
                 # Check engine reachability before anything else
                 engine_restarted = get_engine_restarted()
@@ -342,6 +343,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 return
             try:
                 cwd = body.get('directory') or None
+                password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
                 engine_restarted = get_engine_restarted()
                 attach = _check_engine()
                 if not attach:
@@ -390,6 +392,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 return
             try:
                 cwd = directory or None
+                password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
 
                 # Check engine reachability
                 attach = _check_engine()

@@ -622,10 +622,13 @@ for a in agent_list:
         break
 
 # Save cache (atomic write)
-tmp = session_details_file + '.tmp'
-with open(tmp, 'w') as f:
-  json.dump(detail_cache, f, indent=2, default=str)
-os.replace(tmp, session_details_file)
+try:
+  tmp = session_details_file + '.tmp'
+  with open(tmp, 'w') as f:
+    json.dump(detail_cache, f, indent=2, default=str)
+  os.replace(tmp, session_details_file)
+except:
+  pass
 
 # Export lock file cleanup
 if os.path.exists(export_lock_file):
@@ -843,19 +846,25 @@ payload = {
   'activity_log': activities
 }
 
-tmp = status_file + '.tmp'
-with open(tmp, 'w') as f:
-  json.dump(payload, f, indent=2, default=str)
-os.replace(tmp, status_file)
+try:
+  tmp = status_file + '.tmp'
+  with open(tmp, 'w') as f:
+    json.dump(payload, f, indent=2, default=str)
+  os.replace(tmp, status_file)
+except:
+  pass
 
 # Save current agent PIDs for next cycle (atomic write)
-tmp = prev_pids_file + '.tmp'
-with open(tmp, 'w') as f:
-  to_save = []
-  for a in agent_list:
-    if a.get('status') == 'finished': continue
-    cmd = a.get('command', '')
-    if 'opencode session list' in cmd or 'opencode export' in cmd or cmd == '(opencode)': continue
-    to_save.append({'pid': a['pid'], 'ppid': a.get('ppid', 0), 'name': a['name'], 'type': a['type'], 'command': cmd})
-  json.dump(to_save, f)
-os.replace(tmp, prev_pids_file)
+try:
+  tmp = prev_pids_file + '.tmp'
+  with open(tmp, 'w') as f:
+    to_save = []
+    for a in agent_list:
+      if a.get('status') == 'finished': continue
+      cmd = a.get('command', '')
+      if 'opencode session list' in cmd or 'opencode export' in cmd or cmd == '(opencode)': continue
+      to_save.append({'pid': a['pid'], 'ppid': a.get('ppid', 0), 'name': a['name'], 'type': a['type'], 'command': cmd})
+    json.dump(to_save, f)
+  os.replace(tmp, prev_pids_file)
+except:
+  pass
