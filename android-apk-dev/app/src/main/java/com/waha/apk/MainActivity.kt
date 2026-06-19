@@ -25,6 +25,11 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.pullrefresh.PullRefreshIndicator
 import androidx.compose.material.pullrefresh.pullRefresh
 import androidx.compose.material.pullrefresh.rememberPullRefreshState
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.DropdownMenu
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Build
@@ -76,6 +81,7 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import com.google.gson.JsonObject
+import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -287,25 +293,183 @@ private fun rawResUri(context: Context, @RawRes resId: Int): String {
     return "android.resource://${context.packageName}/$resId"
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun CasesScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> Unit) {
-    var sessionId by remember { mutableStateOf("") }
+    val sessionOptions = sessionDropdownList(state)
+    var sessionSearch by remember { mutableStateOf("") }
+    var sessionId by remember(sessionOptions) { mutableStateOf(sessionOptions.firstOrNull()?.id.orEmpty()) }
     var instruction by remember { mutableStateOf("") }
+    var selectedMode by remember { mutableStateOf("build") }
+    var selectedModel by remember { mutableStateOf("") }
+    var sessionMenuOpen by remember { mutableStateOf(false) }
+    var modeMenuOpen by remember { mutableStateOf(false) }
+    var modelMenuOpen by remember { mutableStateOf(false) }
+
+    val filteredSessionOptions = remember(sessionOptions, sessionSearch) {
+        sessionOptions.filter { it.matchesSessionFilter(sessionSearch) }
+    }
+
+    val selectedSession = sessionOptions.firstOrNull { it.id == sessionId } ?: sessionOptions.firstOrNull()
+
+    LaunchedEffect(sessionOptions) {
+        if (sessionId.isBlank() && sessionOptions.isNotEmpty()) {
+            sessionId = sessionOptions.first().id.orEmpty()
+        }
+    }
+
+    LaunchedEffect(selectedSession?.id) {
+        val savedPrompt = selectedSession?.lastUserPrompt.orEmpty().trim()
+        if (savedPrompt.isNotBlank() && instruction.isBlank()) {
+            instruction = savedPrompt
+        }
+    }
+
+    LaunchedEffect(selectedMode, selectedSession, state.staff, state.availableModels) {
+        val selectedStaff = findStaffByModeName(selectedMode, state.staff)
+        if (selectedStaff != null) {
+            selectedModel = selectedStaff.model.orEmpty()
+        } else if (selectedModel.isBlank()) {
+            selectedModel = defaultModelForSession(selectedSession, state.availableModels)
+        }
+    }
 
     PullToRefreshContainer(isRefreshing = state.loading, onRefresh = onRefresh) {
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
             item {
-                OutlinedTextField(value = sessionId, onValueChange = { sessionId = it }, label = { Text("Case ID") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(
+                    value = sessionSearch,
+                    onValueChange = { sessionSearch = it },
+                    label = { Text("Search cases") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+                ExposedDropdownMenuBox(
+                    expanded = sessionMenuOpen,
+                    onExpandedChange = { sessionMenuOpen = !sessionMenuOpen }
+                ) {
+                    OutlinedTextField(
+                        value = selectedSession?.displayLabel().orEmpty(),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Case ID") },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sessionMenuOpen) }
+                    )
+                    DropdownMenu(
+                        expanded = sessionMenuOpen,
+                        onDismissRequest = { sessionMenuOpen = false }
+                    ) {
+                        if (filteredSessionOptions.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("No matching cases") },
+                                onClick = { sessionMenuOpen = false }
+                            )
+                        } else {
+                            filteredSessionOptions.forEach { session ->
+                                DropdownMenuItem(
+                                    text = { Text(session.displayLabel()) },
+                                    onClick = {
+                                        sessionId = session.id.orEmpty()
+                                        sessionMenuOpen = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                ExposedDropdownMenuBox(
+                    expanded = modeMenuOpen,
+                    onExpandedChange = { modeMenuOpen = !modeMenuOpen }
+                ) {
+                    OutlinedTextField(
+                        value = modeLabel(selectedMode),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Mode") },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modeMenuOpen) }
+                    )
+                    DropdownMenu(
+                        expanded = modeMenuOpen,
+                        onDismissRequest = { modeMenuOpen = false }
+                    ) {
+                        buildModeOptions(state.staff).forEach { mode ->
+                            DropdownMenuItem(
+                                text = { Text(modeLabel(mode)) },
+                                onClick = {
+                                    selectedMode = mode
+                                    if (findStaffByModeName(mode, state.staff) == null && selectedModel.isBlank()) {
+                                        selectedModel = defaultModelForSession(selectedSession, state.availableModels)
+                                    }
+                                    modeMenuOpen = false
+                                }
+                            )
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                ExposedDropdownMenuBox(
+                    expanded = modelMenuOpen,
+                    onExpandedChange = { if (findStaffByModeName(selectedMode, state.staff) == null) modelMenuOpen = !modelMenuOpen }
+                ) {
+                    OutlinedTextField(
+                        value = selectedModel.ifBlank { "Default model" },
+                        onValueChange = {},
+                        readOnly = true,
+                        enabled = findStaffByModeName(selectedMode, state.staff) == null,
+                        label = { Text("Model") },
+                        modifier = Modifier.fillMaxWidth().menuAnchor(),
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelMenuOpen) }
+                    )
+                    DropdownMenu(
+                        expanded = modelMenuOpen && findStaffByModeName(selectedMode, state.staff) == null,
+                        onDismissRequest = { modelMenuOpen = false }
+                    ) {
+                        if (state.availableModels.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("Default model") },
+                                onClick = {
+                                    selectedModel = ""
+                                    modelMenuOpen = false
+                                }
+                            )
+                        } else {
+                            state.availableModels.forEach { model ->
+                                DropdownMenuItem(
+                                    text = { Text(model.label()) },
+                                    onClick = {
+                                        selectedModel = model.id.orEmpty()
+                                        modelMenuOpen = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(value = instruction, onValueChange = { instruction = it }, label = { Text("Instruction") }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { vm.sendInstruction(sessionId, instruction) }) { Text("Send") }
+                    Button(onClick = {
+                        if (sessionId.isBlank()) {
+                            vm.showNotice("Select a case first")
+                            return@Button
+                        }
+                        if (instruction.isBlank()) {
+                            vm.showNotice("Enter an instruction first")
+                            return@Button
+                        }
+                        val requestMode = resolveRequestMode(selectedMode, selectedSession)
+                        val requestModel = resolveRequestModel(selectedMode, selectedSession, selectedModel, state.staff)
+                        vm.sendInstruction(sessionId, instruction, selectedSession?.directory, requestMode, requestModel)
+                    }) { Text("Send") }
                     Button(onClick = { vm.stopSession(sessionId) }) { Text("Stop") }
                 }
                 Spacer(Modifier.height(12.dp))
             }
-            items(state.sessions) { SessionCard(it) }
+            items(sessionOptions) { SessionCard(it) }
             item { Spacer(Modifier.height(64.dp)) }
         }
     }
@@ -438,15 +602,41 @@ data class UiState(
     val apiKey: String = "",
     val bossName: String = "Brandon",
     val sessions: List<SessionDto> = emptyList(),
+    val allSessions: List<SessionDto> = emptyList(),
     val staff: List<StaffDto> = emptyList(),
+    val availableModels: List<ModelOption> = emptyList(),
     val cronJobs: List<CronJobDto> = emptyList(),
     val summary: SummaryDto = SummaryDto()
 )
 
-data class StatusPayload(val sessions: List<SessionDto>? = null, val summary: SummaryDto? = null)
+data class StatusPayload(
+    val sessions: List<SessionDto>? = null,
+    @SerializedName("all_sessions") val allSessions: List<SessionDto>? = null,
+    val summary: SummaryDto? = null,
+    @SerializedName("available_models") val availableModels: List<ModelOption>? = null
+)
 data class SummaryDto(val cpu_percent: Double? = null) { val cpuLabel: String get() = "${(cpu_percent ?: 0.0).toInt()}%" }
-data class SessionDto(val id: String? = null, val title: String = "", val state: String? = null, val last_text: String? = null) { val lastText: String? get() = last_text }
-data class StaffDto(val name: String = "", val description: String? = null, val gender: String? = null, val mode: String? = null)
+data class SessionDto(
+    val id: String? = null,
+    val title: String = "",
+    val state: String? = null,
+    @SerializedName("last_text") val lastText: String? = null,
+    @SerializedName("last_mode") val lastMode: String? = null,
+    @SerializedName("model_id") val modelId: String? = null,
+    @SerializedName("assigned_staff") val assignedStaff: String? = null,
+    @SerializedName("staff_mode") val staffMode: String? = null,
+    @SerializedName("staff_model") val staffModel: String? = null,
+    @SerializedName("last_user_prompt") val lastUserPrompt: String? = null,
+    val directory: String? = null
+)
+data class StaffDto(
+    val name: String = "",
+    val description: String? = null,
+    val gender: String? = null,
+    val mode: String? = null,
+    val model: String? = null
+)
+data class ModelOption(val id: String? = null, val provider: String? = null) { fun label(): String = if (provider.isNullOrBlank()) id.orEmpty() else "$provider · ${id.orEmpty()}" }
 data class CronJobDto(val id: String? = null, val name: String? = null, val interval_sec: Int? = null, val enabled: Boolean? = null) { val intervalSec: Int? get() = interval_sec }
 
 interface DashboardApi {
@@ -487,37 +677,44 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
 
     fun clearNotice() { _uiState.value = _uiState.value.copy(notice = null) }
 
+    fun showNotice(message: String) {
+        _uiState.value = _uiState.value.copy(notice = message)
+    }
+
     fun refreshAll() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(loading = true)
-            runCatching {
-                val api = createApi(_uiState.value.apiKey)
-                val base = _uiState.value.baseUrl.trimEnd('/')
-                val status = runCatching {
-                    api.getStatus("$base/api/status", JsonObject())
-                }.recoverCatching {
-                    api.getStatusGet("$base/api/status")
-                }.recoverCatching {
-                    api.getStatusFile("$base/data/status.json")
-                }.getOrElse {
-                    api.getStatusFile("$base/status.json")
-                }
-                val staff = runCatching {
-                    postJsonFlexible(api, "$base/api/super-staff").toStaffList()
-                }.getOrDefault(emptyList())
-                val cron = runCatching {
-                    postJsonFlexible(api, "$base/api/cron-jobs").toCronList()
-                }.getOrDefault(emptyList())
-                _uiState.value = _uiState.value.copy(
-                    loading = false,
-                    sessions = status.sessions ?: emptyList(),
-                    summary = status.summary ?: SummaryDto(),
-                    staff = staff,
-                    cronJobs = cron
-                )
-            }.onFailure {
+            val api = createApi(_uiState.value.apiKey)
+            val base = _uiState.value.baseUrl.trimEnd('/')
+            val status = runCatching {
+                api.getStatus("$base/api/status", JsonObject())
+            }.recoverCatching {
+                api.getStatusGet("$base/api/status")
+            }.recoverCatching {
+                api.getStatusFile("$base/data/status.json")
+            }.recoverCatching {
+                api.getStatusFile("$base/status.json")
+            }.getOrElse {
                 _uiState.value = _uiState.value.copy(loading = false, notice = it.message ?: "Refresh failed")
+                return@launch
             }
+
+            val staff = runCatching {
+                postJsonFlexible(api, "$base/api/super-staff").toStaffList()
+            }.getOrDefault(emptyList())
+            val cron = runCatching {
+                postJsonFlexible(api, "$base/api/cron-jobs").toCronList()
+            }.getOrDefault(emptyList())
+            val models = collectModels(status, staff)
+            _uiState.value = _uiState.value.copy(
+                loading = false,
+                sessions = status.sessions ?: emptyList(),
+                allSessions = status.allSessions ?: emptyList(),
+                summary = status.summary ?: SummaryDto(),
+                staff = staff,
+                availableModels = models,
+                cronJobs = cron
+            )
         }
     }
 
@@ -529,11 +726,14 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
         }
     }
 
-    fun sendInstruction(sessionId: String, message: String) = postAction(
+    fun sendInstruction(sessionId: String, message: String, directory: String? = null, mode: String? = null, model: String? = null) = postAction(
         path = "/api/session-instruct",
         body = JsonObject().apply {
             addProperty("id", sessionId)
             addProperty("message", message)
+            if (!directory.isNullOrBlank()) addProperty("directory", directory)
+            if (!mode.isNullOrBlank()) addProperty("mode", mode)
+            if (!model.isNullOrBlank()) addProperty("model", model)
         },
         success = "Instruction sent"
     )
@@ -579,6 +779,80 @@ private suspend fun postJsonFlexible(api: DashboardApi, url: String): JsonObject
         api.postJson(url, JsonObject())
     } catch (e: HttpException) {
         if (e.code() == 405) api.getJson(url) else throw e
+    }
+}
+
+private fun collectModels(status: StatusPayload, staff: List<StaffDto>): List<ModelOption> {
+    val models = linkedMapOf<String, ModelOption>()
+    status.availableModels.orEmpty().forEach { model ->
+        model.id?.let { models[it] = model }
+    }
+    status.sessions.orEmpty().forEach { session ->
+        session.modelId?.let { models.putIfAbsent(it, ModelOption(id = it)) }
+        session.staffModel?.let { models.putIfAbsent(it, ModelOption(id = it)) }
+    }
+    staff.forEach { item ->
+        item.model?.let { models.putIfAbsent(it, ModelOption(id = it)) }
+    }
+    return models.values.toList()
+}
+
+private fun sessionDropdownList(state: UiState): List<SessionDto> {
+    val primary = if (state.allSessions.isNotEmpty()) state.allSessions else state.sessions
+    return primary.distinctBy { it.id ?: it.title }
+}
+
+private fun SessionDto.displayLabel(): String {
+    return title.ifBlank { id.orEmpty() }
+}
+
+private fun SessionDto.matchesSessionFilter(query: String): Boolean {
+    if (query.isBlank()) return true
+    val needle = query.trim().lowercase()
+    return title.lowercase().contains(needle) || (id ?: "").lowercase().contains(needle)
+}
+
+private fun modeLabel(mode: String): String {
+    return when (mode) {
+        "build" -> "Build"
+        "plan" -> "Plan"
+        else -> mode
+    }
+}
+
+private fun buildModeOptions(staff: List<StaffDto>): List<String> {
+    return buildList {
+        add("build")
+        add("plan")
+        staff.mapNotNull { it.name.takeIf { name -> name.isNotBlank() } }
+            .distinct()
+            .forEach { add(it) }
+    }
+}
+
+private fun findStaffByModeName(modeName: String, staff: List<StaffDto>): StaffDto? {
+    if (modeName == "build" || modeName == "plan" || modeName.isBlank()) return null
+    return staff.firstOrNull { it.name.equals(modeName, ignoreCase = true) }
+}
+
+private fun defaultModelForSession(session: SessionDto?, models: List<ModelOption>): String {
+    val sessionModel = session?.modelId?.takeIf { it.isNotBlank() }
+    if (sessionModel != null) return sessionModel
+    val staffModel = session?.staffModel?.takeIf { it.isNotBlank() }
+    return models.firstOrNull()?.id.orEmpty()
+}
+
+private fun resolveRequestMode(selectedMode: String, session: SessionDto?): String? {
+    return when (selectedMode) {
+        "build", "plan" -> selectedMode.takeIf { it.isNotBlank() }
+        else -> selectedMode.takeIf { it.isNotBlank() }
+    }
+}
+
+private fun resolveRequestModel(selectedMode: String, session: SessionDto?, selectedModel: String, staff: List<StaffDto>): String? {
+    return when (selectedMode) {
+        "build", "plan" -> selectedModel.takeIf { it.isNotBlank() }
+        else -> findStaffByModeName(selectedMode, staff)?.model?.takeIf { it.isNotBlank() }
     }
 }
 
@@ -632,7 +906,8 @@ private fun JsonObject.toStaffList(): List<StaffDto> {
                 name = o.get("name")?.asString ?: "",
                 description = o.get("description")?.asString,
                 gender = o.get("gender")?.asString,
-                mode = o.get("mode")?.asString
+                mode = o.get("mode")?.asString,
+                model = o.get("model")?.asString
             )
         }.getOrNull()
     }
