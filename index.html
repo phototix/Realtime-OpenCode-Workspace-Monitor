@@ -914,6 +914,15 @@
   }
   .comment-btn:hover { opacity: 1; background: var(--surface2); }
 
+  .badge.badge-next { background: rgba(56,139,253,0.12); color: #58a6ff; border: 1px solid rgba(56,139,253,0.3); }
+  .badge.badge-due { background: rgba(219,109,40,0.12); color: #db6d28; border: 1px solid rgba(219,109,40,0.3); animation: pulse-orange 2s infinite; }
+  .badge.badge-disabled { background: var(--surface2); color: var(--text-dim); border: 1px solid var(--border); }
+  @keyframes pulse-orange {
+    0% { box-shadow: 0 0 0 0 rgba(219,109,40,0.4); }
+    70% { box-shadow: 0 0 0 4px rgba(219,109,40,0); }
+    100% { box-shadow: 0 0 0 0 rgba(219,109,40,0); }
+  }
+
   .toast {
     position: fixed; bottom: 24px; right: 24px; z-index: 2000;
     padding: 12px 16px; border-radius: 8px;
@@ -2396,6 +2405,7 @@ function closeLoginModal() {
 }
 function closeAdminModal() {
   document.getElementById('adminModal').style.display = 'none';
+  if (_cronRefreshTimer) { clearInterval(_cronRefreshTimer); _cronRefreshTimer = null; }
 }
 
 async function handleLogin() {
@@ -2488,6 +2498,8 @@ function switchTab(tabId) {
   document.querySelectorAll('.admin-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabId));
   document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + tabId));
 
+  if (_cronRefreshTimer) { clearInterval(_cronRefreshTimer); _cronRefreshTimer = null; }
+
   // Lazy render
   if (tabId === 'sessions') renderCasesTab();
   if (tabId === 'system') renderSystemTab();
@@ -2496,7 +2508,7 @@ function switchTab(tabId) {
   if (tabId === 'logs') renderLogsTab();
   if (tabId === 'providers') renderProvidersTab();
   if (tabId === 'super-staff') renderSuperStaffTab();
-  if (tabId === 'cron') renderCronTab();
+  if (tabId === 'cron') { renderCronTab(); _cronRefreshTimer = setInterval(updateCronCountdowns, 1000); }
 }
 
 // ── SESSIONS TAB ──
@@ -3852,6 +3864,53 @@ document.addEventListener('keydown', e => {
 
 // ── Cron Jobs ──
 let _cronJobsCache = [];
+let _cronRefreshTimer = null;
+
+function formatDuration(sec) {
+  sec = Math.round(sec);
+  if (sec < 60) return sec + 's';
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  if (m < 60) return m + 'm ' + s + 's';
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  return h + 'h ' + rm + 'm';
+}
+
+function formatExactTime(tsSec) {
+  if (!tsSec) return 'Never';
+  const d = new Date(tsSec * 1000);
+  const pad = n => String(n).padStart(2, '0');
+  const dateStr = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  const timeStr = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  const isToday = d.toDateString() === new Date().toDateString();
+  return isToday ? timeStr : dateStr + ' ' + timeStr;
+}
+
+function getCronCountdown(job) {
+  if (job.enabled === false) return { text: 'Disabled', badgeClass: 'badge-disabled', value: -1 };
+  const lastTime = job.last_run || job.created || 0;
+  const nextRunTime = lastTime + (job.interval_sec || 300);
+  const diff = nextRunTime - (Date.now() / 1000);
+  if (diff <= 0) return { text: 'Due now', badgeClass: 'badge-due', value: 0 };
+  return { text: 'in ' + formatDuration(diff), badgeClass: 'badge-next', value: diff };
+}
+
+function updateCronCountdowns() {
+  if (currentTab !== 'cron' || !_cronJobsCache.length) return;
+  _cronJobsCache.forEach(job => {
+    const badge = document.getElementById('cron-badge-' + job.id);
+    const lastEl = document.getElementById('cron-last-' + job.id);
+    if (badge) {
+      const c = getCronCountdown(job);
+      badge.textContent = c.text;
+      badge.className = 'badge ' + c.badgeClass;
+    }
+    if (lastEl && job.last_run) {
+      lastEl.textContent = formatExactTime(job.last_run) + ' (' + humanAgo(job.last_run * 1000) + ')';
+    }
+  });
+}
 
 async function renderCronTab() {
   const el = document.getElementById('cronTabContent');
@@ -3872,25 +3931,32 @@ async function renderCronTab() {
   let html = '';
   for (const job of _cronJobsCache) {
     const enabled = job.enabled !== false;
-    const lastRun = job.last_run ? humanAgo(job.last_run * 1000) : 'Never';
+    const lastTime = job.last_run ? formatExactTime(job.last_run) + ' (' + humanAgo(job.last_run * 1000) + ')' : 'Never';
     const lastStatus = job.last_status || '—';
     const intervalMin = Math.round((job.interval_sec || 300) / 60);
     const action = job.action || {};
     const typeLabel = action.type === 'session' ? 'Continue Case' : 'New Case';
     const msg = (action.message || '').substring(0, 80);
-    html += `<div class="admin-card" style="opacity:${enabled ? 1 : 0.5}">
+    const countdown = getCronCountdown(job);
+    html += `<div class="admin-card" style="opacity:${enabled ? 1 : 0.5}" data-cron-id="${job.id}">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:12px">
         <div style="flex:1;min-width:0">
-          <div style="font-weight:600;margin-bottom:4px">${escapeHtml(job.name)}</div>
-          <div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">
+          <div style="font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:8px">
+            <span>${escapeHtml(job.name)}</span>
+            <span class="badge ${countdown.badgeClass}" id="cron-badge-${job.id}">${countdown.text}</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
             <span class="badge" style="background:var(--surface2)">${typeLabel}</span>
             <span class="badge" style="background:var(--surface2)">every ${intervalMin}m</span>
             ${action.staff ? `<span class="badge badge-staff">${escapeHtml(action.staff)}</span>` : ''}
           </div>
-          <div style="font-size:12px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">“${escapeHtml(msg)}${(action.message||'').length > 80 ? '…' : ''}”</div>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:4px">Last: ${lastRun} — ${escapeHtml(lastStatus)}</div>
+          <div style="font-size:12px;color:var(--text-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:8px">“${escapeHtml(msg)}${(action.message||'').length > 80 ? '…' : ''}”</div>
+          <div style="display:flex;gap:16px;font-size:11px;color:var(--text-dim);border-top:1px solid rgba(48,54,61,0.2);padding-top:6px">
+            <div><strong style="color:var(--text)">Last:</strong> <span id="cron-last-${job.id}">${escapeHtml(lastTime)}</span></div>
+            <div><strong style="color:var(--text)">Status:</strong> <span style="color:${lastStatus.startsWith('fail') ? 'var(--red)' : 'var(--green)'}">${escapeHtml(lastStatus)}</span></div>
+          </div>
         </div>
-        <div style="display:flex;gap:4px;flex-shrink:0;align-items:center">
+        <div style="display:flex;gap:4px;flex-shrink:0;align-items:center;margin-top:2px">
           <label class="toggle-switch" style="margin:0">
             <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleCronJob('${job.id}')">
             <span class="toggle-slider"></span>
@@ -4128,7 +4194,9 @@ async function deleteCronJob(jobId) {
 
 async function toggleCronJob(jobId) {
   try {
-    await fetch('/api/cron-jobs/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: jobId }) });
+    const r = await fetch('/api/cron-jobs/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: jobId }) });
+    const d = await r.json();
+    if (d.ok) renderCronTab();
   } catch(e) {}
 }
 

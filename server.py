@@ -189,6 +189,7 @@ def _cron_runner():
                 if job.get('_running'):
                     continue
                 job['_running'] = True
+                _save_cron_jobs(jobs)
                 threading.Thread(target=_run_cron_job, args=(job,), daemon=True).start()
         except:
             pass
