@@ -1369,12 +1369,12 @@ function renderDashboard(data) {
           <button class="manage-btn" onclick="openLoginModal()">Manage</button>
         </div>
         <div class="card-body" style="display:flex;gap:12px;align-items:center">
+          ${profilePhoto ? '<div class="boss-photo"><img src="' + profilePhoto + '" alt="Profile"></div>' : ''}
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;flex:1">
             <div class="item"><div class="v">${brandon.cpu || '0'}%</div><div class="l">CPU</div></div>
             <div class="item"><div class="v">${brandon.mem_mb || '0'} MB</div><div class="l">Memory</div></div>
             <div class="item"><div class="v">${s.cpu_core_count || '?'}</div><div class="l">Staff</div></div>
           </div>
-          ${profilePhoto ? '<div class="boss-photo"><img src="' + profilePhoto + '" alt="Profile"></div>' : ''}
         </div>
       </div>
     `;
