@@ -125,7 +125,7 @@ def engine_is_reachable(url, password=''):
             cmd.extend(['-u', f'opencode:{password}'])
         cmd.append(url.rstrip('/') + '/api/ping')
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        return r.returncode == 0 and r.stdout.strip().startswith('2')
+        return r.returncode == 0
     except:
         return False
 
@@ -227,6 +227,10 @@ def _cron_runner():
         except:
             pass
 
+# ── ERROR CODES ──
+def _error_id():
+    return 'e' + secrets.token_hex(6)
+
 # ── QUEUE INFRASTRUCTURE ──
 
 _queue_lock = threading.Lock()
@@ -291,7 +295,7 @@ def _handle_session_instruct(body):
             if engine_restarted:
                 msg += ' (Engine was restarted)'
             log(f"Admin: engine not reachable")
-            return False, {'ok': False, 'message': msg, 'code': 'engine_unreachable'}
+            return False, {'ok': False, 'message': msg, 'code': 'engine_unreachable', 'error_id': _error_id()}
         if engine_restarted:
             log(f"Admin: engine restart detected, session {sid} invalid")
             return False, {'ok': False, 'message': 'OpenCode engine was restarted \u2014 all prior sessions are invalid. Create a new case.', 'code': 'engine_restarted'}
@@ -376,7 +380,7 @@ def _handle_session_answer(body):
             if engine_restarted:
                 msg += ' (Engine was restarted)'
             log(f"Admin: answer failed \u2014 engine not reachable")
-            return False, {'ok': False, 'message': msg, 'code': 'engine_unreachable'}
+            return False, {'ok': False, 'message': msg, 'code': 'engine_unreachable', 'error_id': _error_id()}
         if engine_restarted:
             log(f"Admin: engine restart detected, session {sid} invalid for answer")
             return False, {'ok': False, 'message': 'Session no longer available \u2014 the engine was restarted.', 'code': 'engine_restarted'}
@@ -418,7 +422,7 @@ def _handle_new_session(body):
         if not attach:
             msg = 'OpenCode engine is not reachable \u2014 please relaunch the app.'
             log(f"Admin: new session failed \u2014 engine not reachable")
-            return False, {'ok': False, 'message': msg, 'code': 'engine_unreachable'}
+            return False, {'ok': False, 'message': msg, 'code': 'engine_unreachable', 'error_id': _error_id()}
         engine_restarted = get_engine_restarted()
         cmd = ['opencode', 'run']
         if engine_restarted:
@@ -859,8 +863,17 @@ def _queue_dispatch(item):
     body = item.get('payload', {})
     handler = _QUEUE_HANDLERS.get(typ)
     if not handler:
-        return False, {'ok': False, 'message': f'Unknown queue type: {typ}'}
-    return handler(body)
+        eid = _error_id()
+        return False, {'ok': False, 'message': f'Unknown queue type: {typ}', 'error_id': eid}
+    try:
+        ok, result = handler(body)
+        if not ok and 'error_id' not in result:
+            result['error_id'] = _error_id()
+        return ok, result
+    except Exception as e:
+        eid = _error_id()
+        log(f"Queue dispatch crash: {typ}: {e} [{eid}]")
+        return False, {'ok': False, 'message': str(e)[:200], 'error_id': eid}
 
 def _queue_processor():
     while True:
@@ -877,11 +890,16 @@ def _queue_processor():
                 try:
                     ok, result = _queue_dispatch(found)
                 except Exception as e:
-                    ok, result = False, {'ok': False, 'message': str(e)[:200]}
+                    eid = _error_id()
+                    ok, result = False, {'ok': False, 'message': str(e)[:200], 'error_id': eid}
                 found['status'] = 'done' if ok else 'failed'
                 found['result'] = result
                 if not ok:
-                    found['error'] = str(result.get('message', 'Unknown error'))[:200]
+                    msg = str(result.get('message', 'Unknown error'))[:170]
+                    eid = result.get('error_id', '')
+                    if eid:
+                        msg += f' [{eid}]'
+                    found['error'] = msg
                 _save_queue(items)
                 log(f"Queue {found['id']}: {found['type']} \u2192 {'done' if ok else 'failed'}")
             else:
@@ -914,12 +932,12 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
 
         if path == '/api/queue':
             if not self._check_api_key():
-                self._json({'ok': False, 'message': 'Unauthorized'}, 401)
+                self._json({'ok': False, 'message': 'Unauthorized', 'error_id': _error_id()}, 401)
                 return
             typ = body.get('type', '')
             payload = body.get('payload', {})
             if not typ:
-                self._json({'ok': False, 'message': 'Missing type'}, 400)
+                self._json({'ok': False, 'message': 'Missing type', 'error_id': _error_id()}, 400)
                 return
             item = {
                 'id': 'q_' + secrets.token_hex(6),

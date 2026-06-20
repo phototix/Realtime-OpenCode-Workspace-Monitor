@@ -3643,7 +3643,11 @@ function sendQueued(type, payload) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type, payload })
   }).then(function(r) { return r.json(); }).then(function(data) {
-    if (!data.queueId) throw new Error(data.message || 'Queue rejected');
+    if (!data.queueId) {
+      var qMsg = data.message || 'Queue rejected';
+      if (data.error_id) qMsg += ' [' + data.error_id + ']';
+      throw new Error(qMsg);
+    }
     return new Promise(function(resolve, reject) {
       const timeout = setTimeout(function() {
         clearInterval(poll);
