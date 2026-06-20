@@ -1486,7 +1486,7 @@ function renderDashboard(data) {
   }
 
   // Collect all workers (real + virtual)
-  const allWorkers = [];
+  let allWorkers = [];
   (data.sessions || []).forEach(s => {
     // Real agents assigned to this session
     (s.agents || []).forEach(w => {
@@ -1532,6 +1532,18 @@ function renderDashboard(data) {
       allWorkers.push(wData);
     }
   });
+
+  // Collapse duplicate super-staff into one desk entry with a case count
+  const staffCounts = {};
+  allWorkers.forEach(w => { if (w.superStaff) staffCounts[w.superStaff] = (staffCounts[w.superStaff] || 0) + 1; });
+  const seenStaff = new Set();
+  allWorkers = allWorkers.filter(w => {
+    if (!w.superStaff) return true;
+    if (seenStaff.has(w.superStaff)) return false;
+    seenStaff.add(w.superStaff);
+    return true;
+  });
+  allWorkers.forEach(w => { if (w.superStaff) w.caseCount = staffCounts[w.superStaff]; });
 
   // Fill remaining staff slots with placeholder workers so count matches cpu cores
   const totalStaff = s.cpu_core_count || 10;
@@ -1610,7 +1622,9 @@ function renderDashboard(data) {
       isActive = worker.sessionState === 'thinking' || worker.sessionState === 'running-tools';
       stateStyle = STATE_STYLE[worker.sessionState] || STATE_STYLE[''];
       agoStr = humanAgo(worker.sessionUpdated);
-      sessionLabel = worker.sessionTitle || '(standalone)';
+      sessionLabel = worker.superStaff && worker.caseCount > 1
+        ? 'Working on #' + worker.caseCount + ' cases.'
+        : (worker.sessionTitle || '(standalone)');
       isVirt = worker.virtual;
       if (worker.superStaff) _usedNames.add(worker.superStaff);
       else _usedNames.add(getMappedName(worker.pid, worker.name));
@@ -2742,11 +2756,7 @@ async function assignStaff(sessionId, staffName) {
   const isUnassign = staffName === '__unassign__';
   const name = isUnassign ? '' : staffName;
   try {
-    const resp = await fetch('/api/super-staff-assign', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sessionId, staffName: name })
-    });
-    const data = await resp.json();
+    const data = await sendQueued('super-staff-assign', { sessionId: sessionId, staffName: name });
     if (data.ok) {
       if (isUnassign) delete _caseAssignments[sessionId];
       else _caseAssignments[sessionId] = staffName;
@@ -2763,17 +2773,17 @@ async function assignStaff(sessionId, staffName) {
 async function stopSession(id, dir, event) {
   const btn = (event || window.event).target; btn.disabled = true; btn.textContent = 'Stopping...';
   try {
-    const resp = await fetch('/api/stop-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, directory: dir || '' })
-    });
-    const data = await resp.json();
-    if (data.ok) {
-      showToast('Case stopped (deleted)', 'success');
-      renderCasesTab();
-    } else {
-      showToast('Error: ' + data.message, 'error');
+    try {
+      const data = await sendQueued('stop-session', { id, directory: dir || '' });
+      if (data.ok) {
+        showToast('Case stopped (deleted)', 'success');
+        renderCasesTab();
+      } else {
+        showToast('Error: ' + data.message, 'error');
+        btn.disabled = false; btn.textContent = 'Stop';
+      }
+    } catch (e) {
+      showToast('Error: ' + e.message, 'error');
       btn.disabled = false; btn.textContent = 'Stop';
     }
   } catch (e) {
@@ -2930,14 +2940,13 @@ async function startNewSession() {
   showToast('Starting new case...', 'success');
 
   try {
-    const resp = await fetch('/api/new-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, message: finalMessage, mode: finalMode, model: finalModel, directory })
-    });
-    const data = await resp.json();
-    if (!data.ok) {
-      showToast('Error: ' + data.message, 'error');
+    try {
+      const data = await sendQueued('new-session', { title, message: finalMessage, mode: finalMode, model: finalModel, directory });
+      if (!data.ok) {
+        showToast('Error: ' + data.message, 'error');
+      }
+    } catch (e) {
+      showToast('Error: ' + e.message, 'error');
     }
   } catch (e) {
     showToast('Error: ' + e.message, 'error');
@@ -3042,20 +3051,14 @@ async function sessionInstructView(id, dir) {
   if (adminBtn) { adminBtn.textContent = 'Sending...'; adminBtn.disabled = true; }
 
   try {
-    const resp = await fetch('/api/session-instruct', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id, message: finalMessage,
-        model: staff && staff.model ? staff.model : (modelSel ? modelSel.value : ''),
-        mode: finalMode,
-        directory: dir || '',
-        fork: branch
-      })
+    const data = await sendQueued('session-instruct', {
+      id, message: finalMessage,
+      model: staff && staff.model ? staff.model : (modelSel ? modelSel.value : ''),
+      mode: finalMode,
+      directory: dir || '',
+      fork: branch
     });
-    const data = await resp.json();
     if (data.ok) {
-      // "new_session" means a new session was created as fallback
       showToast(data.message, 'success');
       if (input) input.value = '';
     } else {
@@ -3146,11 +3149,7 @@ function sendAnswers(id) {
 
     var btn = document.getElementById('sendAnswersBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
-    fetch('/api/session-answer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: id, answers: answers, directory: s.directory || '' })
-    }).then(function(r){ return r.json(); }).then(function(data) {
+    sendQueued('session-answer', { id: id, answers: answers, directory: s.directory || '' }).then(function(data) {
       if (data.ok) {
         showToast('Answers sent', 'success');
         closeQuestionModal();
@@ -3198,8 +3197,7 @@ async function restartDaemon() {
   const err = document.getElementById('sysErr');
   msg.style.display = 'none'; err.style.display = 'none';
   try {
-    const resp = await fetch('/api/restart-daemon', { method: 'POST' });
-    const data = await resp.json();
+    const data = await sendQueued('restart-daemon', {});
     if (data.ok) {
       msg.textContent = 'Daemon restarted successfully'; msg.style.display = 'block';
       setTimeout(() => renderSystemTab(), 2000);
@@ -3217,8 +3215,7 @@ async function killDaemon() {
   msg.style.display = 'none'; err.style.display = 'none';
   if (!confirm('Kill the dashboard daemon? It will stop updating.')) return;
   try {
-    const resp = await fetch('/api/kill-daemon', { method: 'POST' });
-    const data = await resp.json();
+    const data = await sendQueued('kill-daemon', {});
     if (data.ok) {
       msg.textContent = 'Daemon killed'; msg.style.display = 'block';
       renderSystemTab();
@@ -3378,7 +3375,7 @@ function saveSettings() {
   if (bossName) {
     localStorage.setItem('dashboard_boss_name', bossName);
     _serverBossName = bossName;
-    fetch('/api/save-boss-name', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: bossName }) }).catch(() => {});
+    sendQueued('save-boss-name', { name: bossName }).catch(() => {});
   }
   const apiKey = document.getElementById('apiKeyInput').value.trim();
   if (apiKey) {
@@ -3473,8 +3470,7 @@ async function cropAndSave() {
   const canvas = cropper.getCroppedCanvas({ width: 256, height: 256 });
   const dataUrl = canvas.toDataURL();
   try {
-    const r = await fetch('/api/upload-photo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dataUrl }) });
-    const d = await r.json();
+    const d = await sendQueued('upload-photo', { dataUrl });
     if (d.ok) {
       profilePhoto = d.url;
       localStorage.setItem('dashboard_boss_photo', d.url);
@@ -3488,7 +3484,7 @@ async function cropAndSave() {
 
 async function removeProfilePhoto() {
   try {
-    await fetch('/api/remove-photo', { method: 'POST' });
+    await sendQueued('remove-photo', {}).catch(() => {});
   } catch(e) {}
   profilePhoto = '';
   localStorage.removeItem('dashboard_boss_photo');
@@ -3541,9 +3537,7 @@ async function regenerateApiKey() {
   msg.style.display = 'none'; err.style.display = 'none';
   if (!confirm('Generate a new API key? The current key will stop working immediately.')) return;
   try {
-    const r = await fetch('/api/api-key/regenerate', { method: 'POST',
-      headers: { 'Content-Type': 'application/json' }, body: '{}' });
-    const d = await r.json();
+    const d = await sendQueued('api-key/regenerate', {});
     if (d.ok && d.key) {
       _apiKeyFull = d.key;
       input.value = _apiKeyFull;
@@ -3640,6 +3634,42 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// ── QUEUE MIDDLEMAN ──
+let _queuePollTimers = {};
+
+function sendQueued(type, payload) {
+  return fetch('/api/queue', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type, payload })
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    if (!data.queueId) throw new Error(data.message || 'Queue rejected');
+    return new Promise(function(resolve, reject) {
+      const timeout = setTimeout(function() {
+        clearInterval(poll);
+        delete _queuePollTimers[data.queueId];
+        reject(new Error('Queue request timed out'));
+      }, 120000);
+      const poll = setInterval(function() {
+        fetch('/api/queue/' + data.queueId).then(function(r) { return r.json(); }).then(function(d) {
+          if (d.status === 'done') {
+            clearInterval(poll);
+            clearTimeout(timeout);
+            delete _queuePollTimers[data.queueId];
+            resolve(d.result);
+          } else if (d.status === 'failed') {
+            clearInterval(poll);
+            clearTimeout(timeout);
+            delete _queuePollTimers[data.queueId];
+            reject(new Error(d.error || 'Queue failed'));
+          }
+        }).catch(function() {});
+      }, 2000);
+      _queuePollTimers[data.queueId] = { poll: poll, timeout: timeout };
+    });
+  });
+}
+
 // ── PROVIDER TAB ──
 async function renderProvidersTab() {
   const el = document.getElementById('providersTabContent');
@@ -3702,11 +3732,7 @@ async function renderProvidersTab() {
 async function providerLogout(name, event) {
   const btn = (event || window.event).target; btn.disabled = true;
   try {
-    const resp = await fetch('/api/provider-logout', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ provider: name })
-    });
-    const data = await resp.json();
+    const data = await sendQueued('provider-logout', { provider: name });
     showToast(data.ok ? 'Logged out: ' + name : 'Error: ' + data.message, data.ok ? 'success' : 'error');
     renderProvidersTab();
   } catch (e) {
@@ -3721,11 +3747,7 @@ async function providerLogin() {
   const btn = document.querySelector('#tab-providers .btn-primary');
   if (btn) btn.disabled = true;
   try {
-    const resp = await fetch('/api/provider-login', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
-    });
-    const data = await resp.json();
+    const data = await sendQueued('provider-login', { url });
     if (data.ok) {
       result.innerHTML = data.instruction || 'Login initiated. Check your browser if a window opened.';
       setTimeout(() => { result.innerHTML = ''; renderProvidersTab(); }, 3000);
@@ -3743,11 +3765,7 @@ async function ollamaAdd() {
   const result = document.getElementById('ollamaAddResult');
   if (!url) { result.innerHTML = '<span style="color:var(--red)">Please enter a URL</span>'; return; }
   try {
-    const resp = await fetch('/api/ollama-add', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
-    });
-    const data = await resp.json();
+    const data = await sendQueued('ollama-add', { url });
     if (data.ok) {
       document.getElementById('ollamaAddUrl').value = '';
       result.innerHTML = '<span style="color:var(--green)">URL added</span>';
@@ -3763,11 +3781,7 @@ async function ollamaAdd() {
 async function ollamaRemove(url, event) {
   const btn = (event || window.event).target; btn.disabled = true;
   try {
-    const resp = await fetch('/api/ollama-remove', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
-    });
-    const data = await resp.json();
+    const data = await sendQueued('ollama-remove', { url });
     showToast(data.ok ? 'Ollama URL removed' : 'Error: ' + data.message, data.ok ? 'success' : 'error');
     renderProvidersTab();
   } catch (e) {
@@ -3890,17 +3904,13 @@ async function saveStaff() {
   if (!name) { err.textContent = 'Name is required'; err.style.display = 'block'; return; }
 
   const isEdit = !!editingStaffName;
-  const endpoint = isEdit ? '/api/super-staff-update' : '/api/super-staff-create';
+  const type = isEdit ? 'super-staff-update' : 'super-staff-create';
   const body = isEdit
     ? { originalName: editingStaffName, name, description, gender, mode, model, path }
     : { name, description, gender, mode, model, path };
 
   try {
-    const resp = await fetch(endpoint, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    const data = await resp.json();
+    const data = await sendQueued(type, body);
     if (data.ok) {
       closeStaffModal();
       showToast(isEdit ? 'Staff member updated' : 'Staff member created', 'success');
@@ -3927,11 +3937,7 @@ async function saveStaff() {
 async function deleteSuperStaff(name) {
   if (!confirm('Delete staff member "' + name + '"?')) return;
   try {
-    const resp = await fetch('/api/super-staff-delete', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name })
-    });
-    const data = await resp.json();
+    const data = await sendQueued('super-staff-delete', { name });
     showToast(data.ok ? 'Deleted: ' + name : 'Error: ' + data.message, data.ok ? 'success' : 'error');
     renderSuperStaffTab();
   } catch (e) {
@@ -4065,12 +4071,7 @@ async function saveRename() {
   if (!_renameSessionId) return;
   errEl.style.display = 'none';
   try {
-    const resp = await fetch('/api/rename-session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: _renameSessionId, title: newTitle })
-    });
-    const data = await resp.json();
+    const data = await sendQueued('rename-session', { id: _renameSessionId, title: newTitle });
     if (data.ok) {
       closeRenameModal();
       showToast('Case renamed', 'success');
@@ -4391,11 +4392,10 @@ async function saveCronJob(jobId) {
   } else {
     action.directory = document.getElementById('cronDirectory').value.trim() || '';
   }
-  const endpoint = jobId ? '/api/cron-jobs/update' : '/api/cron-jobs/create';
+  const jobType = jobId ? 'cron-jobs/update' : 'cron-jobs/create';
   const payload = jobId ? { id: jobId, name, interval_sec: intervalMin * 60, action } : { name, interval_sec: intervalMin * 60, action };
   try {
-    const r = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const d = await r.json();
+    const d = await sendQueued(jobType, payload);
     if (!d.ok) {
       errEl.textContent = d.message || 'Failed to save';
       errEl.style.display = 'block';
@@ -4413,8 +4413,7 @@ async function saveCronJob(jobId) {
 async function deleteCronJob(jobId) {
   if (!confirm('Delete this cron job?')) return;
   try {
-    const r = await fetch('/api/cron-jobs/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: jobId }) });
-    const d = await r.json();
+    const d = await sendQueued('cron-jobs/delete', { id: jobId });
     if (d.ok) {
       renderCronTab();
       showToast('Cron job deleted', 'success');
@@ -4424,16 +4423,14 @@ async function deleteCronJob(jobId) {
 
 async function toggleCronJob(jobId) {
   try {
-    const r = await fetch('/api/cron-jobs/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: jobId }) });
-    const d = await r.json();
+    const d = await sendQueued('cron-jobs/toggle', { id: jobId });
     if (d.ok) renderCronTab();
   } catch(e) {}
 }
 
 async function runCronJob(jobId) {
   try {
-    const r = await fetch('/api/cron-jobs/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: jobId }) });
-    const d = await r.json();
+    const d = await sendQueued('cron-jobs/run', { id: jobId });
     if (d.ok) {
       showToast('Job triggered — refresh to see result', 'success');
       renderCronTab();
