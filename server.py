@@ -13,6 +13,15 @@ import base64
 import secrets
 import stat
 
+_session_locks = {}
+_session_locks_guard = threading.Lock()
+
+def _get_session_lock(sid):
+    with _session_locks_guard:
+        if sid not in _session_locks:
+            _session_locks[sid] = threading.Lock()
+        return _session_locks[sid]
+
 DATA_DIR = os.path.expanduser('~/.opencode-dashboard/data')
 PID_FILE = os.path.join(DATA_DIR, 'daemon.pid')
 ACTIVITY_FILE = os.path.join(DATA_DIR, 'activity.log')
@@ -280,6 +289,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             if not sid or not message:
                 self._json({'ok': False, 'message': 'Missing session id or message'}, 400)
                 return
+            _get_session_lock(sid).acquire()
             try:
                 cwd = directory or None
                 password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
@@ -373,6 +383,8 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e:
                 log(f"Admin: instruct unexpected error: {str(e)[:200]}")
                 self._json({'ok': False, 'message': str(e)[:200]}, 500)
+            finally:
+                _get_session_lock(sid).release()
 
         elif path == '/api/session-answer':
             sid = body.get('id', '')
@@ -380,6 +392,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
             if not sid or not answers:
                 self._json({'ok': False, 'message': 'Missing session id or answers'}, 400)
                 return
+            _get_session_lock(sid).acquire()
             try:
                 cwd = body.get('directory') or None
                 password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
@@ -419,6 +432,8 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({'ok': False, 'message': 'Timeout sending answer'}, 500)
             except Exception as e:
                 self._json({'ok': False, 'message': str(e)[:200]}, 500)
+            finally:
+                _get_session_lock(sid).release()
 
         elif path == '/api/new-session':
             title = body.get('title', '')
@@ -1001,6 +1016,6 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     threading.Thread(target=_cron_runner, daemon=True).start()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 5500
-    server = http.server.HTTPServer(('', port), UnifiedHandler)
+    server = http.server.ThreadingHTTPServer(('127.0.0.1', port), UnifiedHandler)
     print(f"Dashboard server running on http://localhost:{port}")
     server.serve_forever()
