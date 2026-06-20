@@ -76,9 +76,9 @@ def get_attach_url(force=False):
     if not force and now - _attach_cache.get('time', 0) < 30 and _attach_cache.get('url'):
         return _attach_cache['url']
     try:
-        r = subprocess.run(['lsof', '-i', '-P', '-n'], capture_output=True, text=True, timeout=5)
+        r = subprocess.run(['lsof', '-iTCP', '-sTCP:LISTEN', '-P', '-n'], capture_output=True, text=True, timeout=3)
         for line in r.stdout.split('\n'):
-            if 'OpenCode' in line and '(LISTEN)' in line:
+            if 'OpenCode' in line:
                 parts = line.split()
                 for p in parts:
                     if ':' in p and len(p.split(':')[1]) == 5:
