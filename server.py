@@ -27,6 +27,7 @@ PID_FILE = os.path.join(DATA_DIR, 'daemon.pid')
 ACTIVITY_FILE = os.path.join(DATA_DIR, 'activity.log')
 CRON_FILE = os.path.join(DATA_DIR, 'cron_jobs.json')
 QUEUE_FILE = os.path.join(DATA_DIR, 'request_queue.json')
+NOTIFICATIONS_FILE = os.path.join(DATA_DIR, 'notifications.json')
 STATIC_DIR = os.path.expanduser('~/.opencode-dashboard')
 API_KEY_FILE = os.path.join(DATA_DIR, 'api_key')
 
@@ -314,7 +315,7 @@ def _handle_session_instruct(body):
             c.append(message)
             return c
         cmd = _build_cmd(fork=fork_val)
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180, cwd=cwd)
         if r.returncode == 0:
             log(f"Admin: instructed session {sid}")
             return True, {'ok': True, 'message': 'Instruction sent'}
@@ -348,7 +349,7 @@ def _handle_session_instruct(body):
             if mode_val:
                 cmd_retry.extend(['--agent', mode_val])
             cmd_retry.append(message)
-            r3 = subprocess.run(cmd_retry, capture_output=True, text=True, timeout=60, cwd=cwd)
+            r3 = subprocess.run(cmd_retry, capture_output=True, text=True, timeout=180, cwd=cwd)
             if r3.returncode == 0:
                 log(f"Admin: instructed session {sid} (retry without model)")
                 return True, {'ok': True, 'message': 'Instruction sent (model ignored, using default)'}
@@ -389,7 +390,7 @@ def _handle_session_answer(body):
         if password:
             cmd.extend(['-p', password])
         cmd.append(answer_text)
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180, cwd=cwd)
         if r.returncode == 0:
             log(f"Admin: answered session {sid}")
             return True, {'ok': True, 'message': 'Answer sent'}
@@ -738,6 +739,58 @@ def _handle_save_boss_name(body):
     except Exception as e:
         return False, {'ok': False, 'message': str(e)[:200]}
 
+def _load_notifications():
+    if not os.path.exists(NOTIFICATIONS_FILE):
+        return []
+    try:
+        with open(NOTIFICATIONS_FILE) as f:
+            items = json.load(f)
+        return items
+    except:
+        return []
+
+def _save_notifications(items):
+    try:
+        with open(NOTIFICATIONS_FILE, 'w') as f:
+            json.dump(items[:50], f, indent=2)
+    except:
+        pass
+
+def _handle_notifications_send(body):
+    message = (body.get('message') or '').strip()
+    ntf_type = body.get('type', 'info')
+    if not message:
+        return False, {'ok': False, 'message': 'Missing message'}
+    try:
+        items = _load_notifications()
+        items.insert(0, {
+            'id': 'ntf_' + secrets.token_hex(8),
+            'message': message,
+            'type': ntf_type if ntf_type in ('info', 'warning', 'error', 'success') else 'info',
+            'created_at': time.time(),
+            'dismissed': False
+        })
+        _save_notifications(items)
+        log(f"Notification sent: {message[:60]}")
+        return True, {'ok': True}
+    except Exception as e:
+        return False, {'ok': False, 'message': str(e)[:200]}
+
+def _handle_notifications_dismiss(body):
+    ntf_id = body.get('id', '')
+    if not ntf_id:
+        return False, {'ok': False, 'message': 'Missing id'}
+    try:
+        items = _load_notifications()
+        for i in items:
+            if i['id'] == ntf_id:
+                i['dismissed'] = True
+                break
+        _save_notifications(items)
+        return True, {'ok': True}
+    except Exception as e:
+        return False, {'ok': False, 'message': str(e)[:200]}
+
 def _handle_api_key_regenerate(body):
     new_key = secrets.token_urlsafe(32)
     try:
@@ -851,6 +904,8 @@ _QUEUE_HANDLERS = {
     'remove-photo': _handle_remove_photo,
     'save-boss-name': _handle_save_boss_name,
     'api-key/regenerate': _handle_api_key_regenerate,
+    'notifications-send': _handle_notifications_send,
+    'notifications-dismiss': _handle_notifications_dismiss,
     'cron-jobs/create': _handle_cron_jobs_create,
     'cron-jobs/update': _handle_cron_jobs_update,
     'cron-jobs/delete': _handle_cron_jobs_delete,

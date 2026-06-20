@@ -2939,10 +2939,17 @@ async function startNewSession() {
   // Close modal immediately
   closeNewSessionModal();
   showToast('Starting new case...', 'success');
+  var _nsStart = Date.now();
 
   try {
     try {
-      const data = await sendQueued('new-session', { title, message: finalMessage, mode: finalMode, model: finalModel, directory });
+      const data = await sendQueued('new-session', { title, message: finalMessage, mode: finalMode, model: finalModel, directory }, function(d) {
+        if (d.status === 'processing' || d.status === 'queued') {
+          var elapsed = Math.round((Date.now() - _nsStart) / 1000) + 's';
+          var tMsg = document.getElementById('toastMessage');
+          if (tMsg) tMsg.textContent = 'Starting new case... (' + elapsed + ')';
+        }
+      });
       if (!data.ok) {
         showToast('Error: ' + data.message, 'error');
       }
@@ -3050,6 +3057,7 @@ async function sessionInstructView(id, dir) {
   // Update admin table Continue button to "Sending..."
   const adminBtn = document.querySelector('.send-btn[data-sid="' + CSS.escape(id) + '"]');
   if (adminBtn) { adminBtn.textContent = 'Sending...'; adminBtn.disabled = true; }
+  const _instructStart = Date.now();
 
   try {
     const data = await sendQueued('session-instruct', {
@@ -3058,6 +3066,15 @@ async function sessionInstructView(id, dir) {
       mode: finalMode,
       directory: dir || '',
       fork: branch
+    }, function(d) {
+      if (d.status === 'processing' || d.status === 'queued') {
+        var elapsed = Math.round((Date.now() - _instructStart) / 1000) + 's';
+        if (card) {
+          var badge = card.querySelector('.sc-state-badge');
+          if (badge) badge.textContent = 'Sending... (' + elapsed + ')';
+        }
+        if (adminBtn) adminBtn.textContent = 'Sending... (' + elapsed + ')';
+      }
     });
     if (data.ok) {
       showToast(data.message, 'success');
@@ -3150,7 +3167,13 @@ function sendAnswers(id) {
 
     var btn = document.getElementById('sendAnswersBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
-    sendQueued('session-answer', { id: id, answers: answers, directory: s.directory || '' }).then(function(data) {
+    var _answerStart = Date.now();
+    sendQueued('session-answer', { id: id, answers: answers, directory: s.directory || '' }, function(d) {
+      if ((d.status === 'processing' || d.status === 'queued') && btn) {
+        var elapsed = Math.round((Date.now() - _answerStart) / 1000) + 's';
+        btn.textContent = 'Sending... (' + elapsed + ')';
+      }
+    }).then(function(data) {
       if (data.ok) {
         showToast('Answers sent', 'success');
         closeQuestionModal();
@@ -3638,7 +3661,7 @@ function escapeHtml(str) {
 // ── QUEUE MIDDLEMAN ──
 let _queuePollTimers = {};
 
-function sendQueued(type, payload) {
+function sendQueued(type, payload, onProgress) {
   return fetch('/api/queue', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -3654,9 +3677,10 @@ function sendQueued(type, payload) {
         clearInterval(poll);
         delete _queuePollTimers[data.queueId];
         reject(new Error('Queue request timed out'));
-      }, 120000);
+      }, 180000);
       const poll = setInterval(function() {
         fetch('/api/queue/' + data.queueId).then(function(r) { return r.json(); }).then(function(d) {
+          if (onProgress) onProgress(d);
           if (d.status === 'done') {
             clearInterval(poll);
             clearTimeout(timeout);
