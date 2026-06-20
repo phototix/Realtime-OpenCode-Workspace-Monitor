@@ -964,6 +964,20 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
         if path.startswith('/api/'):
+            if path == '/api/notifications':
+                status_path = os.path.join(DATA_DIR, 'status.json')
+                if os.path.exists(status_path):
+                    with open(status_path) as f:
+                        data = json.load(f)
+                    all_sessions = data.get('all_sessions', []) or []
+                    summary = {
+                        'version': int(os.path.getmtime(status_path) * 1000),
+                        'sessions': [{'id': s.get('id'), 'title': s.get('title', ''), 'state': s.get('state', ''), 'updated': s.get('updated')} for s in all_sessions]
+                    }
+                    self._json(summary)
+                else:
+                    self._json({'version': 0, 'sessions': []})
+                return
             # Public endpoints: no API key required
             _PUBLIC_PATHS = ('/api/ping', '/api/providers', '/api/super-staff', '/api/super-staff-assignments', '/api/cron-jobs', '/api/cron-jobs/run', '/api/api-key', '/api/api-key/regenerate')
             if path not in _PUBLIC_PATHS:

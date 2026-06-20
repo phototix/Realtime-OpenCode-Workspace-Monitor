@@ -948,6 +948,14 @@
     background: none; border: none; color: inherit; padding: 0;
   }
   .toast-close:hover { opacity: 1; }
+  .toast-copy {
+    font-size: 14px; cursor: pointer; opacity: 0.5;
+    flex-shrink: 0; line-height: 1;
+    background: none; border: none; color: inherit; padding: 0;
+    font-family: monospace;
+  }
+  .toast-copy:hover { opacity: 1; }
+  .toast-copy.copied { color: var(--green); opacity: 1; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
   .stop-btn {
@@ -994,6 +1002,46 @@
   }
   .send-btn:hover { background: var(--green); color: #fff; }
   .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 36px;
+    height: 20px;
+  }
+  .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+  }
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    transition: .2s;
+  }
+  .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 14px;
+    width: 14px;
+    left: 2px;
+    bottom: 2px;
+    background-color: var(--text-dim);
+    border-radius: 50%;
+    transition: .2s;
+  }
+  .toggle-switch input:checked + .toggle-slider {
+    background-color: var(--green);
+    border-color: var(--green);
+  }
+  .toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(16px);
+    background-color: white;
+  }
 
 </style>
 </head>
@@ -1361,20 +1409,24 @@ function renderDashboard(data) {
   dot.className = 'status-dot ' + (s.agent_count > 0 ? 'online' : 'offline');
 
   const currentSessions = data.sessions || [];
-  if (prevSessions.length > 0 && 'Notification' in window && Notification.permission === 'granted') {
+  function tryNotify(title, options) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try { new Notification(title, options); } catch (_) {}
+  }
+  if (prevSessions.length > 0) {
     const prevMap = {};
     prevSessions.forEach(ps => { prevMap[ps.id] = ps; });
     currentSessions.forEach(cs => {
       const prev = prevMap[cs.id];
       if (prev && prev.state !== cs.state) {
-        new Notification('Case updated', {
+        tryNotify('Case updated', {
           body: (cs.title || '?') + ' · ' + (prev.state || 'active') + ' → ' + (cs.state || 'active'),
           silent: true
         });
       } else if (!prev && cs.state === 'complete') {
-        new Notification('Case completed', { body: cs.title || '?', silent: true });
+        tryNotify('Case completed', { body: cs.title || '?', silent: true });
       } else if (!prev) {
-        new Notification('New case', { body: cs.title || '?', silent: true });
+        tryNotify('New case', { body: cs.title || '?', silent: true });
       }
     });
   }
@@ -2412,7 +2464,7 @@ schedulePoll();
   </div>
 </div>
 
-<div class="toast" id="toast"><span id="toastMessage"></span><span class="toast-close" onclick="dismissToast()">&times;</span></div>
+<div class="toast" id="toast"><span id="toastMessage"></span><span class="toast-copy" onclick="copyToastMessage()" title="Copy message">&#10633;</span><span class="toast-close" onclick="dismissToast()">&times;</span></div>
 
 <script>
 // ── SHA-256 ──
@@ -2654,7 +2706,7 @@ async function renderCasesTab() {
         var sModel = escapeHtml(s.model_id || '—');
         var sAssigned = escapeHtml(s.assigned_staff || '');
         html += '<tr>' +
-          '<td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + sTitle.replace(/"/g,'&quot;') + '">' + sTitle.slice(0,28) + '</td>' +
+          '<td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + sTitle.replace(/"/g,'&quot;') + '">' + sTitle + '</td>' +
           '<td><span style="color:' + stateColor + '">' + sState + '</span></td>' +
           '<td>' + (s.last_mode ? '<span style="font-size:10px;padding:1px 6px;border-radius:3px;font-weight:500;background:' + (s.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33') + ';color:' + (s.last_mode === 'plan' ? '#bc8cff' : '#58a6ff') + '">' + s.last_mode + '</span>' : '—') + '</td>' +
           '<td style="font-size:10px;color:var(--text-dim)">' + sModel + '</td>' +
@@ -3944,6 +3996,27 @@ function showToast(message, type) {
   t.style.display = 'flex';
 }
 
+function copyToastMessage() {
+  const msg = document.getElementById('toastMessage').textContent;
+  const btn = document.querySelector('.toast-copy');
+  const orig = btn.textContent;
+  navigator.clipboard.writeText(msg).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = msg;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
 function dismissToast() {
   document.getElementById('toast').style.display = 'none';
 }
@@ -4118,9 +4191,9 @@ async function renderCronTab() {
             <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleCronJob('${job.id}')">
             <span class="toggle-slider"></span>
           </label>
-          <button class="btn btn-sm" onclick="openCronModal('${job.id}')" title="Edit">✏️</button>
-          <button class="btn btn-sm" onclick="runCronJob('${job.id}')" title="Run now" ${job._running ? 'disabled' : ''}>▶</button>
-          <button class="btn btn-sm" onclick="deleteCronJob('${job.id}')" title="Delete">🗑️</button>
+          <button class="view-btn" onclick="openCronModal('${job.id}')">Edit</button>
+          <button class="send-btn" onclick="runCronJob('${job.id}')" ${job._running ? 'disabled' : ''}>Run</button>
+          <button class="stop-btn" onclick="deleteCronJob('${job.id}')">Delete</button>
         </div>
       </div>
     </div>`;
