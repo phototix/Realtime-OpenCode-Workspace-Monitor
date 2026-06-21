@@ -542,11 +542,35 @@ def _handle_notifications_dismiss(body: dict) -> tuple:
     except Exception as e:
         return False, {'ok': False, 'message': str(e)[:200]}
 
-def _send_webhook(provider: dict, test_message: str = '') -> tuple:
+def _format_event_message(event_type: str, event_data: dict, provider_name: str) -> str:
+    if event_type == 'state_change':
+        title = event_data.get('title', '?')
+        old_state = event_data.get('old_state', '?')
+        new_state = event_data.get('new_state', '?')
+        return f'\U0001f504 Case \'{title}\': {old_state} \u2192 {new_state}'
+    if event_type == 'user_interaction':
+        count = event_data.get('count', 1)
+        titles = event_data.get('titles', [])
+        if count == 1 and titles:
+            return f'\U0001f4ac Case \'{titles[0]}\' needs your response'
+        return f'\U0001f4ac {count} cases need your response'
+    if event_type == 'desks_full':
+        count = event_data.get('worker_count', 0)
+        return f'\U0001faa9 All 6 desks occupied ({count} workers active)'
+    if event_type == 'no_active_cases':
+        duration = event_data.get('duration', 0)
+        return f'\u23f0 No active cases for {duration}s'
+    return f'Notification from {provider_name}'
+
+def _send_webhook(provider: dict, test_message: str = '', event_data: dict = None) -> tuple:
     url = provider.get('webhook_url', '').strip()
     ptype = provider.get('type', 'custom')
     name = provider.get('name', 'Notification')
-    message = test_message or f'Test notification from {name}'
+    if event_data:
+        event_type = event_data.get('event_type', '')
+        message = _format_event_message(event_type, event_data, name)
+    else:
+        message = test_message or f'Test notification from {name}'
     if not url:
         return False, 'Webhook URL is empty'
     if ptype == 'slack':
@@ -554,7 +578,7 @@ def _send_webhook(provider: dict, test_message: str = '') -> tuple:
     elif ptype == 'discord':
         payload = json.dumps({'content': message})
     else:
-        payload = json.dumps({'message': message, 'provider': name, 'timestamp': time.time()})
+        payload = json.dumps({'message': message, 'provider': name, 'event': event_data or {}, 'timestamp': time.time()})
     try:
         r = subprocess.run(
             ['curl', '-s', '-o', '/dev/null', '-w', '%{http_code}',
@@ -582,18 +606,61 @@ def _handle_notification_providers_create(body: dict) -> tuple:
     if ptype not in ('slack', 'discord', 'custom'):
         return False, {'ok': False, 'message': 'Invalid provider type'}
     providers = _load_notification_providers()
+    scopes = body.get('scopes', {})
+    default_scopes = {
+        'state_change': scopes.get('state_change', True),
+        'user_interaction': scopes.get('user_interaction', True),
+        'desks_full': scopes.get('desks_full', False),
+        'no_active_cases': scopes.get('no_active_cases', False),
+    }
     provider = {
         'id': 'np_' + secrets.token_hex(6),
         'name': name,
         'type': ptype,
         'webhook_url': webhook_url,
         'enabled': True,
+        'scopes': default_scopes,
+        'gap_sec': max(60, int(body.get('gap_sec', 300))),
+        'no_active_timeout': max(60, int(body.get('no_active_timeout', 300))),
         'created_at': time.time()
     }
     providers.append(provider)
     _save_notification_providers(providers)
     log(f"Notification provider created: {name} ({ptype})")
     return True, {'ok': True, 'provider': provider}
+
+def _handle_notification_providers_update(body: dict) -> tuple:
+    provider_id = body.get('id', '')
+    if not provider_id:
+        return False, {'ok': False, 'message': 'Missing provider id'}
+    providers = _load_notification_providers()
+    found = next((p for p in providers if p['id'] == provider_id), None)
+    if not found:
+        return False, {'ok': False, 'message': 'Provider not found'}
+    if 'name' in body:
+        found['name'] = body['name'].strip()
+    if 'webhook_url' in body:
+        found['webhook_url'] = body['webhook_url'].strip()
+    if 'type' in body:
+        ptype = body['type']
+        if ptype in ('slack', 'discord', 'custom'):
+            found['type'] = ptype
+    if 'enabled' in body:
+        found['enabled'] = bool(body['enabled'])
+    if 'gap_sec' in body:
+        found['gap_sec'] = max(60, int(body['gap_sec']))
+    if 'no_active_timeout' in body:
+        found['no_active_timeout'] = max(60, int(body['no_active_timeout']))
+    if 'scopes' in body:
+        s = body['scopes']
+        current = found.get('scopes', {})
+        for k in ('state_change', 'user_interaction', 'desks_full', 'no_active_cases'):
+            if k in s:
+                current[k] = bool(s[k])
+        found['scopes'] = current
+    _save_notification_providers(providers)
+    log(f"Notification provider updated: {found['name']}")
+    return True, {'ok': True, 'provider': found}
 
 def _handle_notification_providers_delete(body: dict) -> tuple:
     provider_id = body.get('id', '')
@@ -615,6 +682,25 @@ def _handle_notification_providers_test(body: dict) -> tuple:
         return False, {'ok': False, 'message': 'Provider not found'}
     ok, msg = _send_webhook(provider, f'Test notification from {provider["name"]} at {time.strftime("%H:%M:%S")}')
     log(f"Notification provider test: {provider['name']} -> {'ok' if ok else 'fail'}: {msg}")
+    if ok:
+        return True, {'ok': True, 'message': msg}
+    return False, {'ok': False, 'message': msg}
+
+def _handle_notification_providers_send_webhook(body: dict) -> tuple:
+    provider_id = body.get('provider_id', '')
+    event_type = body.get('event_type', '')
+    event_data = body.get('event_data', {})
+    if not provider_id or not event_type:
+        return False, {'ok': False, 'message': 'Missing provider_id or event_type'}
+    providers = _load_notification_providers()
+    provider = next((p for p in providers if p['id'] == provider_id), None)
+    if not provider:
+        return False, {'ok': False, 'message': 'Provider not found'}
+    if not provider.get('enabled'):
+        return False, {'ok': False, 'message': 'Provider is disabled'}
+    full_data = {'event_type': event_type, **event_data}
+    ok, msg = _send_webhook(provider, event_data=full_data)
+    log(f"Notification dispatch {event_type} -> {provider['name']}: {'ok' if ok else 'fail'}: {msg[:80]}")
     if ok:
         return True, {'ok': True, 'message': msg}
     return False, {'ok': False, 'message': msg}
