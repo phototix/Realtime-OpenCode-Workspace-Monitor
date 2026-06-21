@@ -13,10 +13,121 @@ from server_config import (
     NOTIFICATION_PROVIDERS_FILE,
     STAFF_FILE, ASSIGNMENTS_FILE,
     _get_api_key, log, _error_id,
-    _load_notifications, _load_notification_providers
+    _load_notifications, _load_notification_providers,
+    _save_notification_providers,
 )
 from cron import _cron_runner, _load_cron_jobs
 from queue import _queue_processor, _load_queue, _save_queue, _register_handler
+
+_notif_prev = {}  # {session_id: {state, has_questions}}
+_notif_last_sent = {}  # {provider_id: timestamp}
+_notif_was_full = False
+_notif_no_active_since = None
+
+def _notification_dispatcher():
+    global _notif_prev, _notif_last_sent, _notif_was_full, _notif_no_active_since
+    while True:
+        try:
+            time.sleep(10)
+            status_path = os.path.join(DATA_DIR, 'status.json')
+            if not os.path.exists(status_path):
+                continue
+            with open(status_path) as f:
+                status = json.load(f)
+            sessions = status.get('sessions') or status.get('all_sessions') or []
+            summary = status.get('summary') or {}
+            cpu_cores = summary.get('cpu_core_count', 10)
+
+            providers = _load_notification_providers()
+            enabled = [p for p in providers if p.get('enabled') and p.get('scopes')]
+            if not enabled:
+                _notif_prev = {s['id']: {'state': s.get('state'), 'has_questions': bool(s.get('pending_questions'))} for s in sessions}
+                continue
+
+            events = []
+
+            # 1. State changes
+            current_map = {}
+            for s in sessions:
+                sid = s.get('id', '')
+                state = s.get('state', '')
+                has_q = bool(s.get('pending_questions'))
+                current_map[sid] = {'state': state, 'has_questions': has_q}
+                prev = _notif_prev.get(sid)
+                if prev and prev.get('state') != state and prev.get('state') is not None:
+                    events.append(('state_change', {
+                        'title': s.get('title', s.get('slug', sid)),
+                        'old_state': prev.get('state', ''),
+                        'new_state': state,
+                    }))
+            _notif_prev = current_map
+
+            # 2. User interaction (new pending questions)
+            pending_sessions = [s for s in sessions if s.get('pending_questions')]
+            prev_pending = any(
+                v.get('has_questions') for v in _notif_prev.values()
+            ) if _notif_prev else False
+            if pending_sessions and not prev_pending:
+                events.append(('user_interaction', {
+                    'count': len(pending_sessions),
+                    'titles': [s.get('title', '?') for s in pending_sessions[:5]],
+                }))
+
+            # 3. Desks full
+            active_workers = len(sessions)
+            is_full = active_workers >= min(6, cpu_cores)
+            if is_full and not _notif_was_full:
+                events.append(('desks_full', {'worker_count': active_workers}))
+            _notif_was_full = is_full
+
+            # 4. No active cases
+            active_count = sum(1 for s in sessions if s.get('state') in ('thinking', 'running-tools'))
+            if active_count == 0:
+                if _notif_no_active_since is None:
+                    _notif_no_active_since = time.time()
+                elapsed = time.time() - _notif_no_active_since
+                for p in enabled:
+                    timeout = p.get('no_active_timeout', 300)
+                    if (elapsed >= timeout and
+                        p['id'] not in _notif_last_sent and
+                        p.get('scopes', {}).get('no_active_cases')):
+                        events.append(('no_active_cases', {
+                            'duration': int(elapsed),
+                        }))
+                        _notif_last_sent[p['id']] = time.time()
+            else:
+                _notif_no_active_since = None
+
+            # Enqueue events to matching providers
+            for event_type, event_data in events:
+                for p in enabled:
+                    if not p.get('scopes', {}).get(event_type):
+                        continue
+                    gap = p.get('gap_sec', 300)
+                    last = _notif_last_sent.get(p['id'], 0)
+                    if time.time() - last < gap:
+                        continue
+                    item = {
+                        'id': 'q_' + secrets.token_hex(6),
+                        'type': 'notification-providers/send-webhook',
+                        'payload': {
+                            'provider_id': p['id'],
+                            'event_type': event_type,
+                            'event_data': event_data,
+                        },
+                        'status': 'queued',
+                        'result': None,
+                        'error': None,
+                        'created_at': time.time(),
+                    }
+                    queue = _load_queue()
+                    queue.append(item)
+                    _save_queue(queue)
+                    _notif_last_sent[p['id']] = time.time()
+                    log(f"Notif dispatch queued: {event_type} -> {p['name']}")
+
+        except Exception as e:
+            log(f"Notif dispatcher error: {e}")
 
 class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -70,6 +181,19 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlparse(self.path)
         path = parsed.path
+
+        if path == '/favicon.ico':
+            photo = os.path.join(STATIC_DIR, 'assets', 'profile_photo.png')
+            if os.path.exists(photo):
+                self.send_response(200)
+                self.send_header('Content-Type', 'image/png')
+                self.send_header('Cache-Control', 'max-age=3600')
+                self.end_headers()
+                with open(photo, 'rb') as _f:
+                    self.wfile.write(_f.read())
+                return
+            super().do_GET()
+            return
 
         if path.startswith('/api/'):
             if path == '/api/ping':
@@ -233,6 +357,8 @@ if __name__ == '__main__':
         _handle_notification_providers_create,
         _handle_notification_providers_delete,
         _handle_notification_providers_test,
+        _handle_notification_providers_update,
+        _handle_notification_providers_send_webhook,
         _handle_cron_jobs_create, _handle_cron_jobs_update,
         _handle_cron_jobs_delete, _handle_cron_jobs_toggle, _handle_cron_jobs_run,
     )
@@ -262,6 +388,8 @@ if __name__ == '__main__':
         ('notification-providers/create', _handle_notification_providers_create),
         ('notification-providers/delete', _handle_notification_providers_delete),
         ('notification-providers/test', _handle_notification_providers_test),
+        ('notification-providers/update', _handle_notification_providers_update),
+        ('notification-providers/send-webhook', _handle_notification_providers_send_webhook),
         ('cron-jobs/create', _handle_cron_jobs_create),
         ('cron-jobs/update', _handle_cron_jobs_update),
         ('cron-jobs/delete', _handle_cron_jobs_delete),
@@ -272,6 +400,7 @@ if __name__ == '__main__':
 
     threading.Thread(target=_cron_runner, daemon=True).start()
     threading.Thread(target=_queue_processor, daemon=True).start()
+    threading.Thread(target=_notification_dispatcher, daemon=True).start()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 5500
     server = http.server.ThreadingHTTPServer(('127.0.0.1', port), UnifiedHandler)
     print(f"Dashboard server running on http://localhost:{port}")

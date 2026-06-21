@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MyDora Dashboard</title>
+<link rel="icon" type="image/png" href="/assets/profile_photo.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 <style>
@@ -2541,6 +2542,42 @@ global.schedulePoll = schedulePoll;
   </div>
 </div>
 
+<!-- Notification Settings Modal -->
+<div class="modal-overlay" id="notificationSettingsModal" style="display:none">
+  <div class="login-modal" style="width:420px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:16px" id="nsTitle">🔔 Notification Settings</h2>
+      <button class="admin-close" onclick="closeNotificationSettings()">&times;</button>
+    </div>
+    <div id="nsBody">
+      <p style="font-size:12px;color:var(--text-dim);margin-bottom:12px" id="nsProviderName"></p>
+      <label class="form-group" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <input type="checkbox" id="nsStateChange" checked> Case state changes
+      </label>
+      <label class="form-group" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <input type="checkbox" id="nsUserInteraction" checked> Responses requiring interaction
+      </label>
+      <label class="form-group" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <input type="checkbox" id="nsDesksFull"> Desks fully occupied
+      </label>
+      <label class="form-group" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <input type="checkbox" id="nsNoActiveCases"> No active cases for
+        <input type="number" id="nsNoActiveTimeout" value="300" min="60" style="width:70px;padding:4px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px"> sec
+      </label>
+      <hr style="border-color:var(--border);margin:12px 0">
+      <label class="form-group" style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        Gap between alerts:
+        <input type="number" id="nsGapSec" value="300" min="60" style="width:70px;padding:4px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px"> sec
+      </label>
+      <div class="form-error" id="nsErr" style="margin-top:8px"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-primary btn-sm" onclick="saveNotificationSettings()">Save</button>
+      <button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="closeNotificationSettings()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"><span id="toastMessage"></span><span class="toast-actions"><span class="toast-copy" onclick="copyToastMessage()" title="Copy message">&#10633;</span><span class="toast-close" onclick="dismissToast()">&times;</span></span></div>
 
 <script>
@@ -3767,13 +3804,14 @@ async function renderNotificationsTab() {
     data.providers.forEach(function(p) {
       const typeIcon = p.type === 'slack' ? '💬' : p.type === 'discord' ? '🎮' : '🔗';
       const statusColor = p.enabled ? 'var(--green)' : 'var(--text-dim)';
-      html += '<div class="admin-card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px">' +
+      html +=       '<div class="admin-card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px">' +
         '<span>' + typeIcon + '</span>' +
         '<div style="flex:1;min-width:0">' +
           '<div style="font-size:13px;font-weight:500">' + escapeHtml(p.name) + '</div>' +
           '<div style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(p.type) + ' — ' + escapeHtml(p.webhook_url) + '</div>' +
         '</div>' +
         '<span style="font-size:10px;color:' + statusColor + '">' + (p.enabled ? 'Enabled' : 'Disabled') + '</span>' +
+        '<button class="btn btn-sm" style="background:none;color:var(--text-dim);font-size:14px;cursor:pointer;padding:2px 6px" onclick="openNotificationSettings(\'' + p.id + '\')" title="Settings">&#9881;</button>' +
         '<button class="btn btn-sm" style="background:var(--surface2);color:var(--blue)" onclick="testNotificationProvider(\'' + p.id + '\')">Test</button>' +
         '<button class="stop-btn" onclick="deleteNotificationProvider(\'' + p.id + '\')">Delete</button>' +
         '</div>';
@@ -3818,6 +3856,55 @@ function deleteNotificationProvider(id) {
   }).catch(function(e) {
     showToast('Failed: ' + e.message, 'error');
   });
+}
+
+// ── NOTIFICATION SETTINGS ──
+let _nsProviderId = '';
+
+function openNotificationSettings(id) {
+  _nsProviderId = id;
+  fetch('/api/notification-providers').then(function(r) { return r.json(); }).then(function(data) {
+    if (!data.ok || !data.providers) return;
+    var p = data.providers.find(function(x) { return x.id === id; });
+    if (!p) return;
+    var scopes = p.scopes || {};
+    document.getElementById('nsProviderName').textContent = p.name + ' (' + p.type + ')';
+    document.getElementById('nsStateChange').checked = scopes.state_change !== false;
+    document.getElementById('nsUserInteraction').checked = scopes.user_interaction !== false;
+    document.getElementById('nsDesksFull').checked = scopes.desks_full === true;
+    document.getElementById('nsNoActiveCases').checked = scopes.no_active_cases === true;
+    document.getElementById('nsNoActiveTimeout').value = p.no_active_timeout || 300;
+    document.getElementById('nsGapSec').value = p.gap_sec || 300;
+    document.getElementById('nsErr').style.display = 'none';
+    document.getElementById('notificationSettingsModal').style.display = 'flex';
+  });
+}
+
+function saveNotificationSettings() {
+  var data = {
+    id: _nsProviderId,
+    scopes: {
+      state_change: document.getElementById('nsStateChange').checked,
+      user_interaction: document.getElementById('nsUserInteraction').checked,
+      desks_full: document.getElementById('nsDesksFull').checked,
+      no_active_cases: document.getElementById('nsNoActiveCases').checked,
+    },
+    no_active_timeout: parseInt(document.getElementById('nsNoActiveTimeout').value) || 300,
+    gap_sec: parseInt(document.getElementById('nsGapSec').value) || 300,
+  };
+  var err = document.getElementById('nsErr');
+  sendQueued('notification-providers/update', data).then(function() {
+    closeNotificationSettings();
+    renderNotificationsTab();
+    showToast('Settings saved', 'success');
+  }).catch(function(e) {
+    err.textContent = e.message;
+    err.style.display = 'block';
+  });
+}
+
+function closeNotificationSettings() {
+  document.getElementById('notificationSettingsModal').style.display = 'none';
 }
 
 // ── LOGS TAB ──
@@ -4692,6 +4779,7 @@ const _exports = {
   regenerateApiKey, copyApiKey, changePassword,
   renderNotificationsTab, addNotificationProvider, testNotificationProvider,
   deleteNotificationProvider, renderInAppAlertsTab,
+  openNotificationSettings, saveNotificationSettings, closeNotificationSettings,
   sendNotification, dismissNotification, renderLogsTab, refreshLogs,
   escapeHtml, sendQueued, renderProvidersTab, providerLogout,
   providerLogin, ollamaAdd, ollamaRemove, renderSuperStaffTab,
