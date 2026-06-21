@@ -176,6 +176,12 @@
     font-size: 11px;
     color: var(--text-dim);
   }
+  .download-header-btn {
+    font-size: 11px !important;
+    padding: 3px 10px !important;
+    margin-left: 10px;
+    vertical-align: baseline;
+  }
 
   .nodes-area {
     flex: 1;
@@ -1145,6 +1151,7 @@
       <h2>Active Nodes</h2>
       <div>
         <span class="last-updated">Last updated: <span id="lastUpdated">—</span></span>
+        <button class="manage-btn download-header-btn" onclick="window.open('/mydora-latest.apk')" title="Download APK">Download APK</button>
       </div>
     </div>
     <div class="nodes-area">
@@ -1474,7 +1481,6 @@ function renderDashboard(data) {
           </div>
           <div class="type-badge engine">boss</div>
           ${getAuth() ? '<button class="manage-btn" onclick="openNewSessionModal()">+ New Case</button>' : ''}
-          <button class="manage-btn" onclick="window.open(\'/mydora-latest.apk\')">Download APK</button>
           <button class="manage-btn" onclick="openLoginModal()" ${getAuth() ? 'style="margin-left:6px"' : ''}>Manage</button>
         </div>
         <div class="card-body" style="display:flex;gap:12px;align-items:center">
@@ -3820,7 +3826,9 @@ async function renderNotificationsTab() {
           '<div style="font-size:13px;font-weight:500">' + escapeHtml(p.name) + '</div>' +
           '<div style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(p.type) + ' — ' + escapeHtml(p.webhook_url) + '</div>' +
         '</div>' +
-        '<span style="font-size:10px;color:' + statusColor + '">' + (p.enabled ? 'Enabled' : 'Disabled') + '</span>' +
+        '<span style="font-size:10px;color:' + statusColor + '">' + (p.enabled ? 'Enabled' : (p.failure_count > 0 ? 'Auto-disabled' : 'Disabled')) + '</span>' +
+        (p.failure_count > 0 ? '<span style="font-size:9px;color:var(--red);margin-left:4px" title="' + escapeHtml(p.last_error || '') + '">&#9888; ' + p.failure_count + '</span>' : '') +
+        (p.last_success_at ? '<span style="font-size:9px;color:var(--text-dim);margin-left:4px">&#10003; ' + humanAgo(p.last_success_at) + '</span>' : '') +
         '<button class="btn btn-sm" style="background:none;color:var(--text-dim);font-size:14px;cursor:pointer;padding:2px 6px" onclick="openNotificationSettings(\'' + p.id + '\')" title="Settings">&#9881;</button>' +
         '<button class="btn btn-sm" style="background:var(--surface2);color:var(--blue)" onclick="testNotificationProvider(\'' + p.id + '\')">Test</button>' +
         '<button class="stop-btn" onclick="deleteNotificationProvider(\'' + p.id + '\')">Delete</button>' +

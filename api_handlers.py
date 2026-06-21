@@ -21,6 +21,7 @@ from server_config import (
     _load_notifications, _save_notifications,
     _load_notification_providers, _save_notification_providers
 )
+from queue import _load_queue, _save_queue
 
 def _handle_stop_session(body: dict) -> tuple:
     sid = body.get('id', '')
@@ -622,7 +623,11 @@ def _handle_notification_providers_create(body: dict) -> tuple:
         'scopes': default_scopes,
         'gap_sec': max(60, int(body.get('gap_sec', 300))),
         'no_active_timeout': max(60, int(body.get('no_active_timeout', 300))),
-        'created_at': time.time()
+        'created_at': time.time(),
+        'failure_count': 0,
+        'last_error': '',
+        'last_failure_at': None,
+        'last_success_at': None,
     }
     providers.append(provider)
     _save_notification_providers(providers)
@@ -700,9 +705,53 @@ def _handle_notification_providers_send_webhook(body: dict) -> tuple:
         return False, {'ok': False, 'message': 'Provider is disabled'}
     full_data = {'event_type': event_type, **event_data}
     ok, msg = _send_webhook(provider, event_data=full_data)
+    retry_count = body.get('retry_count', 0)
+
+    # Update provider failure tracking
+    if ok:
+        provider['failure_count'] = 0
+        provider['last_error'] = ''
+        provider['last_success_at'] = time.time()
+        provider['last_failure_at'] = None
+    else:
+        provider['failure_count'] = provider.get('failure_count', 0) + 1
+        provider['last_error'] = msg[:200]
+        provider['last_failure_at'] = time.time()
+    _save_notification_providers(providers)
+
     log(f"Notification dispatch {event_type} -> {provider['name']}: {'ok' if ok else 'fail'}: {msg[:80]}")
     if ok:
         return True, {'ok': True, 'message': msg}
+
+    # Retry with exponential backoff
+    if retry_count < 3:
+        backoff = [30, 120, 300][retry_count]
+        retry_item = {
+            'id': 'q_' + secrets.token_hex(6),
+            'type': 'notification-providers/send-webhook',
+            'payload': {
+                'provider_id': provider_id,
+                'event_type': event_type,
+                'event_data': event_data,
+                'retry_count': retry_count + 1,
+            },
+            'retry_at': time.time() + backoff,
+            'status': 'queued',
+            'result': None,
+            'error': None,
+            'created_at': time.time(),
+        }
+        queue = _load_queue()
+        queue.append(retry_item)
+        _save_queue(queue)
+        log(f"Notif retry {retry_count+1}/3 in {backoff}s: {event_type} -> {provider['name']}")
+        return True, {'ok': True, 'message': f'Retry queued (+{backoff}s)'}
+
+    # Exhausted retries — auto-disable
+    provider['enabled'] = False
+    provider['last_error'] = 'Auto-disabled after 3 failed attempts'
+    _save_notification_providers(providers)
+    log(f"Notif provider '{provider['name']}' auto-disabled after 3 failed attempts")
     return False, {'ok': False, 'message': msg}
 
 def _handle_api_key_regenerate(body: dict) -> tuple:
