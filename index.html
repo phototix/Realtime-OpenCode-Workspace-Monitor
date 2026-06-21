@@ -3846,7 +3846,7 @@ async function renderNotificationsTab() {
           '<div style="font-size:13px;font-weight:500">' + escapeHtml(p.name) + '</div>' +
           '<div style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(p.type) + ' — ' + escapeHtml(p.webhook_url) + '</div>' +
         '</div>' +
-        '<span style="font-size:10px;color:' + statusColor + '">' + (p.enabled ? 'Enabled' : (p.failure_count > 0 ? 'Auto-disabled' : 'Disabled')) + '</span>' +
+        '<button class="btn btn-sm" style="background:' + (p.enabled ? 'var(--green)' : 'var(--surface2)') + ';color:' + (p.enabled ? '#fff' : 'var(--text-dim)') + ';padding:2px 10px;font-size:10px;cursor:pointer;border:none;border-radius:4px" onclick="toggleNotificationProvider(\'' + p.id + '\',' + (p.enabled ? 'false' : 'true') + ')">' + (p.enabled ? 'Enabled' : 'Disabled') + '</button>' +
         (p.failure_count > 0 ? '<span style="font-size:9px;color:var(--red);margin-left:4px" title="' + escapeHtml(p.last_error || '') + '">&#9888; ' + p.failure_count + '</span>' : '') +
         (p.last_success_at ? '<span style="font-size:9px;color:var(--text-dim);margin-left:4px">&#10003; ' + humanAgo(p.last_success_at) + '</span>' : '') +
         '<button class="btn btn-sm" style="background:none;color:var(--text-dim);font-size:14px;cursor:pointer;padding:2px 6px" onclick="openNotificationSettings(\'' + p.id + '\')" title="Settings">&#9881;</button>' +
@@ -3883,6 +3883,14 @@ function testNotificationProvider(id) {
     showToast(data.message || 'Test sent', data.ok ? 'success' : 'error');
   }).catch(function(e) {
     showToast('Test failed: ' + e.message, 'error');
+  });
+}
+
+function toggleNotificationProvider(id, enabled) {
+  sendQueued('notification-providers/update', { id: id, enabled: enabled }).then(function() {
+    renderNotificationsTab();
+  }).catch(function(e) {
+    showToast('Failed: ' + e.message, 'error');
   });
 }
 
@@ -4818,6 +4826,7 @@ const _exports = {
   renderNotificationsTab, addNotificationProvider, testNotificationProvider,
   deleteNotificationProvider, renderInAppAlertsTab,
   openNotificationSettings, saveNotificationSettings, closeNotificationSettings,
+  toggleNotificationProvider,
   sendNotification, dismissNotification, renderLogsTab, refreshLogs,
   escapeHtml, sendQueued, renderProvidersTab, providerLogout,
   providerLogin, ollamaAdd, ollamaRemove, renderSuperStaffTab,
