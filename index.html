@@ -1935,6 +1935,7 @@ function renderDashboard(data) {
           ${fileInfo ? `<span>${fileInfo}</span>` : ''}
           ${ss.agent_type ? `<span>${ss.agent_type}</span>` : ''}
           ${ss.model_id ? `<span>${ss.model_id}</span>` : ''}
+          ${(ss.todos || []).filter(function(t){ return t.status !== 'completed'; }).length > 0 ? `<span style="color:var(--yellow)">\uD83D\uDCCB ${(ss.todos || []).filter(function(t){ return t.status !== 'completed'; }).length}</span>` : ''}
         </div>
       </div>
     `;
@@ -2850,6 +2851,7 @@ async function renderCasesTab() {
           '<td>' + ((s.tokens||0).toLocaleString()) + '</td>' +
           '<td style="font-size:10px;color:var(--text-dim)">' + agoStr + '</td>' +
           '<td style="white-space:nowrap">' +
+            todoBadge(s) +
             questionBadge(s) +
             '<select onchange="assignStaff(\'' + s.id + '\',this.value)" style="font-size:9px;padding:1px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none;vertical-align:middle;max-width:80px" title="Assign super staff">' +
               '<option value="">' + (sAssigned || '\u{1F464}') + '</option>' +
@@ -2936,6 +2938,7 @@ function viewSession(id) {
         <div class="row"><span class="label">Directory</span><span class="value" style="font-size:10px">${escapeHtml(s.directory || '—')}</span></div>
         ${s.last_mode ? `<div class="row"><span class="label">Last Mode</span><span class="value">${escapeHtml(s.last_mode)}</span></div>` : ''}
       </div>
+      ${(s.todos || []).length > 0 ? (function(){ var thtml = '<div class="admin-card" style="margin-top:12px"><h4>Tasks (' + s.todos.filter(function(t){ return t.status === 'completed'; }).length + '/' + s.todos.length + ')</h4>'; s.todos.forEach(function(t){ var done = t.status === 'completed'; var pri = t.priority === 'high' ? ' 🔥' : ''; thtml += '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px"><span style="color:' + (done ? 'var(--green)' : 'var(--text-dim)') + '">' + (done ? '✓' : '○') + '</span><span style="' + (done ? 'text-decoration:line-through;color:var(--text-dim)' : '') + '">' + escapeHtml(t.content) + '</span><span style="font-size:9px;color:var(--text-dim)">' + pri + '</span></div>'; }); thtml += '</div>'; return thtml; })() : ''}
     `;
     modal.style.display = 'flex';
   }).catch(() => {
@@ -3222,6 +3225,13 @@ function questionBadge(s) {
   const unanswered = pq.filter(function(q){ return !q.answered; });
   if (unanswered.length === 0) return '';
   return '<button class="question-btn" onclick="showQuestions(\'' + s.id + '\')">\u2753 ' + unanswered.length + '</button> ';
+}
+
+function todoBadge(s) {
+  const todos = s.todos || [];
+  const pending = todos.filter(function(t){ return t.status !== 'completed'; }).length;
+  if (pending === 0) return '';
+  return '<span style="font-size:10px;color:var(--yellow);margin-left:4px;cursor:default" title="' + pending + ' pending tasks">\uD83D\uDCCB ' + pending + '</span> ';
 }
 
 function showQuestions(id) {
