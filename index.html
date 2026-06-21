@@ -885,6 +885,7 @@
   .admin-card .row .label { color: var(--text-dim); }
   .admin-card .row .value { color: var(--text); font-weight: 500; }
 
+  /* ── FORM ELEMENTS ── */
   .inline-form {
     display: flex; gap: 8px; align-items: center;
     margin-top: 12px;
@@ -912,6 +913,7 @@
     font-size: 12px; color: var(--blue); font-weight: 600;
   }
 
+  /* ── BUTTONS / BADGES / TOAST ── */
   .comment-btn {
     background: none; border: none; cursor: pointer;
     font-size: 14px; line-height: 1; opacity: 0.4;
@@ -943,6 +945,7 @@
   .toast.success { border-left: 3px solid var(--green); color: var(--green); }
   .toast.error { border-left: 3px solid var(--red); color: var(--red); }
   .toast.info { border-left: 3px solid var(--blue, #4a9eff); color: var(--blue, #4a9eff); }
+  .toast-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
   .toast-close {
     font-size: 16px; cursor: pointer; opacity: 0.5;
     flex-shrink: 0; line-height: 1;
@@ -953,12 +956,13 @@
     font-size: 14px; cursor: pointer; opacity: 0.5;
     flex-shrink: 0; line-height: 1;
     background: none; border: none; color: inherit; padding: 0;
-    padding-right: 6px; font-family: monospace;
+    font-family: monospace;
   }
   .toast-copy:hover { opacity: 1; }
   .toast-copy.copied { color: var(--green); opacity: 1; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
+  /* ── ACTION BUTTONS ── */
   .stop-btn {
     font-size: 10px; padding: 3px 10px; border: none; border-radius: 4px;
     cursor: pointer; font-weight: 500; transition: all 0.2s;
@@ -1004,6 +1008,7 @@
   .send-btn:hover { background: var(--green); color: #fff; }
   .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+  /* ── TOGGLE SWITCH ── */
   .toggle-switch {
     position: relative;
     display: inline-block;
@@ -1184,13 +1189,16 @@
 </div>
 
 <script>
+(function (global) {
+'use strict';
+
 // ── API KEY FETCH INTERCEPTOR ──
 // Automatically attaches X-API-Key to every /api/ request so the web
 // dashboard works the same way as the Android app without touching each
 // individual fetch() call.
 (function () {
-  const _origFetch = window.fetch;
-  window.fetch = function (input, init) {
+  const _origFetch = global.fetch;
+  global.fetch = function (input, init) {
     const url = typeof input === 'string' ? input
       : (input instanceof URL ? input.toString() : (input && input.url) || '');
     if (/\/api\//.test(url) && !url.startsWith('http')) {
@@ -1207,8 +1215,8 @@
 })();
 
 const STATUS_URL = 'data/status.json';
-let POLL_INTERVAL = 2000;
-let _pollTimer = null;
+global.POLL_INTERVAL = 2000;
+global._pollTimer = null;
 
 const TYPE_ICONS = {
   main: '\u2699',
@@ -1316,7 +1324,7 @@ function getRandomName() {
 function getWorkerGender(pid, sessionTitle) {
   // Check if this worker is a Super Staff agent
   if (sessionTitle) {
-    const staff = superStaffCache.find(s => s.name === sessionTitle || sessionTitle.includes(s.name));
+    const staff = global.superStaffCache.find(s => s.name === sessionTitle || sessionTitle.includes(s.name));
     if (staff) return staff.gender === 'female' ? 'F' : 'M';
   }
   // Fall back to name-based gender
@@ -1363,7 +1371,7 @@ function renderDashboard(data) {
     _lastMainPid = s.main_pid;
   }
 
-  if (s.boss_name) { _serverBossName = s.boss_name; }
+  if (s.boss_name) { global._serverBossName = s.boss_name; }
   document.getElementById('lastUpdated').textContent = formatTime(data.timestamp);
   document.getElementById('staffCount').textContent = s.cpu_core_count || '?';
   document.getElementById('sessionCount').textContent = (data.sessions || []).length;
@@ -1465,10 +1473,11 @@ function renderDashboard(data) {
           </div>
           <div class="type-badge engine">boss</div>
           ${getAuth() ? '<button class="manage-btn" onclick="openNewSessionModal()">+ New Case</button>' : ''}
+          <button class="manage-btn" onclick="window.open(\'/mydora-latest.apk\')">Download APK</button>
           <button class="manage-btn" onclick="openLoginModal()" ${getAuth() ? 'style="margin-left:6px"' : ''}>Manage</button>
         </div>
         <div class="card-body" style="display:flex;gap:12px;align-items:center">
-          ${profilePhoto ? '<div class="boss-photo"><img src="' + profilePhoto + '" alt="Profile"></div>' : ''}
+          ${global.profilePhoto ? '<div class="boss-photo"><img src="' + global.profilePhoto + '" alt="Profile"></div>' : ''}
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;flex:1">
             <div class="item"><div class="v">${brandon.cpu || '0'}%</div><div class="l">CPU</div></div>
             <div class="item"><div class="v">${brandon.mem_mb || '0'} MB</div><div class="l">Memory</div></div>
@@ -2032,17 +2041,17 @@ function renderDashboard(data) {
   }
 }
 
-let _polling = false;
+global._polling = false;
 async function poll() {
-  if (_polling) return;
-  _polling = true;
+  if (global._polling) return;
+  global._polling = true;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
       const resp = await fetch(STATUS_URL + '?_=' + Date.now());
       if (!resp.ok) throw new Error('Status ' + resp.status);
       const data = await resp.json();
       renderDashboard(data);
-      _polling = false;
+      global._polling = false;
       return;
     } catch (e) {
       if (attempt === 0) {
@@ -2053,13 +2062,13 @@ async function poll() {
       }
     }
   }
-  _polling = false;
+  global._polling = false;
 }
 
 function schedulePoll() {
-  _pollTimer = setTimeout(() => {
+  global._pollTimer = setTimeout(() => {
     poll().then(() => schedulePoll());
-  }, POLL_INTERVAL);
+  }, global.POLL_INTERVAL);
 }
 
 // Request notification permission
@@ -2069,6 +2078,20 @@ if ('Notification' in window && Notification.permission === 'default') {
 
 poll();
 schedulePoll();
+
+// Export functions used by onclick handlers
+global.toggleDisplay = toggleDisplay;
+global.switchContentTab = switchContentTab;
+
+// Export functions/constants for second IIFE
+global.humanAgo = humanAgo;
+global.formatUptime = formatUptime;
+global.getNamesConfig = getNamesConfig;
+global.saveNamesConfig = saveNamesConfig;
+global.DEFAULT_NAMES = DEFAULT_NAMES;
+global.poll = poll;
+global.schedulePoll = schedulePoll;
+})(window);
 </script>
 
 <!-- LOGIN MODAL -->
@@ -2115,6 +2138,8 @@ schedulePoll();
       <div class="admin-tab" data-tab="super-staff" onclick="switchTab('super-staff')">🧑‍💼 Super Staff</div>
       <div class="admin-tab" data-tab="cron" onclick="switchTab('cron')">⏰ Cron</div>
       <div class="admin-tab" data-tab="security" onclick="switchTab('security')">🔒 Security</div>
+      <div class="admin-tab" data-tab="inapp-alerts" onclick="switchTab('inapp-alerts')">🔔 In-app alerts</div>
+      <div class="admin-tab" data-tab="notifications" onclick="switchTab('notifications')">🔔 Notifications</div>
       <div class="admin-tab" data-tab="logs" onclick="switchTab('logs')">📄 Logs</div>
     </div>
 
@@ -2293,6 +2318,43 @@ schedulePoll();
         </div>
       </div>
 
+      <!-- In-app Alerts Tab -->
+      <div class="tab-content" id="tab-inapp-alerts">
+        <h3>🔔 In-app Alerts</h3>
+        <div class="desc">Compose and send broadcast notifications to all APK clients</div>
+        <div class="inline-form" style="margin-bottom:12px">
+          <select id="ntfType" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
+            <option value="info">Info</option>
+            <option value="warning">Warning</option>
+            <option value="error">Error</option>
+            <option value="success">Success</option>
+          </select>
+          <input type="text" id="ntfMessage" placeholder="Notification message..." style="flex:1;min-width:200px">
+          <button class="btn btn-sm btn-primary" onclick="sendNotification()">Send</button>
+        </div>
+        <h4 style="font-size:13px;color:var(--text-dim);margin-bottom:8px">Sent History</h4>
+        <div id="ntfHistory" style="font-size:12px;color:var(--text-dim)">Loading...</div>
+      </div>
+
+      <!-- External Notifications Tab -->
+      <div class="tab-content" id="tab-notifications">
+        <h3>🔔 Notifications</h3>
+        <div class="desc">Configure external notification providers (Slack, Discord, Custom Webhook)</div>
+        <div id="notificationProvidersList"></div>
+        <h4 style="font-size:13px;color:var(--text-dim);margin:16px 0 8px">Add Provider</h4>
+        <div class="inline-form" style="margin-bottom:12px">
+          <select id="npType" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
+            <option value="slack">Slack</option>
+            <option value="discord">Discord</option>
+            <option value="custom">Custom Webhook</option>
+          </select>
+          <input type="text" id="npName" placeholder="Provider name..." style="max-width:180px">
+          <input type="url" id="npUrl" placeholder="Webhook URL..." style="flex:1;min-width:200px">
+          <button class="btn btn-sm btn-primary" onclick="addNotificationProvider()">Add</button>
+        </div>
+        <div id="npMsg" style="font-size:12px;margin-bottom:8px"></div>
+      </div>
+
       <!-- Logs Tab -->
       <div class="tab-content" id="tab-logs">
         <h3>📄 Activity Logs</h3>
@@ -2351,8 +2413,8 @@ schedulePoll();
     </div>
     <div id="newSessionModalBody">
       <div class="form-group">
-        <label>Title (optional)</label>
-        <input type="text" id="newSessionTitle" placeholder="Case title">
+        <label>Title</label>
+        <input type="text" id="newSessionTitle" placeholder="Case title (required)">
       </div>
       <div class="form-group">
         <label>Instructions</label>
@@ -2479,9 +2541,28 @@ schedulePoll();
   </div>
 </div>
 
-<div class="toast" id="toast"><span id="toastMessage"></span><span class="toast-copy" onclick="copyToastMessage()" title="Copy message">&#10633;</span><span class="toast-close" onclick="dismissToast()">&times;</span></div>
+<div class="toast" id="toast"><span id="toastMessage"></span><span class="toast-actions"><span class="toast-copy" onclick="copyToastMessage()" title="Copy message">&#10633;</span><span class="toast-close" onclick="dismissToast()">&times;</span></span></div>
 
 <script>
+(function (global) {
+'use strict';
+
+// ── API FETCH HELPER ──
+async function apiFetch(url, options) {
+  try {
+    const resp = await fetch(url, { ...options, signal: AbortSignal.timeout(10000) });
+    return await resp.json();
+  } catch (e) {
+    showToast('Network error: ' + e.message, 'error');
+    return null;
+  }
+}
+
+// ── MODAL HELPER ──
+function getModal(id) {
+  return document.getElementById(id);
+}
+
 // ── SHA-256 ──
 async function sha256(str) {
   const buf = new TextEncoder().encode(str);
@@ -2504,9 +2585,9 @@ function getAuth() {
   try { return JSON.parse(sessionStorage.getItem(AUTH_KEY)); } catch { return null; }
 }
 
-let _serverBossName = '';
+global._serverBossName = '';
 function getBossName() {
-  if (_serverBossName) return _serverBossName;
+  if (global._serverBossName) return global._serverBossName;
   try { return localStorage.getItem('dashboard_boss_name') || 'Brandon'; } catch { return 'Brandon'; }
 }
 function setAuth(auth) {
@@ -2622,13 +2703,14 @@ function openAdminModal() {
   }
 
   // Load super staff cache
-  fetch('/api/super-staff').then(r => r.json()).then(d => { if (d.ok) superStaffCache = d.staff || []; }).catch(() => {});
+  fetch('/api/super-staff').then(r => r.json()).then(d => { if (d.ok) global.superStaffCache = d.staff || []; }).catch(() => {});
 
   modal.style.display = 'flex';
   renderCasesTab();
   renderSystemTab();
   renderUsersTab();
   renderLogsTab();
+  renderInAppAlertsTab();
 }
 
 // ── TABS ──
@@ -2647,6 +2729,8 @@ function switchTab(tabId) {
   if (tabId === 'users') renderUsersTab();
   if (tabId === 'names') renderNamesTab();
   if (tabId === 'logs') renderLogsTab();
+  if (tabId === 'inapp-alerts') renderInAppAlertsTab();
+  if (tabId === 'notifications') renderNotificationsTab();
   if (tabId === 'providers') renderProvidersTab();
   if (tabId === 'super-staff') renderSuperStaffTab();
   if (tabId === 'cron') { renderCronTab(); _cronRefreshTimer = setInterval(updateCronCountdowns, 1000); }
@@ -2711,7 +2795,7 @@ async function renderCasesTab() {
 
       html += '<table class="admin-table"><colgroup><col style="width:22%"><col style="width:8%"><col style="width:8%"><col style="width:15%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:23%"></colgroup><thead><tr><th>Title</th><th>State</th><th>Mode</th><th>Model</th><th>Cost</th><th>Tokens</th><th>Updated</th><th>Actions</th></tr></thead><tbody>';
       group.forEach(s => {
-        const agoStr = humanAgo(s.updated);
+        const agoStr = global.humanAgo(s.updated);
         const stateColor = s.state === 'thinking' ? 'var(--yellow)' : s.state === 'running-tools' ? 'var(--blue)' : s.state === 'complete' ? 'var(--green)' : 'var(--text-dim)';
         const isActive = s.state === 'thinking' || s.state === 'running-tools';
         const jsonDir = (s.directory || '').replace(/'/g,"\\'");
@@ -2732,7 +2816,7 @@ async function renderCasesTab() {
             questionBadge(s) +
             '<select onchange="assignStaff(\'' + s.id + '\',this.value)" style="font-size:9px;padding:1px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none;vertical-align:middle;max-width:80px" title="Assign super staff">' +
               '<option value="">' + (sAssigned || '\u{1F464}') + '</option>' +
-              superStaffCache.map(function(st) { return '<option value="' + st.name.replace(/"/g,'&quot;') + '"' + (s.assigned_staff === st.name ? ' selected' : '') + '>' + escapeHtml(st.name) + '</option>'; }).join('') +
+              global.superStaffCache.map(function(st) { return '<option value="' + st.name.replace(/"/g,'&quot;') + '"' + (s.assigned_staff === st.name ? ' selected' : '') + '>' + escapeHtml(st.name) + '</option>'; }).join('') +
               (s.assigned_staff ? '<option value="__unassign__" style="color:var(--red)">\u2715 Unassign</option>' : '') +
             '</select> ' +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
@@ -2811,7 +2895,7 @@ function viewSession(id) {
         <div class="row"><span class="label">Model</span><span class="value">${escapeHtml(s.model_id || '—')}</span></div>
         <div class="row"><span class="label">Cost</span><span class="value">$${(s.cost||0).toFixed(4)}</span></div>
         <div class="row"><span class="label">Tokens</span><span class="value">${(s.tokens||0).toLocaleString()}</span></div>
-        <div class="row"><span class="label">Updated</span><span class="value">${humanAgo(s.updated)}</span></div>
+        <div class="row"><span class="label">Updated</span><span class="value">${global.humanAgo(s.updated)}</span></div>
         <div class="row"><span class="label">Directory</span><span class="value" style="font-size:10px">${escapeHtml(s.directory || '—')}</span></div>
         ${s.last_mode ? `<div class="row"><span class="label">Last Mode</span><span class="value">${escapeHtml(s.last_mode)}</span></div>` : ''}
       </div>
@@ -2928,6 +3012,7 @@ async function startNewSession() {
   const err = document.getElementById('newSessionError');
   err.style.display = 'none';
 
+  if (!title) { err.textContent = 'Please enter a title'; err.style.display = 'block'; return; }
   if (!message) { err.textContent = 'Please enter instructions'; err.style.display = 'block'; return; }
 
   // Prepend Roles & Scope if a Super Staff agent is selected
@@ -2943,7 +3028,7 @@ async function startNewSession() {
 
   try {
     try {
-      const data = await sendQueued('new-session', { title, message: finalMessage, mode: finalMode, model: finalModel, directory }, function(d) {
+      const data = await sendQueued('new-session', { title, message: finalMessage, mode: finalMode, model: finalModel, directory, fresh: true }, function(d) {
         if (d.status === 'processing' || d.status === 'queued') {
           var elapsed = Math.round((Date.now() - _nsStart) / 1000) + 's';
           var tMsg = document.getElementById('toastMessage');
@@ -3199,7 +3284,7 @@ async function renderSystemTab() {
     const resp = await fetch('data/status.json?_=' + Date.now());
     const data = await resp.json();
     const s = data.summary || {};
-    document.getElementById('sysUptime').textContent = formatUptime(s.uptime) || '—';
+    document.getElementById('sysUptime').textContent = global.formatUptime(s.uptime) || '—';
     document.getElementById('sysCpuCores').textContent = s.cpu_core_count || '—';
     document.getElementById('sysMemory').textContent = (s.total_mem_mb || 0) + ' MB / ' + (s.mem_total_gb || '?') + ' GB';
     document.getElementById('sysDisk').textContent = s.disk_free + ' free / ' + s.disk_total + ' total';
@@ -3328,13 +3413,13 @@ function deleteUser(email) {
 // ── NAMES TAB ──
 function renderNamesTab() {
   const el = document.getElementById('namesTabContent');
-  const cfg = getNamesConfig();
+  const cfg = global.getNamesConfig();
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   document.getElementById('namesTabCount').textContent = '(' + letters.length + ' names)';
 
   let html = '<table class="admin-table"><thead><tr><th style="width:50px">Letter</th><th>Name</th><th style="width:60px">Gender</th><th style="width:80px"></th></tr></thead><tbody>';
   letters.split('').forEach(l => {
-    const entry = cfg[l] || DEFAULT_NAMES[l] || { name: '?', gender: '?' };
+    const entry = cfg[l] || global.DEFAULT_NAMES[l] || { name: '?', gender: '?' };
     const genderColor = entry.gender === 'F' ? 'var(--pink)' : 'var(--blue)';
     html += '<tr>' +
       '<td style="font-weight:700;font-size:14px">' + l + '</td>' +
@@ -3353,11 +3438,11 @@ function saveName(letter) {
   const input = document.getElementById('name-input-' + letter);
   const name = input ? input.value.trim() : '';
   if (!name) return;
-  const cfg = getNamesConfig();
+  const cfg = global.getNamesConfig();
   cfg[letter] = cfg[letter] || {};
   cfg[letter].name = name;
-  if (!cfg[letter].gender) cfg[letter].gender = DEFAULT_NAMES[letter]?.gender || 'M';
-  saveNamesConfig(cfg);
+  if (!cfg[letter].gender) cfg[letter].gender = global.DEFAULT_NAMES[letter]?.gender || 'M';
+  global.saveNamesConfig(cfg);
   const msg = document.getElementById('namesMsg');
   msg.textContent = 'Saved ' + letter + ' → ' + name;
   msg.style.display = 'block';
@@ -3365,18 +3450,18 @@ function saveName(letter) {
 }
 
 function resetName(letter) {
-  const cfg = getNamesConfig();
-  const def = DEFAULT_NAMES[letter];
+  const cfg = global.getNamesConfig();
+  const def = global.DEFAULT_NAMES[letter];
   if (def) {
     cfg[letter] = { name: def.name, gender: def.gender };
-    saveNamesConfig(cfg);
+    global.saveNamesConfig(cfg);
     renderNamesTab();
   }
 }
 
 function resetAllNames() {
   if (!confirm('Reset all names to defaults?')) return;
-  saveNamesConfig(DEFAULT_NAMES);
+  global.saveNamesConfig(global.DEFAULT_NAMES);
   renderNamesTab();
 }
 
@@ -3389,16 +3474,16 @@ function updateSettingPreview(id) {
 }
 
 function restartPollTimer() {
-  if (_pollTimer) clearTimeout(_pollTimer);
-  _polling = false;
-  poll().then(() => schedulePoll());
+  if (global._pollTimer) clearTimeout(global._pollTimer);
+  global._polling = false;
+  global.poll().then(() => global.schedulePoll());
 }
 
 function saveSettings() {
   const bossName = document.getElementById('bossNameInput').value.trim();
   if (bossName) {
     localStorage.setItem('dashboard_boss_name', bossName);
-    _serverBossName = bossName;
+    global._serverBossName = bossName;
     sendQueued('save-boss-name', { name: bossName }).catch(() => {});
   }
   const apiKey = document.getElementById('apiKeyInput').value.trim();
@@ -3413,8 +3498,8 @@ function saveSettings() {
   const logLines = parseInt(document.getElementById('logLinesRange').value);
   const settings = { pollInterval: newPoll, retention, cronInterval, logLines };
   localStorage.setItem('dashboard_settings', JSON.stringify(settings));
-  if (newPoll !== POLL_INTERVAL) {
-    POLL_INTERVAL = newPoll;
+  if (newPoll !== global.POLL_INTERVAL) {
+    global.POLL_INTERVAL = newPoll;
     restartPollTimer();
   }
   const msg = document.getElementById('settingsMsg');
@@ -3427,7 +3512,7 @@ function loadSettings() {
   try {
     const s = JSON.parse(localStorage.getItem('dashboard_settings'));
     if (s) {
-      if (s.pollInterval) { document.getElementById('pollIntervalRange').value = s.pollInterval; document.getElementById('pollIntervalVal').textContent = s.pollInterval; POLL_INTERVAL = s.pollInterval; }
+      if (s.pollInterval) { document.getElementById('pollIntervalRange').value = s.pollInterval; document.getElementById('pollIntervalVal').textContent = s.pollInterval; global.POLL_INTERVAL = s.pollInterval; }
       if (s.retention) { document.getElementById('retentionRange').value = s.retention; document.getElementById('retentionVal').textContent = s.retention; }
       if (s.cronInterval) { document.getElementById('cronIntervalRange').value = s.cronInterval; document.getElementById('cronIntervalVal').textContent = s.cronInterval; }
       if (s.logLines) { document.getElementById('logLinesRange').value = s.logLines; document.getElementById('logLinesVal').textContent = s.logLines; }
@@ -3452,16 +3537,16 @@ function toggleApiKeyVisibility() {
 }
 
 // ── PROFILE PHOTO ──
-let profilePhoto = localStorage.getItem('dashboard_boss_photo') || '';
+global.profilePhoto = localStorage.getItem('dashboard_boss_photo') || '';
 let cropper = null;
 
 async function checkProfilePhoto() {
-  if (profilePhoto) return; // already cached in localStorage
+  if (global.profilePhoto) return; // already cached in localStorage
   try {
     const r = await fetch('/assets/profile_photo.png', { method: 'HEAD' });
     if (r.ok) {
-      profilePhoto = '/assets/profile_photo.png?t=' + Date.now();
-      localStorage.setItem('dashboard_boss_photo', profilePhoto);
+      global.profilePhoto = '/assets/profile_photo.png?t=' + Date.now();
+      localStorage.setItem('dashboard_boss_photo', global.profilePhoto);
     }
   } catch(e) {}
 }
@@ -3496,7 +3581,7 @@ async function cropAndSave() {
   try {
     const d = await sendQueued('upload-photo', { dataUrl });
     if (d.ok) {
-      profilePhoto = d.url;
+      global.profilePhoto = d.url;
       localStorage.setItem('dashboard_boss_photo', d.url);
       closeCropModal();
       updatePhotoPreview();
@@ -3510,7 +3595,7 @@ async function removeProfilePhoto() {
   try {
     await sendQueued('remove-photo', {}).catch(() => {});
   } catch(e) {}
-  profilePhoto = '';
+  global.profilePhoto = '';
   localStorage.removeItem('dashboard_boss_photo');
   updatePhotoPreview();
 }
@@ -3518,8 +3603,8 @@ async function removeProfilePhoto() {
 function updatePhotoPreview() {
   const preview = document.getElementById('settingsPhotoPreview');
   const removeBtn = document.getElementById('removePhotoBtn');
-  if (profilePhoto) {
-    preview.src = profilePhoto;
+  if (global.profilePhoto) {
+    preview.src = global.profilePhoto;
     preview.style.display = 'block';
     removeBtn.style.display = 'inline-block';
   } else {
@@ -3618,6 +3703,121 @@ async function changePassword() {
   document.getElementById('secCurrentPw').value = '';
   document.getElementById('secNewPw').value = '';
   document.getElementById('secConfirmPw').value = '';
+}
+
+// ── NOTIFICATIONS TAB ──
+async function renderInAppAlertsTab() {
+  const el = document.getElementById('ntfHistory');
+  try {
+    const resp = await fetch('/api/notifications/messages');
+    const data = await resp.json();
+    if (!data.ok || !data.notifications || data.notifications.length === 0) {
+      el.innerHTML = '<div style="color:var(--text-dim);padding:8px 0">No notifications sent yet</div>';
+      return;
+    }
+    let html = '';
+    data.notifications.forEach(function(n) {
+      const ts = n.created_at ? new Date(n.created_at * 1000).toLocaleString() : '';
+      const color = n.type === 'error' ? 'var(--red)' : n.type === 'warning' ? 'var(--yellow)' : n.type === 'success' ? 'var(--green)' : 'var(--blue)';
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">' +
+        '<span style="color:' + color + ';font-weight:bold">\u25CF</span>' +
+        '<span style="flex:1">' + escapeHtml(n.message) + '</span>' +
+        '<span style="color:var(--text-dim);font-size:10px">' + ts + '</span>' +
+        '<button class="stop-btn" style="font-size:10px;padding:2px 8px" onclick="dismissNotification(\'' + n.id + '\')">Dismiss</button>' +
+        '</div>';
+    });
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<div style="color:var(--red)">Error loading notifications</div>';
+  }
+}
+
+function sendNotification() {
+  const message = document.getElementById('ntfMessage').value.trim();
+  if (!message) { showToast('Enter a message', 'error'); return; }
+  const type = document.getElementById('ntfType').value;
+  sendQueued('notifications-send', { message: message, type: type }).then(function() {
+    showToast('Notification sent', 'success');
+    document.getElementById('ntfMessage').value = '';
+    renderInAppAlertsTab();
+  }).catch(function(e) {
+    showToast('Failed: ' + e.message, 'error');
+  });
+}
+
+function dismissNotification(id) {
+  sendQueued('notifications-dismiss', { id: id }).then(function() {
+    renderInAppAlertsTab();
+  }).catch(function(e) {
+    showToast('Failed: ' + e.message, 'error');
+  });
+}
+
+// ── EXTERNAL NOTIFICATIONS TAB ──
+async function renderNotificationsTab() {
+  const el = document.getElementById('notificationProvidersList');
+  try {
+    const resp = await fetch('/api/notification-providers');
+    const data = await resp.json();
+    if (!data.ok || !data.providers || data.providers.length === 0) {
+      el.innerHTML = '<div style="color:var(--text-dim);padding:8px 0">No providers configured. Add one below.</div>';
+      return;
+    }
+    let html = '';
+    data.providers.forEach(function(p) {
+      const typeIcon = p.type === 'slack' ? '💬' : p.type === 'discord' ? '🎮' : '🔗';
+      const statusColor = p.enabled ? 'var(--green)' : 'var(--text-dim)';
+      html += '<div class="admin-card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px">' +
+        '<span>' + typeIcon + '</span>' +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:13px;font-weight:500">' + escapeHtml(p.name) + '</div>' +
+          '<div style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escapeHtml(p.type) + ' — ' + escapeHtml(p.webhook_url) + '</div>' +
+        '</div>' +
+        '<span style="font-size:10px;color:' + statusColor + '">' + (p.enabled ? 'Enabled' : 'Disabled') + '</span>' +
+        '<button class="btn btn-sm" style="background:var(--surface2);color:var(--blue)" onclick="testNotificationProvider(\'' + p.id + '\')">Test</button>' +
+        '<button class="stop-btn" onclick="deleteNotificationProvider(\'' + p.id + '\')">Delete</button>' +
+        '</div>';
+    });
+    el.innerHTML = html;
+  } catch (e) {
+    el.innerHTML = '<div style="color:var(--red)">Error loading providers</div>';
+  }
+}
+
+function addNotificationProvider() {
+  const name = document.getElementById('npName').value.trim();
+  const type = document.getElementById('npType').value;
+  const webhook_url = document.getElementById('npUrl').value.trim();
+  const msg = document.getElementById('npMsg');
+  if (!name) { msg.innerHTML = '<span style="color:var(--red)">Enter a provider name</span>'; return; }
+  if (!webhook_url) { msg.innerHTML = '<span style="color:var(--red)">Enter a webhook URL</span>'; return; }
+  msg.innerHTML = '';
+  sendQueued('notification-providers/create', { name, type, webhook_url }).then(function() {
+    document.getElementById('npName').value = '';
+    document.getElementById('npUrl').value = '';
+    msg.innerHTML = '<span style="color:var(--green)">Provider added</span>';
+    renderNotificationsTab();
+  }).catch(function(e) {
+    msg.innerHTML = '<span style="color:var(--red)">' + e.message + '</span>';
+  });
+}
+
+function testNotificationProvider(id) {
+  sendQueued('notification-providers/test', { id: id }).then(function(data) {
+    showToast(data.message || 'Test sent', data.ok ? 'success' : 'error');
+  }).catch(function(e) {
+    showToast('Test failed: ' + e.message, 'error');
+  });
+}
+
+function deleteNotificationProvider(id) {
+  if (!confirm('Delete this notification provider?')) return;
+  sendQueued('notification-providers/delete', { id: id }).then(function() {
+    showToast('Provider deleted', 'success');
+    renderNotificationsTab();
+  }).catch(function(e) {
+    showToast('Failed: ' + e.message, 'error');
+  });
 }
 
 // ── LOGS TAB ──
@@ -3820,7 +4020,7 @@ async function ollamaRemove(url, event) {
 }
 
 // ── SUPER STAFF TAB ──
-let superStaffCache = [];
+global.superStaffCache = [];
 
 let editingStaffName = null;
 
@@ -3830,15 +4030,15 @@ async function renderSuperStaffTab() {
     const resp = await fetch('/api/super-staff');
     const data = await resp.json();
     if (!data.ok) { el.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load staff</div>'; return; }
-    superStaffCache = data.staff || [];
+    global.superStaffCache = data.staff || [];
 
     let html = '';
 
     // Staff list
     html += '<div class="admin-card"><h4>Staff Members <button class="btn btn-sm btn-primary" onclick="openStaffModal(null)" style="float:right;margin-top:-4px">+ New Staff</button></h4>';
-    if (superStaffCache.length > 0) {
+    if (global.superStaffCache.length > 0) {
       html += '<table class="admin-table"><thead><tr><th>Name</th><th>Mode</th><th>Model</th><th>Description</th><th>Path</th><th></th></tr></thead><tbody>';
-      superStaffCache.forEach(s => {
+      global.superStaffCache.forEach(s => {
         const escName = escapeHtml(s.name);
         html += '<tr><td>' + escName + '</td>' +
           '<td><span style="color:' + (s.mode === 'plan' ? 'var(--purple)' : 'var(--blue)') + '">' + escapeHtml(s.mode) + '</span></td>' +
@@ -3874,7 +4074,7 @@ function openStaffModal(originalName) {
 
   if (originalName) {
     titleEl.textContent = 'Edit Staff Member';
-    const staff = superStaffCache.find(s => s.name === originalName);
+    const staff = global.superStaffCache.find(s => s.name === originalName);
     if (staff) {
       nameInput.value = staff.name;
       descInput.value = staff.description || '';
@@ -3901,7 +4101,7 @@ function openStaffModal(originalName) {
       opt.textContent = d.split('/').pop() || d;
       opt.title = d;
       if (originalName) {
-        const staff = superStaffCache.find(s => s.name === originalName);
+        const staff = global.superStaffCache.find(s => s.name === originalName);
         if (staff && staff.path === d) opt.selected = true;
       }
       pathSel.appendChild(opt);
@@ -3909,7 +4109,7 @@ function openStaffModal(originalName) {
   }).catch(() => {});
 
   if (originalName) {
-    const staff = superStaffCache.find(s => s.name === originalName);
+    const staff = global.superStaffCache.find(s => s.name === originalName);
     if (staff && staff.path) pathSel.value = staff.path;
   }
 
@@ -3975,13 +4175,13 @@ async function deleteSuperStaff(name) {
 }
 
 function getCustomAgents() {
-  return superStaffCache || [];
+  return global.superStaffCache || [];
 }
 
 function onModeChange(modeSel, escId) {
   const modelSel = document.getElementById('model-' + escId);
   if (!modelSel) return;
-  const staff = superStaffCache.find(s => s.name === modeSel.value);
+  const staff = global.superStaffCache.find(s => s.name === modeSel.value);
   if (staff && staff.model) {
     modelSel.value = staff.model;
     modelSel.disabled = true;
@@ -3994,7 +4194,7 @@ function onNewCaseModeChange() {
   const mode = document.getElementById('newSessionMode').value;
   const modelSel = document.getElementById('newSessionModel');
   if (!modelSel) return;
-  const staff = superStaffCache.find(s => s.name === mode);
+  const staff = global.superStaffCache.find(s => s.name === mode);
   if (staff && staff.model) {
     modelSel.value = staff.model;
     modelSel.disabled = true;
@@ -4004,7 +4204,7 @@ function onNewCaseModeChange() {
 }
 
 function getStaffForMode(mode) {
-  return superStaffCache.find(s => s.name === mode);
+  return global.superStaffCache.find(s => s.name === mode);
 }
 
 function renderModeOptions(selectId, selected) {
@@ -4167,7 +4367,7 @@ function updateCronCountdowns() {
       badge.className = 'badge ' + c.badgeClass;
     }
     if (lastEl && job.last_run) {
-      lastEl.textContent = formatExactTime(job.last_run) + ' (' + humanAgo(job.last_run * 1000) + ')';
+      lastEl.textContent = formatExactTime(job.last_run) + ' (' + global.humanAgo(job.last_run * 1000) + ')';
     }
   });
 }
@@ -4191,7 +4391,7 @@ async function renderCronTab() {
   let html = '';
   for (const job of _cronJobsCache) {
     const enabled = job.enabled !== false;
-    const lastTime = job.last_run ? formatExactTime(job.last_run) + ' (' + humanAgo(job.last_run * 1000) + ')' : 'Never';
+    const lastTime = job.last_run ? formatExactTime(job.last_run) + ' (' + global.humanAgo(job.last_run * 1000) + ')' : 'Never';
     const lastStatus = job.last_status || '—';
     const intervalMin = Math.round((job.interval_sec || 300) / 60);
     const action = job.action || {};
@@ -4475,6 +4675,39 @@ async function runCronJob(jobId) {
 document.addEventListener('DOMContentLoaded', () => {
   updateLoginIndicator();
 });
+
+// Export all functions used by onclick handlers
+const _exports = {
+  sha256, getUsers, saveUsers, getAuth, setAuth, clearAuth,
+  initDefaultUsers, openLoginModal, closeLoginModal, closeAdminModal,
+  handleLogin, handleLogout, updateLoginIndicator, openAdminModal,
+  switchTab, renderCasesTab, assignStaff, stopSession, viewSession,
+  continueSession, openNewSessionModal, startNewSession, loadModels,
+  sessionInstructView, showQuestions, selectQuestionOption, sendAnswers,
+  closeQuestionModal, renderSystemTab, restartDaemon, killDaemon,
+  renderUsersTab, addUser, deleteUser, renderNamesTab, saveName,
+  resetName, resetAllNames, updateSettingPreview, saveSettings,
+  loadSettings, toggleApiKeyVisibility, openCropModal, closeCropModal,
+  cropAndSave, removeProfilePhoto, updatePhotoPreview, loadApiKey,
+  regenerateApiKey, copyApiKey, changePassword, renderNotificationsTab,
+  sendNotification, dismissNotification, renderLogsTab, refreshLogs,
+  escapeHtml, sendQueued, renderProvidersTab, providerLogout,
+  providerLogin, ollamaAdd, ollamaRemove, renderSuperStaffTab,
+  openStaffModal, closeStaffModal, saveStaff, deleteSuperStaff,
+  getCustomAgents, onModeChange, onNewCaseModeChange, getStaffForMode,
+  getBossName,
+  renderModeOptions, showToast, copyToastMessage, dismissToast,
+  closeViewModal, closeContinueModal, closeNewSessionModal,
+  renameSession, closeRenameModal, saveRename,
+  formatDuration, formatExactTime, getCronCountdown, updateCronCountdowns,
+  renderCronTab, openCronModal, onCronModeChange, closeCronModal,
+  toggleCronType, saveCronJob, deleteCronJob, toggleCronJob, runCronJob,
+  apiFetch, getModal
+};
+for (const key in _exports) {
+  global[key] = _exports[key];
+}
+})(window);
 </script>
 </body>
 </html>
