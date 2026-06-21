@@ -1942,6 +1942,7 @@ function renderDashboard(data) {
           ${ss.agent_type ? `<span>${ss.agent_type}</span>` : ''}
           ${ss.model_id ? `<span>${ss.model_id}</span>` : ''}
           ${(ss.todos || []).filter(function(t){ return t.status !== 'completed'; }).length > 0 ? `<span style="color:var(--yellow)">\uD83D\uDCCB ${(ss.todos || []).filter(function(t){ return t.status !== 'completed'; }).length}</span>` : ''}
+          ${(ss.pending_questions || []).length > 0 ? ((ss.pending_questions || []).filter(function(q){ return !q.answered; }).length > 0 ? `<span style="color:var(--yellow);cursor:pointer" onclick="showQuestions('${ss.id}')">\u2753 ${(ss.pending_questions || []).filter(function(q){ return !q.answered; }).length}</span>` : `<span style="color:var(--green);cursor:pointer" onclick="showQuestions('${ss.id}')">\u2713</span>`) : ''}
         </div>
       </div>
     `;
@@ -3228,9 +3229,12 @@ async function sessionInstructView(id, dir) {
 // ── QUESTION RESPONSE ──
 function questionBadge(s) {
   const pq = s.pending_questions || [];
+  if (pq.length === 0) return '';
   const unanswered = pq.filter(function(q){ return !q.answered; });
-  if (unanswered.length === 0) return '';
-  return '<button class="question-btn" onclick="showQuestions(\'' + s.id + '\')">\u2753 ' + unanswered.length + '</button> ';
+  if (unanswered.length > 0) {
+    return '<button class="question-btn" onclick="showQuestions(\'' + s.id + '\')">\u2753 ' + unanswered.length + '</button> ';
+  }
+  return '<span style="font-size:10px;color:var(--green);cursor:pointer;margin-left:4px" onclick="showQuestions(\'' + s.id + '\')" title="Questions answered">\u2713</span> ';
 }
 
 function todoBadge(s) {
@@ -3243,20 +3247,30 @@ function todoBadge(s) {
 function showQuestions(id) {
   fetch('data/status.json?_=' + Date.now()).then(function(r){ return r.json(); }).then(function(data) {
     var s = (data.all_sessions || data.sessions || []).find(function(x){ return x.id === id; });
-    // Re-check question state — if all answered, reload the badge
-    var hasUnanswered = (s.pending_questions || []).some(function(q){ return !q.answered; });
-    if (!hasUnanswered) { renderCasesTab(); showToast('All questions have been answered', 'success'); return; }
     var body = document.getElementById('questionModalBody');
     var modal = document.getElementById('questionModal');
     if (!s || !s.pending_questions || s.pending_questions.length === 0) {
-      body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No pending questions</div>';
+      body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No questions</div>';
       modal.style.display = 'flex';
       return;
     }
-    var selected = {};
+    var hasUnanswered = s.pending_questions.some(function(q){ return !q.answered; });
     var html = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:16px">' + (s.title || '?') + '</div>';
+    var selected = {};
     s.pending_questions.forEach(function(q, qi) {
-      if (q.answered) return;
+      if (q.answered) {
+        var selText = '';
+        if (q.selected_indices && q.options) {
+          selText = q.selected_indices.map(function(idx){ return q.options[idx] ? escapeHtml(q.options[idx].label) : ''; }).join(', ');
+        }
+        html += '<div style="margin-bottom:10px;opacity:0.7;padding:10px;background:var(--surface2);border-radius:8px;border-left:3px solid var(--green)">';
+        if (s.pending_questions.length > 1) html += '<div style="font-size:10px;color:var(--text-dim);margin-bottom:4px">Question ' + (qi+1) + ' of ' + s.pending_questions.length + '</div>';
+        if (q.header) html += '<div style="font-size:11px;color:var(--green);font-weight:600;margin-bottom:2px"><span style="color:var(--green)">\u2713</span> ' + escapeHtml(q.header) + '</div>';
+        html += '<div style="font-size:12px;color:var(--text-dim);margin-bottom:4px">' + escapeHtml(q.question) + '</div>';
+        if (selText) html += '<div style="font-size:11px;color:var(--green);padding:3px 8px;background:#3fb95022;border-radius:4px;display:inline-block">Selected: ' + selText + '</div>';
+        html += '</div>';
+        return;
+      }
       html += '<div class="admin-card" style="margin-bottom:12px">';
       if (s.pending_questions.length > 1) html += '<div style="font-size:10px;color:var(--text-dim);margin-bottom:6px">Question ' + (qi+1) + ' of ' + s.pending_questions.length + '</div>';
       if (q.header) html += '<div style="font-size:11px;color:var(--yellow);font-weight:600;margin-bottom:4px">' + escapeHtml(q.header) + '</div>';
@@ -3270,10 +3284,16 @@ function showQuestions(id) {
       });
       html += '</div>';
     });
-    html += '<div style="display:flex;gap:8px;margin-top:8px">' +
-      '<button class="btn btn-primary btn-sm" onclick="sendAnswers(\'' + id + '\')" id="sendAnswersBtn">Send Answers</button>' +
-      '<button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="closeQuestionModal()">Cancel</button>' +
-    '</div>';
+    if (hasUnanswered) {
+      html += '<div style="display:flex;gap:8px;margin-top:8px">' +
+        '<button class="btn btn-primary btn-sm" onclick="sendAnswers(\'' + id + '\')" id="sendAnswersBtn">Send Answers</button>' +
+        '<button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="closeQuestionModal()">Cancel</button>' +
+      '</div>';
+    } else {
+      html += '<div style="display:flex;gap:8px;margin-top:8px">' +
+        '<button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="closeQuestionModal()">Close</button>' +
+      '</div>';
+    }
     body.innerHTML = html;
     modal.style.display = 'flex';
   });
