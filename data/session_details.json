@@ -1,0 +1,242 @@
+{
+  "ses_119f4c72affe29LOzWfnFiNA6Z": {
+    "updated": 1781979375537,
+    "slug": "happy-lagoon",
+    "state": "complete",
+    "last_user_prompt": "run ./deploy.sh",
+    "last_text": "Deployed `1781979372_WeChat-debug.apk`.",
+    "tool_name": "",
+    "last_role": "assistant",
+    "last_mode": "build",
+    "tokens": 322259,
+    "cost": 0,
+    "files_changed": 0,
+    "agent_type": "build",
+    "model_id": "deepseek-v4-flash-free",
+    "pending_questions": []
+  },
+  "ses_119ed4840ffe1VsxrXIhv36OKm": {
+    "updated": 1781978307300,
+    "slug": "silent-engine",
+    "state": "complete",
+    "last_user_prompt": "Resume.",
+    "last_text": "# MyDora Dashboard \u2014 Project Review & Improvement Plan\n\nI reviewed the codebase in `~/.opencode-dashboard/`. Here's a structured assessment and a prioritized improvement plan.\n\n---\n\n## 1. Current State Summary\n\n| Area | Status |\n|---|---|\n| **Scope** | Real-time dashboard for OpenCode sessions with a \u201cvirtual office\u201d metaphor, admin panel, auth, super-staff assignment, cron jobs, and provider management. |\n| **Stack** | Python 3 (vanilla `http.server` + subprocess) + single 185 KB `index.html` with embedded CSS/JS. |\n| **Runtime** | `daemon.sh` runs `poller.py` every 2s; `server.py` serves static files and API on port 5500. |\n| **Storage** | JSON files under `~/.opencode-dashboard/data/`. |\n| **Tests / Docs** | None. No `README`, `AGENTS.md`, `requirements.txt`, or tests. |\n| **Repo hygiene** | Dead `.bak` files, old `admin_api.py`, and large binary assets in the working tree. |\n\n---\n\n## 2. Strengths\n\n- **Feature-rich** for a single-developer project: sessions, virtual office, rest room, discussion desk, admin CRUD, cron, notifications, case assignments.\n- **Unified single-port server** eliminates CORS and simplifies deployment.\n- **Recent maintenance is visible**: XSS escaping, cron race-condition fixes, ANSI stripping, engine-restart handling.\n- **Atomic JSON writes** with `tmp` + `os.replace` in most places.\n\n---\n\n## 3. Issues & Risks (Prioritized)\n\n### \ud83d\udd34 High Priority\n\n1. **Monolithic, oversized files**\n   - `index.html` = 185 KB, `server.py` = 1,086 lines, `poller.py` = 883 lines.\n   - No separation of concerns; debugging and parallel work are hard.\n\n2. **File-based storage without locking**\n   - Multiple threads (HTTP handler, cron runner, queue processor) and the external poller can read/write the same JSON files concurrently.\n   - `cron_jobs.json`, `case_assignments.json`, `request_queue.json`, `session_details.json`, and `status.json` are all unguarded.\n   - Race conditions can still occur despite the recent `_running` flag fix.\n\n3. **Security gaps**\n   - API key stored in `localStorage` and a plaintext file; no rotation UI beyond regenerate.\n   - Admin credentials stored/validated client-side (SHA-256 in `localStorage`); server just trusts an `X-API-Key` header.\n   - No rate limiting, CSRF tokens, or session expiry.\n   - Several API inputs (`directory`, `model`, `mode`, `message`) are passed to `subprocess.run`. While currently using list-args, validation is thin and the surface area is large.\n\n4. **No tests or documentation**\n   - No way to verify refactors don\u2019t break behavior.\n   - No onboarding doc for future contributors (or yourself in 6 months).\n\n5. **Dead code and artifacts**\n   - `admin_api.py`, `admin_api.py.bak`, `index.html.bak`, `poller.py.bak`, `server.py.bak`, and `.DS_Store` files bloat the repo.\n   - `https:` directory appears accidental.\n\n### \ud83d\udfe1 Medium Priority\n\n6. **Performance overhead**\n   - `poller.py` still runs both `ps axo \u2026` **and** `ps aux` every cycle.\n   - `opencode export <sid>` is called synchronously during polling, blocking the next update.\n   - Entire `status.json` is rewritten every 2s even if nothing changed.\n   - `log_activity_py` reads the whole activity log to truncate it on every call.\n\n7. **Fragile process/session matching**\n   - Heuristic keyword matching links agents to sessions (`git`, `homepage`, `marketing`, etc.).\n   - Virtual-agent PID generation uses two different hash schemes in `poller.py` and `index.html`.\n   - `_elapsed_hours` parses `ps` elapsed strings manually.\n\n8. **Frontend maintainability**\n   - All CSS/JS in one file; global state scattered across closures.\n   - No component boundaries; render functions are hundreds of lines.\n   - Accessibility and mobile responsiveness are untested.\n\n### \ud83d\udfe2 Lower Priority\n\n9. **Deployment / DevEx**\n   - `start.sh` kills processes by port with `lsof` and `pkill` strings; not robust.\n   - No `requirements.txt`, install script, or launchd/systemd service.\n   - The actual `.git` repo is a mirror on `/Volumes/Files/Projects/...`, not in `~/.opencode-dashboard/`.\n\n10. **Data model**\n    - Session rename updates SQLite but assignment keys remain session IDs; renaming does not rekey assignments.\n    - No schema versioning or migrations.\n\n---\n\n## 4. Recommended Improvement Plan\n\n### Phase A \u2014 Foundation (do first)\n\n| Task | Goal |\n|---|---|\n| **A1. Clean up the repository** | Remove `.bak`, `.DS_Store`, dead `admin_api.py`, and accidental `https:` directory. Add a `.gitignore`. |\n| **A2. Add documentation** | `README.md` (setup, architecture, features) and `AGENTS.md` (run commands, conventions, file map). |\n| **A3. Add dependency management** | Create `requirements.txt` (Python stdlib only today, but document it). |\n| **A4. Initialize git in the working directory** | Move the canonical repo from the external mirror into `~/.opencode-dashboard/` or make the mirror the source of truth. |\n| **A5. Lock file I/O** | Add a small file-lock helper and wrap all JSON read/writes, or migrate structured data to SQLite. |\n\n### Phase B \u2014 Backend Reliability\n\n| Task | Goal |\n|---|---|\n| **B1. Modularize Python code** | Split `server.py` into `handlers/`, `cron.py`, `queue.py`, `utils.py`. Split `poller.py` into `processes.py`, `sessions.py`, `exporter.py`, `builder.py`. |\n| **B2. Introduce SQLite for state** | Move cron jobs, queue, assignments, config, and activity log to SQLite. Keep `status.json` only as the rendered dashboard payload. |\n| **B3. Add a lightweight config module** | Centralize constants (paths, intervals, timeouts, default models) instead of repeating them. |\n| **B4. Harden subprocess usage** | Validate `directory` exists and is under allowed roots; whitelist `mode`/`model`; never pass unsanitized strings. |\n| **B5. Improve server robustness** | Add graceful shutdown, request logging toggle, and structured error responses. |\n\n### Phase C \u2014 Frontend & UX\n\n| Task | Goal |\n|---|---|\n| **C1. Split `index.html`** | Move CSS to `styles.css` and JS to modular files (`dashboard.js`, `admin.js`, `cron.js`, `utils.js`, `api.js`). |\n| **C2. Componentize rendering** | Create small render functions for `SessionCard`, `DeskCard`, `RestCard`, `CronCard`. |\n| **C3. Centralize state** | Single state object + pub/sub pattern instead of scattered globals. |\n| **C4. Add error boundaries** | Retry with backoff for failed polls; consistent error toasts. |\n| **C5. Security UX** | Store API key in `sessionStorage` or an HTTP-only cookie path; add logout/timeout. |\n\n### Phase D \u2014 Performance\n\n| Task | Goal |\n|---|---|\n| **D1. Remove redundant `ps aux`** | Derive system CPU from the single `ps axo` pass. |\n| **D2. Async / lazy export** | Run `opencode export` in a background thread with a TTL cache; never block the poller. |\n| **D3. Differential updates** | Only rewrite `status.json` when payload actually changes. |\n| **D4. Stream or WebSocket option** | Long-term: replace 2s polling with Server-Sent Events or WebSockets. |\n| **D5. Asset optimization** | Convert large PNG/GIF loops to compressed WebM or Lottie; lazy-load rest-room images. |\n\n### Phase E \u2014 Quality Assurance\n\n| Task | Goal |\n|---|---|\n| **E1. Unit tests** | Test `strip_ansi`, `_safe_agent_name`, `_elapsed_hours`, codename generation, elapsed parsing, size parsing. |\n| **E2. Integration tests** | Spin up `server.py` on an ephemeral port and exercise `/api/ping`, queue, cron CRUD, and super-staff endpoints. |\n| **E3. Type hints** | Add Python type hints to core modules. |\n| **E4. Linting / formatting** | Adopt `ruff` or `black` for Python; `prettier` for JS/CSS. |\n| **E5. CI / pre-commit** | GitHub Actions or local pre-commit hooks to run lint + tests. |\n\n---\n\n## 5. Quick Wins (can implement immediately)\n\n1. Delete `admin_api.py`, `*.bak`, `.DS_Store`, and the `https:` directory.\n2. Add a `.gitignore`.\n3. Extract CSS into `assets/styles.css`.\n4. Add `requirements.txt` and `README.md`.\n5. Replace the redundant `ps aux` call in `poller.py`.\n6. Add file-locking around JSON writes.\n7. Add a simple test file for the pure utility functions.\n\n---\n\n## 6. Questions Before Implementing\n\n1. **Do you want me to start implementing now, or do you want to approve the plan first?**\n2. **Should the canonical git repo stay in `~/.opencode-dashboard/` or remain the external mirror?**\n3. **Should I prioritize backend modularization + SQLite first, or frontend splitting first?**\n4. **Are there any features currently working that must not change behaviorally?** (e.g., the 2s polling interval, the client-side auth model)\n5. **Is Python stdlib-only a hard requirement, or can I add dependencies like `watchdog`, `sqlite3` (stdlib), `websockets`, or `fastapi`?**\n\nLet me know which direction you\u2019d like to take.",
+    "tool_name": "",
+    "last_role": "assistant",
+    "last_mode": "plan",
+    "tokens": 5813173,
+    "cost": 2.8866773900000013,
+    "files_changed": 0,
+    "agent_type": "plan",
+    "model_id": "kimi-k2.7-code",
+    "pending_questions": [
+      {
+        "header": "Persistence",
+        "question": "Should the boss name setting persist per-user (stored in localStorage per browser) or globally for all users (stored in a config file on the server)?",
+        "options": [
+          {
+            "label": "LocalStorage per browser (Recommended)",
+            "description": "Simple, each admin sets their own preferred name"
+          },
+          {
+            "label": "Server-side config file",
+            "description": "Single name for all users, stored in ~/.opencode-dashboard/config.json"
+          }
+        ],
+        "answered": true
+      }
+    ]
+  },
+  "ses_11f1ac7d0ffeFvDxmceBxyNGdu": {
+    "updated": 1781982947218,
+    "slug": "clever-river",
+    "state": "complete",
+    "last_user_prompt": "The toast's close button overlayed the copy button.",
+    "last_text": "Refresh the dashboard \u2014 the toast now has proper flex layout. The message text takes available space (`flex: 1`), and the copy (\u29c9) and close (\u00d7) buttons sit at the end with 8px gap between them, no overlap.",
+    "tool_name": "",
+    "last_role": "assistant",
+    "last_mode": "build",
+    "tokens": 6988612,
+    "cost": 2.9352561636000014,
+    "files_changed": 0,
+    "agent_type": "build",
+    "model_id": "deepseek-v4-flash",
+    "pending_questions": [
+      {
+        "header": "Persistence",
+        "question": "Should the boss name setting persist per-user (stored in localStorage per browser) or globally for all users (stored in a config file on the server)?",
+        "options": [
+          {
+            "label": "LocalStorage per browser (Recommended)",
+            "description": "Simple, each admin sets their own preferred name"
+          },
+          {
+            "label": "Server-side config file",
+            "description": "Single name for all users, stored in ~/.opencode-dashboard/config.json"
+          }
+        ],
+        "answered": true
+      }
+    ]
+  },
+  "ses_119b27ddcffevSC1gQTH6Yz7cw": {
+    "updated": 1781980305537,
+    "slug": "cosmic-meadow",
+    "state": "thinking",
+    "last_user_prompt": "\"Personalities: \nIs a blend of relentless ambition, intense logical focus, and unconventional social behavior. As an entrepreneur, he is characterized by a high tolerance for risk, systemic problem-solving, and a deep-seated drive to disrupt traditional industries through technological innovation.\n\nJob Scope:\nyou must act as a hands-on chief engineer and visionary operator rather than a traditional administrator. You will directly oversee product architecture and engineering design across all ventures, using first-principles thinking to strip systems down to raw physics and applying a strict five-step algorithm to question requirements, delete waste, and automate processes on the factory floor. Your role demands that you bypass standard marketing budgets to drive brand equity through your personal platform, set hyper-aggressive timelines to force technical breakthroughs, and aggressively allocate capital into high-risk, unproven industries. Finally, expect to manage extreme operational friction by embedding yourself deeply into the trenches of daily problem-solving, maintaining absolute final approval on critical design details while sustaining the relentless work ethic required to steer multiple complex companies simultaneously.\n\nreview this project.\"",
+    "last_text": "",
+    "tool_name": "",
+    "last_role": "assistant",
+    "last_mode": "plan",
+    "tokens": 7515769,
+    "cost": 2.824928732399996,
+    "files_changed": 0,
+    "agent_type": "plan",
+    "model_id": "grok-4.3",
+    "pending_questions": [
+      {
+        "header": "Implementation approach",
+        "question": "The WAHA Android app doesn't have cases/sessions/staff/cron features. How should the 4 changes be implemented?",
+        "options": [
+          {
+            "label": "Add Dashboard tab via WebView",
+            "description": "Add a new bottom tab that loads the existing web dashboard in a WebView, and apply the 4 UI changes to index.html"
+          },
+          {
+            "label": "Native Kotlin screens",
+            "description": "Implement from scratch as native Jetpack Compose screens \u2014 cases list, session fork, staff list, cron cards"
+          },
+          {
+            "label": "Both web + Kotlin changes",
+            "description": "Apply UI changes to the web dashboard AND add a new WebView Dashboard tab to the Android app to display it"
+          },
+          {
+            "label": "Wrong app \u2014 go back to web",
+            "description": "These features belong in the web dashboard only; ignore the Android side"
+          }
+        ],
+        "answered": true
+      }
+    ]
+  },
+  "ses_119b0d992ffeZq6DZovUg3yaBF": {
+    "updated": 1781980423190,
+    "slug": "mighty-comet",
+    "state": "running-tools",
+    "last_user_prompt": "\"Personalities: \nIs a blend of relentless ambition, intense logical focus, and unconventional social behavior. As an entrepreneur, he is characterized by a high tolerance for risk, systemic problem-solving, and a deep-seated drive to disrupt traditional industries through technological innovation.\n\nJob Scope:\nyou must act as a hands-on chief engineer and visionary operator rather than a traditional administrator. You will directly oversee product architecture and engineering design across all ventures, using first-principles thinking to strip systems down to raw physics and applying a strict five-step algorithm to question requirements, delete waste, and automate processes on the factory floor. Your role demands that you bypass standard marketing budgets to drive brand equity through your personal platform, set hyper-aggressive timelines to force technical breakthroughs, and aggressively allocate capital into high-risk, unproven industries. Finally, expect to manage extreme operational friction by embedding yourself deeply into the trenches of daily problem-solving, maintaining absolute final approval on critical design details while sustaining the relentless work ethic required to steer multiple complex companies simultaneously.\n\nReview this project\"",
+    "last_text": "Understood. I am in Plan Mode (read-only). I will explore the project using only inspection tools (read, grep, glob, readonly bash) to form a comprehensive review from the specified persona perspective.\n\nTo deliver a high-signal review, I need to map the current architecture, identify waste, and evaluate against first-principles criteria (question requirements, delete, automate, accelerate). Let me begin by surveying the key directories and files.",
+    "tool_name": "glob",
+    "last_role": "assistant",
+    "last_mode": "plan",
+    "tokens": 7531414,
+    "cost": 2.847343982399996,
+    "files_changed": 0,
+    "agent_type": "plan",
+    "model_id": "grok-4.3",
+    "pending_questions": [
+      {
+        "header": "Implementation approach",
+        "question": "The WAHA Android app doesn't have cases/sessions/staff/cron features. How should the 4 changes be implemented?",
+        "options": [
+          {
+            "label": "Add Dashboard tab via WebView",
+            "description": "Add a new bottom tab that loads the existing web dashboard in a WebView, and apply the 4 UI changes to index.html"
+          },
+          {
+            "label": "Native Kotlin screens",
+            "description": "Implement from scratch as native Jetpack Compose screens \u2014 cases list, session fork, staff list, cron cards"
+          },
+          {
+            "label": "Both web + Kotlin changes",
+            "description": "Apply UI changes to the web dashboard AND add a new WebView Dashboard tab to the Android app to display it"
+          },
+          {
+            "label": "Wrong app \u2014 go back to web",
+            "description": "These features belong in the web dashboard only; ignore the Android side"
+          }
+        ],
+        "answered": true
+      }
+    ]
+  },
+  "ses_119af6383ffe3WL5GdrzjljNRg": {
+    "updated": 1781980509141,
+    "slug": "quick-pixel",
+    "state": "thinking",
+    "last_user_prompt": "\"Personalities: \nIs a blend of relentless ambition, intense logical focus, and unconventional social behavior. As an entrepreneur, he is characterized by a high tolerance for risk, systemic problem-solving, and a deep-seated drive to disrupt traditional industries through technological innovation.\n\nJob Scope:\nyou must act as a hands-on chief engineer and visionary operator rather than a traditional administrator. You will directly oversee product architecture and engineering design across all ventures, using first-principles thinking to strip systems down to raw physics and applying a strict five-step algorithm to question requirements, delete waste, and automate processes on the factory floor. Your role demands that you bypass standard marketing budgets to drive brand equity through your personal platform, set hyper-aggressive timelines to force technical breakthroughs, and aggressively allocate capital into high-risk, unproven industries. Finally, expect to manage extreme operational friction by embedding yourself deeply into the trenches of daily problem-solving, maintaining absolute final approval on critical design details while sustaining the relentless work ethic required to steer multiple complex companies simultaneously.\n\nreview this project.\"",
+    "last_text": "",
+    "tool_name": "",
+    "last_role": "assistant",
+    "last_mode": "plan",
+    "tokens": 7515769,
+    "cost": 2.824928732399996,
+    "files_changed": 0,
+    "agent_type": "plan",
+    "model_id": "grok-4.20-multi-agent-0309",
+    "pending_questions": [
+      {
+        "header": "Implementation approach",
+        "question": "The WAHA Android app doesn't have cases/sessions/staff/cron features. How should the 4 changes be implemented?",
+        "options": [
+          {
+            "label": "Add Dashboard tab via WebView",
+            "description": "Add a new bottom tab that loads the existing web dashboard in a WebView, and apply the 4 UI changes to index.html"
+          },
+          {
+            "label": "Native Kotlin screens",
+            "description": "Implement from scratch as native Jetpack Compose screens \u2014 cases list, session fork, staff list, cron cards"
+          },
+          {
+            "label": "Both web + Kotlin changes",
+            "description": "Apply UI changes to the web dashboard AND add a new WebView Dashboard tab to the Android app to display it"
+          },
+          {
+            "label": "Wrong app \u2014 go back to web",
+            "description": "These features belong in the web dashboard only; ignore the Android side"
+          }
+        ],
+        "answered": true
+      }
+    ]
+  },
+  "ses_119adccaaffejU0sWvWdnzw0YG": {
+    "updated": 1781983155961,
+    "slug": "neon-cabin",
+    "state": "thinking",
+    "last_user_prompt": "\"*sync the mirror repo back to v1*\"",
+    "last_text": "",
+    "tool_name": "",
+    "last_role": "assistant",
+    "last_mode": "build",
+    "tokens": 7933419,
+    "cost": 5.984083432399997,
+    "files_changed": 0,
+    "agent_type": "build",
+    "model_id": "kimi-k2.7-code",
+    "pending_questions": [
+      {
+        "header": "Implementation approach",
+        "question": "The WAHA Android app doesn't have cases/sessions/staff/cron features. How should the 4 changes be implemented?",
+        "options": [
+          {
+            "label": "Add Dashboard tab via WebView",
+            "description": "Add a new bottom tab that loads the existing web dashboard in a WebView, and apply the 4 UI changes to index.html"
+          },
+          {
+            "label": "Native Kotlin screens",
+            "description": "Implement from scratch as native Jetpack Compose screens \u2014 cases list, session fork, staff list, cron cards"
+          },
+          {
+            "label": "Both web + Kotlin changes",
+            "description": "Apply UI changes to the web dashboard AND add a new WebView Dashboard tab to the Android app to display it"
+          },
+          {
+            "label": "Wrong app \u2014 go back to web",
+            "description": "These features belong in the web dashboard only; ignore the Android side"
+          }
+        ],
+        "answered": true
+      }
+    ]
+  }
+}

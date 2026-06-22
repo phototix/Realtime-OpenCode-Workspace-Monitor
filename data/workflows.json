@@ -1,0 +1,188 @@
+[
+  {
+    "id": "wf_mqo5o7w2_n9rd",
+    "name": "Build a website",
+    "nodes": [
+      {
+        "id": "n1",
+        "name": "User Instruction",
+        "instructions": "Start building with ideas:\n\nGenerate a HTML page\n- Homepage\n- CTA Whatsapp to 651234567890\n- Save in a new folder \"website\"",
+        "staff_ic": "Elon Musk (Business Director)",
+        "x": 40,
+        "y": 36,
+        "node_type": "starter"
+      },
+      {
+        "id": "n2",
+        "name": "Brainstorm Plans",
+        "instructions": "Explore the idea and list down key points",
+        "staff_ic": "Steve Jobs (Project Manager)",
+        "x": 267.0769230769231,
+        "y": 150.76923076923077,
+        "node_type": "io"
+      },
+      {
+        "id": "n3",
+        "name": "Develop Mockup",
+        "instructions": "Generate a basic HTML page base on given points and plan.",
+        "staff_ic": "Mark Zuckerberg (Developer)",
+        "x": 513.6923076923077,
+        "y": 150,
+        "node_type": "io"
+      },
+      {
+        "id": "n4",
+        "name": "Check for errors",
+        "instructions": "Check any errors on generated HTML",
+        "staff_ic": "Mark Zuckerberg (Developer)",
+        "x": 758.6923076923077,
+        "y": 149,
+        "node_type": "io"
+      },
+      {
+        "id": "n5",
+        "name": "Fix",
+        "instructions": "Fix any errors if found.",
+        "staff_ic": "Mark Zuckerberg (Developer)",
+        "x": 985,
+        "y": 299,
+        "node_type": "end"
+      }
+    ],
+    "edges": [
+      {
+        "from": "n1",
+        "to": "n2"
+      },
+      {
+        "from": "n2",
+        "to": "n3"
+      },
+      {
+        "from": "n3",
+        "to": "n4"
+      },
+      {
+        "from": "n4",
+        "to": "n5"
+      }
+    ],
+    "created": 1782068668.0481632,
+    "updated": 1782125660.1770492
+  },
+  {
+    "id": "wf_mqolzb46_phfw",
+    "name": "Product Research",
+    "nodes": [
+      {
+        "id": "n1",
+        "name": "Search Engine",
+        "instructions": "Default Search Engine:\nhttps://search.brandon.my/",
+        "staff_ic": "",
+        "x": 22,
+        "y": 26,
+        "mode": "plan",
+        "model": "opencode-go/deepseek-v4-flash",
+        "node_type": "starter"
+      },
+      {
+        "id": "n2",
+        "name": "Get Results",
+        "instructions": "Get at least 10 pages of results, try scroll down for more or pagination buttons.",
+        "staff_ic": "",
+        "x": 298,
+        "y": 27,
+        "mode": "plan",
+        "model": "opencode-go/deepseek-v4-flash",
+        "node_type": "io"
+      },
+      {
+        "id": "n3",
+        "name": "Summary",
+        "instructions": "Do a details summary for reporting.",
+        "staff_ic": "Elon Musk (Business Director)",
+        "x": 597,
+        "y": 28,
+        "node_type": "end"
+      }
+    ],
+    "edges": [
+      {
+        "from": "n1",
+        "to": "n2"
+      },
+      {
+        "from": "n2",
+        "to": "n3"
+      }
+    ],
+    "created": 1782096058.6579998,
+    "updated": 1782125046.328362
+  },
+  {
+    "id": "wf_mqoq7klh_ew0i",
+    "name": "Project Idea Plan and Execution",
+    "nodes": [
+      {
+        "id": "n1",
+        "instructions": "State what this workflow should do here:",
+        "mode": "plan",
+        "model": "opencode-go/deepseek-v4-flash",
+        "name": "Start Node",
+        "staff_ic": "",
+        "x": 859.9999999999998,
+        "y": 473.9999999999999,
+        "node_type": "starter"
+      },
+      {
+        "id": "n2",
+        "instructions": "Brainstorm the idea given into actionable plans.",
+        "mode": "plan",
+        "model": "opencode-go/deepseek-v4-flash",
+        "name": "Brainstorm the idea",
+        "staff_ic": "",
+        "x": 1135.2008399999997,
+        "y": 474.2099599999999,
+        "node_type": "io"
+      },
+      {
+        "id": "n3",
+        "instructions": "Create documentation for records.\n- Create Folder\n- Save notes into .md files\n- External resources assessment report",
+        "mode": "build",
+        "model": "opencode-go/deepseek-v4-flash",
+        "name": "Create Documentation",
+        "staff_ic": "",
+        "x": 1435.9610899999998,
+        "y": 474.02562999999986,
+        "node_type": "io"
+      },
+      {
+        "id": "n4",
+        "instructions": "Search for external resources for market inputs, provide an external resources assessment report.",
+        "mode": "plan",
+        "model": "opencode-go/deepseek-v4-flash",
+        "name": "External Resources",
+        "staff_ic": "",
+        "x": 1709.4513199999997,
+        "y": 475.7168599999999,
+        "node_type": "end"
+      }
+    ],
+    "edges": [
+      {
+        "from": "n1",
+        "to": "n2"
+      },
+      {
+        "from": "n2",
+        "to": "n3"
+      },
+      {
+        "from": "n3",
+        "to": "n4"
+      }
+    ],
+    "created": 1782103163.2995572,
+    "updated": 1782126078.6077282
+  }
+]

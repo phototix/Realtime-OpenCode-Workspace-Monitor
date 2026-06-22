@@ -1,0 +1,42 @@
+[
+    {
+        "merged": "com.waha.apk.app-debug-60:/raw_working_staff_loop_female.gif.flat",
+        "source": "com.waha.apk.app-main-62:/raw/working_staff_loop_female.gif"
+    },
+    {
+        "merged": "com.waha.apk.app-debug-60:/drawable_working_staff_loop.gif.flat",
+        "source": "com.waha.apk.app-main-62:/drawable/working_staff_loop.gif"
+    },
+    {
+        "merged": "com.waha.apk.app-debug-60:/drawable_working_staff_loop_female.gif.flat",
+        "source": "com.waha.apk.app-main-62:/drawable/working_staff_loop_female.gif"
+    },
+    {
+        "merged": "com.waha.apk.app-debug-60:/raw_working_staff_loop.gif.flat",
+        "source": "com.waha.apk.app-main-62:/raw/working_staff_loop.gif"
+    },
+    {
+        "merged": "com.waha.apk.app-debug-60:/raw_discuss_group_loop.gif.flat",
+        "source": "com.waha.apk.app-main-62:/raw/discuss_group_loop.gif"
+    },
+    {
+        "merged": "com.waha.apk.app-debug-60:/drawable_homescreen_apps_mock.png.flat",
+        "source": "com.waha.apk.app-main-62:/drawable/homescreen_apps_mock.png"
+    },
+    {
+        "merged": "com.waha.apk.app-debug-60:/drawable_discuss_empty.png.flat",
+        "source": "com.waha.apk.app-main-62:/drawable/discuss_empty.png"
+    },
+    {
+        "merged": "com.waha.apk.app-debug-60:/drawable_discuss_group_loop.gif.flat",
+        "source": "com.waha.apk.app-main-62:/drawable/discuss_group_loop.gif"
+    },
+    {
+        "merged": "com.waha.apk.app-debug-60:/drawable_profile_photo.png.flat",
+        "source": "com.waha.apk.app-main-62:/drawable/profile_photo.png"
+    },
+    {
+        "merged": "com.waha.apk.app-debug-60:/drawable_working_desk_empty.png.flat",
+        "source": "com.waha.apk.app-main-62:/drawable/working_desk_empty.png"
+    }
+]

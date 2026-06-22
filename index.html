@@ -812,10 +812,6 @@
   .admin-tab.admin-only {
     position: relative;
   }
-  .admin-tab.admin-only::after {
-    content: 'admin'; font-size: 8px; color: var(--purple);
-    margin-left: 4px; opacity: 0.6;
-  }
 
   /* ── CONTENT TABS (Active Nodes) ── */
   .content-tabs {
@@ -872,6 +868,239 @@
   }
   .admin-table tr:hover td { background: rgba(88,166,255,0.03); }
 
+  /* ── Workflow Editor ── */
+  .wf-toolbar {
+    display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap;
+  }
+  .wf-node-btn-group { display: flex; gap: 6px; }
+  .wf-node-btn {
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-dim);
+  }
+  .wf-node-btn.starter { border-color: #2ea04355; color: #3fb950; }
+  .wf-node-btn.io { border-color: #1f6feb55; color: #58a6ff; }
+  .wf-node-btn.end { border-color: #f8514955; color: #ff7b72; }
+  .wf-toolbar .wf-node-hint { font-size: 11px; color: var(--text-dim); }
+  .wf-zoom-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 4px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: rgba(33, 38, 45, 0.5);
+  }
+  .wf-zoom-controls .btn {
+    min-width: 28px;
+    padding: 4px 8px;
+  }
+  .wf-zoom-label {
+    min-width: 46px;
+    text-align: center;
+    font-size: 11px;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .wf-toolbar .wf-title-input {
+    flex: 1; min-width: 160px; padding: 8px 12px; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+    font-size: 14px; font-weight: 500; outline: none;
+  }
+  .wf-canvas-wrap {
+    position: relative; width: 100%; min-height: 500px; height: calc(100vh - 320px);
+    background: #0d1117; border: 1px solid var(--border); border-radius: 8px; overflow: auto;
+  }
+  .wf-canvas-wrap.wf-pan-mode,
+  .wf-canvas-wrap.wf-pan-mode * { cursor: grab !important; }
+  .wf-canvas-wrap.wf-panning,
+  .wf-canvas-wrap.wf-panning * { cursor: grabbing !important; }
+  .wf-canvas-sizer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+  }
+  .wf-canvas-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
+  }
+  .wf-select-box {
+    position: absolute;
+    border: 1px dashed rgba(88,166,255,0.95);
+    background: rgba(88,166,255,0.16);
+    pointer-events: none;
+    z-index: 7;
+  }
+  .wf-edge-overlay {
+    position: absolute;
+    left: 12px;
+    top: 12px;
+    width: min(320px, calc(100% - 24px));
+    max-height: 180px;
+    background: rgba(13,17,23,0.94);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    z-index: 8;
+    backdrop-filter: blur(2px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .wf-edge-overlay.dragging {
+    box-shadow: 0 8px 22px rgba(0,0,0,0.45);
+  }
+  .wf-edge-overlay-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-dim);
+    font-weight: 600;
+    cursor: move;
+    user-select: none;
+  }
+  .wf-edge-overlay-list {
+    overflow: auto;
+  }
+  .wf-edge-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .wf-edge-table th,
+  .wf-edge-table td {
+    padding: 6px 6px;
+    border-bottom: 1px solid rgba(48,54,61,0.3);
+    vertical-align: middle;
+  }
+  .wf-edge-table th {
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.35px;
+  }
+  .wf-edge-table td.action,
+  .wf-edge-table th.action {
+    width: 34px;
+    text-align: right;
+  }
+  .wf-edge-table tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  .wf-edge-table tbody tr:hover {
+    background: rgba(88,166,255,0.12);
+  }
+  .wf-edge-table .wf-edge-del-btn {
+    background: none; border: none; color: #f85149; cursor: pointer;
+    font-size: 14px; padding: 0 4px; line-height: 1; flex-shrink: 0;
+  }
+  .wf-edge-table .wf-edge-del-btn:hover { color: #ff6b6b; }
+  .wf-canvas-wrap .wf-grid {
+    position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px);
+    background-size: 20px 20px; pointer-events: none;
+  }
+  .wf-canvas-wrap .wf-svg {
+    position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none;
+  }
+  .wf-canvas-wrap .wf-svg line, .wf-canvas-wrap .wf-svg path {
+    pointer-events: stroke; cursor: pointer;
+  }
+  .wf-edge-group { pointer-events: all; cursor: pointer; }
+  .wf-canvas-wrap .wf-nodes-layer {
+    position: absolute; inset: 0;
+  }
+  .wf-node {
+    position: absolute; width: 200px; background: #161b22;
+    border: 1.5px solid #30363d; border-radius: 10px;
+    cursor: grab; user-select: none; box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    transition: box-shadow 0.15s, border-color 0.15s;
+    overflow: hidden;
+  }
+  .wf-node:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.4); border-color: #484f58; }
+  .wf-node.selected { border-color: #58a6ff; box-shadow: 0 0 0 2px rgba(88,166,255,0.3); }
+  .wf-node.type-starter { border-color: #2ea043; }
+  .wf-node.type-io { border-color: #1f6feb; }
+  .wf-node.type-end { border-color: #f85149; }
+  .wf-node-header {
+    display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px;
+  }
+  .wf-node-header .wf-node-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .wf-node-header .wf-node-name {
+    font-size: 13px; font-weight: 500; color: var(--text); flex: 1; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap;
+  }
+  .wf-node-header .wf-node-drag {
+    cursor: grab; font-size: 16px; color: var(--text-dim);
+    flex-shrink: 0; line-height: 1; padding: 2px; user-select: none;
+  }
+  .wf-node-header .wf-node-drag:active { cursor: grabbing; }
+  .wf-node-type-chip {
+    font-size: 9px;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    font-weight: 600;
+  }
+  .wf-node-type-chip.starter { background: #2ea04333; color: #3fb950; border-color: #2ea04366; }
+  .wf-node-type-chip.io { background: #1f6feb33; color: #58a6ff; border-color: #1f6feb66; }
+  .wf-node-type-chip.end { background: #f8514933; color: #ff7b72; border-color: #f8514966; }
+  .wf-node-body { padding: 0 12px 10px; font-size: 11px; color: var(--text-dim); }
+  .wf-node-body .wf-node-staff { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+  .wf-node-port {
+    position: absolute;
+    width: 6px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(88, 166, 255, 0.2);
+    border: 1px solid rgba(121, 192, 255, 0.45);
+    transform: translate(-50%, -50%);
+    cursor: crosshair;
+    transition: background 0.15s, border-color 0.15s;
+    z-index: 2;
+  }
+  .wf-node-port:hover, .wf-node-port.active {
+    background: rgba(88, 166, 255, 0.5);
+    border-color: rgba(121, 192, 255, 0.9);
+  }
+  .wf-node-port.disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+  .wf-node-port-out { top: 50%; left: calc(100% - 2px); }
+  .wf-node-port-in { top: 50%; left: 2px; }
+  .wf-inspector {
+    position: absolute; right: 0; top: 0; bottom: 0; width: 280px;
+    background: #0d1117; border-left: 1px solid var(--border);
+    padding: 16px; overflow-y: auto; display: none; z-index: 5;
+  }
+  .wf-inspector.open { display: block; }
+  .wf-inspector h4 { font-size: 13px; margin-bottom: 12px; color: var(--text); }
+  .wf-inspector .form-group { margin-bottom: 10px; }
+  .wf-inspector label { font-size: 11px; margin-bottom: 4px; display: block; }
+  .wf-inspector input, .wf-inspector textarea, .wf-inspector select {
+    width: 100%; padding: 8px 10px; background: #161b22;
+    border: 1px solid var(--border); border-radius: 6px; color: var(--text);
+    font-size: 12px; outline: none; font-family: inherit;
+  }
+  .wf-inspector select:disabled { opacity: 0.5; cursor: not-allowed; }
+  .wf-inspector textarea { min-height: 80px; resize: vertical; }
+  .wf-inspector-edges { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
+
   /* ── CARD INSIDE ADMIN ── */
   .admin-card {
     background: var(--surface);
@@ -891,6 +1120,146 @@
   .admin-card .row:last-child { border-bottom: none; }
   .admin-card .row .label { color: var(--text-dim); }
   .admin-card .row .value { color: var(--text); font-weight: 500; }
+
+  .wf-view-tabs {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .wf-view-tab {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .wf-view-tab:hover {
+    color: var(--text);
+    border-color: #58a6ff66;
+  }
+  .wf-view-tab.active {
+    color: #fff;
+    background: #1f6feb66;
+    border-color: #58a6ff;
+  }
+  .wf-view-panel {
+    display: none;
+  }
+  .wf-view-panel.active {
+    display: block;
+  }
+  .wf-view-run-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .wf-view-run-table th,
+  .wf-view-run-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(48,54,61,0.4);
+    text-align: left;
+    vertical-align: top;
+  }
+  .wf-view-run-table th {
+    color: var(--text-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .wf-view-pill {
+    font-size: 10px;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-weight: 700;
+    display: inline-block;
+  }
+  .wf-doc {
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--text);
+    word-break: break-word;
+  }
+  .wf-doc h1, .wf-doc h2, .wf-doc h3, .wf-doc h4 {
+    margin: 14px 0 8px;
+    line-height: 1.35;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .wf-doc h1 { font-size: 20px; }
+  .wf-doc h2 { font-size: 17px; }
+  .wf-doc h3 { font-size: 15px; }
+  .wf-doc h4 { font-size: 14px; }
+  .wf-doc p { margin: 8px 0; }
+  .wf-doc ul, .wf-doc ol {
+    margin: 8px 0 10px 22px;
+    padding: 0;
+  }
+  .wf-doc li { margin: 3px 0; }
+  .wf-doc table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0 12px;
+    font-size: 12px;
+    background: #0f141b;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .wf-doc th, .wf-doc td {
+    text-align: left;
+    vertical-align: top;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(48,54,61,0.45);
+  }
+  .wf-doc th {
+    color: var(--text-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.35px;
+    background: rgba(88,166,255,0.08);
+  }
+  .wf-doc tr:last-child td { border-bottom: none; }
+  .wf-doc code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+    font-size: 12px;
+    padding: 1px 5px;
+    border-radius: 6px;
+    background: rgba(88,166,255,0.14);
+    color: #c9d1d9;
+  }
+  .wf-doc pre {
+    margin: 10px 0 12px;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: #0b1118;
+    overflow: auto;
+  }
+  .wf-doc pre code {
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+  }
+  .wf-doc a {
+    color: #79c0ff;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .wf-doc blockquote {
+    margin: 10px 0;
+    padding: 8px 12px;
+    border-left: 3px solid #58a6ff;
+    background: rgba(88,166,255,0.08);
+    color: var(--text-dim);
+    border-radius: 6px;
+  }
 
   /* ── FORM ELEMENTS ── */
   .inline-form {
@@ -1922,6 +2291,7 @@ function renderDashboard(data) {
         </div>
         <div class="sc-state-badge ${ss.state || '\\30'}">${state.label}</div>
         ${loggedIn && ss.state !== 'thinking' && ss.state !== 'running-tools' ? `<button class="comment-btn" onclick="event.stopPropagation();continueSession('${ss.id}')" title="Quick instruction">\u{1F4AC}</button>` : ''}
+        <button class="sc-copy-id" onclick="event.stopPropagation();navigator.clipboard.writeText('${ss.id}').then(function(){showToast('Session ID copied','success')}).catch(function(){})" title="Copy Session ID" style="background:none;border:none;cursor:pointer;font-size:11px;padding:0 2px;color:var(--text-dim);line-height:1">📋</button>
         <div class="sc-status-dot ${ss.state || '\\30'}"></div>
       </div>
       ${ss.last_user_prompt ? `<div style="margin-top:4px;padding:4px 6px;background:#58a6ff11;border-left:2px solid var(--blue);border-radius:4px;font-size:10px;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(ss.last_user_prompt).replace(/"/g,'&quot;')}">${escapeHtml(ss.last_user_prompt.slice(0,60))}${ss.last_user_prompt.length > 60 ? '...' : ''}</div>` : ''}
@@ -2146,6 +2516,7 @@ global.schedulePoll = schedulePoll;
       <div class="admin-tab" data-tab="providers" onclick="switchTab('providers')">🔌 Provider</div>
       <div class="admin-tab" data-tab="super-staff" onclick="switchTab('super-staff')">🧑‍💼 Super Staff</div>
       <div class="admin-tab" data-tab="cron" onclick="switchTab('cron')">⏰ Cron</div>
+      <div class="admin-tab admin-only" data-tab="workflows" onclick="switchTab('workflows')">🔁 Workflows</div>
       <div class="admin-tab" data-tab="security" onclick="switchTab('security')">🔒 Security</div>
       <div class="admin-tab" data-tab="inapp-alerts" onclick="switchTab('inapp-alerts')">🔔 In-app alerts</div>
       <div class="admin-tab" data-tab="notifications" onclick="switchTab('notifications')">🔔 Notifications</div>
@@ -2376,6 +2747,100 @@ global.schedulePoll = schedulePoll;
           <div style="color:var(--text-dim)">Loading logs...</div>
         </div>
       </div>
+
+      <!-- Workflows Tab -->
+      <div class="tab-content" id="tab-workflows">
+        <div id="wfListView">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div>
+              <h3 style="display:inline">🔁 Workflows</h3>
+              <span style="font-size:12px;color:var(--text-dim);margin-left:8px">Design multi-stage case workflows</span>
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="openWorkflowEditor(null)">+ New Workflow</button>
+          </div>
+          <div id="wfListContent" style="font-size:13px;color:var(--text-dim)">Loading workflows...</div>
+        </div>
+        <div id="wfEditorView" style="display:none">
+          <div class="wf-toolbar">
+            <button class="btn btn-sm" onclick="closeWorkflowEditor()" style="background:var(--surface2);color:var(--text-dim)">← Back</button>
+            <input type="text" class="wf-title-input" id="wfEditorTitle" placeholder="Workflow name...">
+            <div class="wf-node-btn-group">
+              <button class="btn btn-sm wf-node-btn starter" onclick="wfEditor.addNode('starter')">+ Starter</button>
+              <button class="btn btn-sm wf-node-btn io" onclick="wfEditor.addNode('io')">+ I/O</button>
+              <button class="btn btn-sm wf-node-btn end" onclick="wfEditor.addNode('end')">+ End</button>
+            </div>
+            <button class="btn btn-sm btn-danger" onclick="wfEditor.deleteSelected()" id="wfDeleteBtn" disabled>Delete</button>
+            <button class="btn btn-sm" style="background:var(--accent);color:#fff" onclick="wfEditor.save()">💾 Save</button>
+            <div class="wf-zoom-controls">
+              <button class="btn btn-sm" type="button" onclick="wfEditor.zoomOut()">−</button>
+              <button class="btn btn-sm" type="button" onclick="wfEditor.resetZoom()">Fit</button>
+              <button class="btn btn-sm" type="button" onclick="wfEditor.zoomIn()">+</button>
+              <span class="wf-zoom-label" id="wfZoomLabel">100%</span>
+            </div>
+            <span class="wf-node-hint">Need at least 1 Starter and 1 End node</span>
+            <span id="wfEditorStatus" style="font-size:11px;color:var(--text-dim);margin-left:auto"></span>
+          </div>
+          <div class="wf-canvas-wrap" id="wfCanvasWrap">
+            <div class="wf-canvas-sizer" id="wfCanvasSizer"></div>
+            <div class="wf-canvas-content" id="wfCanvasContent">
+              <div class="wf-grid"></div>
+              <svg class="wf-svg" id="wfSvg">
+                <defs>
+                  <marker id="wfArrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#58a6ff"/>
+                  </marker>
+                </defs>
+              </svg>
+              <div class="wf-nodes-layer" id="wfNodesLayer"></div>
+            </div>
+            <div class="wf-edge-overlay" id="wfEdgeOverlay">
+              <div class="wf-edge-overlay-header" id="wfEdgeOverlayHeader">
+                <span>Connections <span id="wfEdgeCount"></span></span>
+                <span style="font-size:10px;color:var(--text-dim)">Click line or × to remove</span>
+              </div>
+              <div class="wf-edge-overlay-list" id="wfEdgeList"></div>
+            </div>
+            <div class="wf-inspector" id="wfInspector">
+              <h4>Node Properties</h4>
+              <div class="form-group">
+                <label>Node Type</label>
+                <select id="wfInspType" onchange="wfEditor.onInspectorChange()">
+                  <option value="starter">Starter Node</option>
+                  <option value="io">I/O Node</option>
+                  <option value="end">End Node</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Name</label>
+                <input type="text" id="wfInspName" oninput="wfEditor.onInspectorChange()">
+              </div>
+              <div class="form-group">
+                <label>Instructions</label>
+                <textarea id="wfInspInstructions" oninput="wfEditor.onInspectorChange()"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Staff IC</label>
+                <select id="wfInspStaff" onchange="wfEditor.onInspectorChange()">
+                  <option value="">— None —</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Mode</label>
+                <select id="wfInspMode" onchange="wfEditor.onInspectorChange()">
+                  <option value="build">Build</option>
+                  <option value="plan">Plan</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Model</label>
+                <select id="wfInspModel" onchange="wfEditor.onInspectorChange()">
+                  <option value="">Default model</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -2413,6 +2878,16 @@ global.schedulePoll = schedulePoll;
   </div>
 </div>
 
+<div class="modal-overlay" id="tasksModal" style="display:none">
+  <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:18px">📋 Tasks</h2>
+      <button class="admin-close" onclick="closeTasksModal()">&times;</button>
+    </div>
+    <div id="tasksModalBody"></div>
+  </div>
+</div>
+
 <!-- New Session Modal -->
 <div class="modal-overlay" id="newSessionModal" style="display:none">
   <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
@@ -2440,6 +2915,12 @@ global.schedulePoll = schedulePoll;
             <option value="">Loading models...</option>
           </select>
         </div>
+      </div>
+      <div class="form-group">
+        <label>Workflow (optional)</label>
+        <select id="newSessionWorkflow" onchange="onNewCaseWorkflowChange()" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+          <option value="">— None —</option>
+        </select>
       </div>
       <div class="form-group">
         <label>Workspace</label>
@@ -2588,6 +3069,17 @@ global.schedulePoll = schedulePoll;
 
 <div class="toast" id="toast"><span id="toastMessage"></span><span class="toast-actions"><span class="toast-copy" onclick="copyToastMessage()" title="Copy message">&#10633;</span><span class="toast-close" onclick="dismissToast()">&times;</span></span></div>
 
+<!-- Workflow View Modal -->
+<div class="modal-overlay" id="wfViewModal" style="display:none">
+  <div class="login-modal" style="width:700px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 id="wfViewTitle" style="font-size:18px">Workflow Details</h2>
+      <button class="admin-close" onclick="closeWorkflowViewModal()">&times;</button>
+    </div>
+    <div id="wfViewBody"></div>
+  </div>
+</div>
+
 <script>
 (function (global) {
 'use strict';
@@ -2632,8 +3124,7 @@ function getAuth() {
 
 global._serverBossName = '';
 function getBossName() {
-  if (global._serverBossName) return global._serverBossName;
-  try { return localStorage.getItem('dashboard_boss_name') || 'Brandon'; } catch { return 'Brandon'; }
+  return global._serverBossName || 'Brandon';
 }
 function setAuth(auth) {
   sessionStorage.setItem(AUTH_KEY, JSON.stringify(auth));
@@ -2779,6 +3270,7 @@ function switchTab(tabId) {
   if (tabId === 'providers') renderProvidersTab();
   if (tabId === 'super-staff') renderSuperStaffTab();
   if (tabId === 'cron') { renderCronTab(); _cronRefreshTimer = setInterval(updateCronCountdowns, 1000); }
+  if (tabId === 'workflows') renderWorkflowsTab();
 }
 
 // ── SESSIONS TAB ──
@@ -2858,13 +3350,13 @@ async function renderCasesTab() {
           '<td>' + ((s.tokens||0).toLocaleString()) + '</td>' +
           '<td style="font-size:10px;color:var(--text-dim)">' + agoStr + '</td>' +
           '<td style="white-space:nowrap">' +
-            todoBadge(s) +
-            questionBadge(s) +
             '<select onchange="assignStaff(\'' + s.id + '\',this.value)" style="font-size:9px;padding:1px 4px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);outline:none;vertical-align:middle;max-width:80px" title="Assign super staff">' +
               '<option value="">' + (sAssigned || '\u{1F464}') + '</option>' +
               global.superStaffCache.map(function(st) { return '<option value="' + st.name.replace(/"/g,'&quot;') + '"' + (s.assigned_staff === st.name ? ' selected' : '') + '>' + escapeHtml(st.name) + '</option>'; }).join('') +
               (s.assigned_staff ? '<option value="__unassign__" style="color:var(--red)">\u2715 Unassign</option>' : '') +
             '</select> ' +
+            todoBadge(s) +
+            questionBadge(s) +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
             '<button class="rename-btn" onclick="renameSession(\'' + s.id + '\',\'' + (s.title||'?').replace(/'/g,"\\'") + '\')">Rename</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\', event)">Stop</button>' : '') +
@@ -2938,6 +3430,7 @@ function viewSession(id) {
       <div class="admin-card">
         <div class="row"><span class="label">State</span><span class="value" style="color:${stateColor}">${escapeHtml(s.state || 'active')}</span></div>
         <div class="row"><span class="label">Slug</span><span class="value">${escapeHtml(s.slug || '—')}</span></div>
+        <div class="row"><span class="label">Session ID</span><span class="value" style="display:flex;align-items:center;gap:6px"><span style="font-family:monospace;font-size:11px">${escapeHtml(id)}</span><button onclick="navigator.clipboard.writeText('${id.replace(/'/g,"\\'")}')" style="font-size:10px;padding:1px 6px;border-radius:3px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);cursor:pointer">Copy</button></span></div>
         <div class="row"><span class="label">Model</span><span class="value">${escapeHtml(s.model_id || '—')}</span></div>
         <div class="row"><span class="label">Cost</span><span class="value">$${(s.cost||0).toFixed(4)}</span></div>
         <div class="row"><span class="label">Tokens</span><span class="value">${(s.tokens||0).toLocaleString()}</span></div>
@@ -2945,7 +3438,6 @@ function viewSession(id) {
         <div class="row"><span class="label">Directory</span><span class="value" style="font-size:10px">${escapeHtml(s.directory || '—')}</span></div>
         ${s.last_mode ? `<div class="row"><span class="label">Last Mode</span><span class="value">${escapeHtml(s.last_mode)}</span></div>` : ''}
       </div>
-      ${(s.todos || []).length > 0 ? (function(){ var thtml = '<div class="admin-card" style="margin-top:12px"><h4>Tasks (' + s.todos.filter(function(t){ return t.status === 'completed'; }).length + '/' + s.todos.length + ')</h4>'; s.todos.forEach(function(t){ var done = t.status === 'completed'; var pri = t.priority === 'high' ? ' 🔥' : ''; thtml += '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px"><span style="color:' + (done ? 'var(--green)' : 'var(--text-dim)') + '">' + (done ? '✓' : '○') + '</span><span style="' + (done ? 'text-decoration:line-through;color:var(--text-dim)' : '') + '">' + escapeHtml(t.content) + '</span><span style="font-size:9px;color:var(--text-dim)">' + pri + '</span></div>'; }); thtml += '</div>'; return thtml; })() : ''}
     `;
     modal.style.display = 'flex';
   }).catch(() => {
@@ -3035,6 +3527,17 @@ function openNewSessionModal() {
   const modelSel = document.getElementById('newSessionModel');
   modelSel.innerHTML = '<option value="">Loading models...</option>';
   loadModels('newSessionModel', '');
+  // Populate workflows
+  const wfSel = document.getElementById('newSessionWorkflow');
+  wfSel.innerHTML = '<option value="">— None —</option>';
+  fetch('/api/workflows').then(r => r.json()).then(d => {
+    (d.workflows || []).forEach(wf => {
+      const opt = document.createElement('option');
+      opt.value = wf.id;
+      opt.textContent = wf.name + ' (' + (wf.nodes || []).length + ' stages)';
+      wfSel.appendChild(opt);
+    });
+  }).catch(() => {});
   // Populate workspaces
   const wsSel = document.getElementById('newSessionWorkspace');
   wsSel.innerHTML = '<option value="">Default (home)</option>';
@@ -3050,12 +3553,41 @@ function openNewSessionModal() {
   }).catch(() => {});
 }
 
+function onNewCaseWorkflowChange() {
+  const wfId = document.getElementById('newSessionWorkflow').value;
+  if (!wfId) return;
+  fetch('/api/workflows').then(r => r.json()).then(d => {
+    const wf = (d.workflows || []).find(w => w.id === wfId);
+    if (!wf || !wf.nodes || !wf.nodes.length) return;
+    // Find first node (no incoming edges)
+    const edges = wf.edges || [];
+    const hasIncoming = new Set(edges.map(e => e.to));
+    const first = wf.nodes.find(n => !hasIncoming.has(n.id)) || wf.nodes[0];
+    if (first.staff_ic) {
+      // Find the matching mode option (staff name)
+      const modeSel = document.getElementById('newSessionMode');
+      for (const opt of modeSel.options) {
+        if (opt.value === first.staff_ic) {
+          opt.selected = true;
+          // Trigger onchange to auto-select model
+          if (typeof onNewCaseModeChange === 'function') onNewCaseModeChange();
+          break;
+        }
+      }
+    }
+    if (first.instructions) {
+      document.getElementById('newSessionMessage').value = first.instructions;
+    }
+  }).catch(() => {});
+}
+
 async function startNewSession() {
   const title = document.getElementById('newSessionTitle').value.trim();
-  const message = document.getElementById('newSessionMessage').value.trim();
+  let message = document.getElementById('newSessionMessage').value.trim();
   const mode = document.getElementById('newSessionMode').value;
   const model = document.getElementById('newSessionModel').value;
   const directory = document.getElementById('newSessionWorkspace').value;
+  const workflowId = document.getElementById('newSessionWorkflow').value;
   const err = document.getElementById('newSessionError');
   err.style.display = 'none';
 
@@ -3075,7 +3607,7 @@ async function startNewSession() {
 
   try {
     try {
-      const data = await sendQueued('new-session', { title, message: finalMessage, mode: finalMode, model: finalModel, directory, fresh: true }, function(d) {
+      const data = await sendQueued('new-session', { title, message: finalMessage, mode: finalMode, model: finalModel, directory, fresh: true, workflow_id: workflowId }, function(d) {
         if (d.status === 'processing' || d.status === 'queued') {
           var elapsed = Math.round((Date.now() - _nsStart) / 1000) + 's';
           var tMsg = document.getElementById('toastMessage');
@@ -3084,6 +3616,10 @@ async function startNewSession() {
       });
       if (!data.ok) {
         showToast('Error: ' + data.message, 'error');
+      } else if (data.workflow === 'attached') {
+        showToast('Workflow attached and first stage started', 'success');
+      } else if (data.workflow_error) {
+        showToast('Case started but workflow attach failed: ' + data.workflow_error, 'error');
       }
     } catch (e) {
       showToast('Error: ' + e.message, 'error');
@@ -3239,9 +3775,45 @@ function questionBadge(s) {
 
 function todoBadge(s) {
   const todos = s.todos || [];
-  const pending = todos.filter(function(t){ return t.status !== 'completed'; }).length;
-  if (pending === 0) return '';
-  return '<span style="font-size:10px;color:var(--yellow);margin-left:4px;cursor:default" title="' + pending + ' pending tasks">\uD83D\uDCCB ' + pending + '</span> ';
+  const completed = todos.filter(function(t){ return t.status === 'completed'; }).length;
+  const total = todos.length;
+  if (total === 0) return '';
+  return '<span style="font-size:10px;color:var(--yellow);margin-left:4px;cursor:pointer" onclick="showTasks(\'' + s.id + '\')" title="View tasks">\uD83D\uDCCB Tasks (' + completed + '/' + total + ')</span> ';
+}
+
+function showTasks(id) {
+  fetch('data/status.json?_=' + Date.now()).then(function(r){ return r.json(); }).then(function(data) {
+    var s = (data.all_sessions || data.sessions || []).find(function(x){ return x.id === id; });
+    var body = document.getElementById('tasksModalBody');
+    var modal = document.getElementById('tasksModal');
+    if (!s || !s.todos || s.todos.length === 0) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No tasks</div>';
+      modal.style.display = 'flex';
+      return;
+    }
+    var done = s.todos.filter(function(t){ return t.status === 'completed'; }).length;
+    var html = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:16px">' + escapeHtml(s.title || '?') + '</div>';
+    html += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">Tasks (' + done + '/' + s.todos.length + ')</div>';
+    s.todos.forEach(function(t) {
+      var isDone = t.status === 'completed';
+      var pri = t.priority === 'high' ? ' 🔥' : '';
+      html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;border-bottom:1px solid var(--border)">' +
+        '<span style="color:' + (isDone ? 'var(--green)' : 'var(--text-dim)') + '">' + (isDone ? '✓' : '○') + '</span>' +
+        '<span style="' + (isDone ? 'text-decoration:line-through;color:var(--text-dim)' : '') + '">' + escapeHtml(t.content) + '</span>' +
+        '<span style="font-size:9px;color:var(--text-dim);margin-left:auto">' + pri + '</span>' +
+        '</div>';
+    });
+    html += '<div style="margin-top:16px"><button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="closeTasksModal()">Close</button></div>';
+    body.innerHTML = html;
+    modal.style.display = 'flex';
+  }).catch(function() {
+    document.getElementById('tasksModalBody').innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load tasks</div>';
+    document.getElementById('tasksModal').style.display = 'flex';
+  });
+}
+
+function closeTasksModal() {
+  document.getElementById('tasksModal').style.display = 'none';
 }
 
 function showQuestions(id) {
@@ -3555,7 +4127,6 @@ function restartPollTimer() {
 function saveSettings() {
   const bossName = document.getElementById('bossNameInput').value.trim();
   if (bossName) {
-    localStorage.setItem('dashboard_boss_name', bossName);
     global._serverBossName = bossName;
     sendQueued('save-boss-name', { name: bossName }).catch(() => {});
   }
@@ -4809,7 +5380,1227 @@ document.addEventListener('DOMContentLoaded', () => {
   updateLoginIndicator();
 });
 
-// Export all functions used by onclick handlers
+// ── WORKFLOW EDITOR ──
+global.wfEditor = null;
+let _wfStaffCache = [];
+
+async function loadWorkflowStaff() {
+  try {
+    const r = await fetch('/api/super-staff');
+    const d = await r.json();
+    _wfStaffCache = d.staff || [];
+  } catch(e) { _wfStaffCache = []; }
+}
+
+async function renderWorkflowsTab() {
+  const el = document.getElementById('wfListContent');
+  el.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">Loading workflows...</div>';
+  try {
+    const r = await fetch('/api/workflows');
+    const d = await r.json();
+    if (!d.ok) { el.innerHTML = '<div style="color:var(--danger)">Failed to load workflows</div>'; return; }
+    const workflows = d.workflows || [];
+    if (!workflows.length) {
+      el.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-dim)"><div style="font-size:40px;margin-bottom:12px">🔁</div><div>No workflows defined yet</div></div>';
+      return;
+    }
+    let html = '<table class="admin-table"><thead><tr><th>Name</th><th>Stages</th><th>Created</th><th></th></tr></thead><tbody>';
+    for (const wf of workflows) {
+      const stageCount = (wf.nodes || []).length;
+      const created = wf.created ? new Date(wf.created * 1000).toLocaleDateString() : '—';
+      html += `<tr>
+        <td><strong>${escapeHtml(wf.name)}</strong></td>
+        <td>${stageCount}</td>
+        <td>${created}</td>
+        <td style="text-align:right">
+          <button class="view-btn" onclick="viewWorkflow('${wf.id}')">View</button>
+          <button class="view-btn" onclick="openWorkflowEditor('${wf.id}')">Edit</button>
+          <button class="stop-btn" onclick="deleteWorkflow('${wf.id}')">Delete</button>
+        </td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--danger)">Error loading workflows</div>';
+  }
+}
+
+async function openWorkflowEditor(wfId) {
+  document.getElementById('wfListView').style.display = 'none';
+  document.getElementById('wfEditorView').style.display = 'block';
+  await loadWorkflowStaff();
+  if (!global.wfEditor) {
+    global.wfEditor = new WfEditor();
+  }
+  if (wfId) {
+    try {
+      const r = await fetch('/api/workflows');
+      const d = await r.json();
+      const wf = (d.workflows || []).find(w => w.id === wfId);
+      if (wf) global.wfEditor.loadWorkflow(wf);
+    } catch(e) { global.wfEditor.loadWorkflow(null); }
+  } else {
+    global.wfEditor.loadWorkflow(null);
+  }
+}
+
+function closeWorkflowEditor() {
+  if (global.wfEditor) global.wfEditor.destroy();
+  global.wfEditor = null;
+  document.getElementById('wfEditorView').style.display = 'none';
+  document.getElementById('wfListView').style.display = 'block';
+  renderWorkflowsTab();
+}
+
+async function deleteWorkflow(wfId) {
+  if (!confirm('Delete this workflow?')) return;
+  try {
+    const resp = await sendQueued('workflow-delete', { id: wfId });
+    showToast('Workflow deleted', 'success');
+    renderWorkflowsTab();
+  } catch(e) { showToast('Error: ' + e.message, 'error'); }
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  var src = escapeHtml(String(text).replace(/\r\n/g, '\n'));
+  var lines = src.split('\n');
+
+  function inlineMd(s) {
+    var codeTokens = [];
+    s = s.replace(/`([^`]+)`/g, function(_, code) {
+      var key = '%%CODE' + codeTokens.length + '%%';
+      codeTokens.push('<code>' + code + '</code>');
+      return key;
+    });
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/(^|[^*])\*([^*]+)\*(?=[^*]|$)/g, '$1<em>$2</em>');
+    codeTokens.forEach(function(token, idx) {
+      s = s.replace('%%CODE' + idx + '%%', token);
+    });
+    return s;
+  }
+
+  function splitTableRow(line) {
+    var row = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+    return row.split('|').map(function(cell) { return inlineMd(cell.trim()); });
+  }
+
+  function isBlockStart(line) {
+    var t = line.trim();
+    return /^```/.test(t)
+      || /^#{1,4}\s+/.test(t)
+      || /^\s*[-*]\s+/.test(t)
+      || /^\s*\d+\.\s+/.test(t)
+      || /^\s*>\s?/.test(t)
+      || (t.includes('|'));
+  }
+
+  var out = [];
+  var i = 0;
+  while (i < lines.length) {
+    var line = lines[i];
+    var t = line.trim();
+
+    if (!t) {
+      i++;
+      continue;
+    }
+
+    if (/^```/.test(t)) {
+      var lang = (t.match(/^```(\w+)?/) || [])[1] || '';
+      var codeLines = [];
+      i++;
+      while (i < lines.length && !/^```/.test(lines[i].trim())) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      if (i < lines.length) i++;
+      out.push('<pre><code' + (lang ? ' class="lang-' + lang + '"' : '') + '>' + codeLines.join('\n') + '</code></pre>');
+      continue;
+    }
+
+    var h = t.match(/^(#{1,4})\s+(.+)$/);
+    if (h) {
+      var level = Math.min(4, h[1].length);
+      out.push('<h' + level + '>' + inlineMd(h[2]) + '</h' + level + '>');
+      i++;
+      continue;
+    }
+
+    if (t.includes('|') && i + 1 < lines.length && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[i + 1])) {
+      var headCells = splitTableRow(lines[i]);
+      i += 2;
+      var bodyRows = [];
+      while (i < lines.length && lines[i].trim() && lines[i].includes('|')) {
+        bodyRows.push(splitTableRow(lines[i]));
+        i++;
+      }
+      var table = '<table><thead><tr>' + headCells.map(function(c) { return '<th>' + c + '</th>'; }).join('') + '</tr></thead><tbody>';
+      bodyRows.forEach(function(r) {
+        table += '<tr>' + r.map(function(c) { return '<td>' + c + '</td>'; }).join('') + '</tr>';
+      });
+      table += '</tbody></table>';
+      out.push(table);
+      continue;
+    }
+
+    if (/^\s*[-*]\s+/.test(line)) {
+      var ul = [];
+      while (i < lines.length && /^\s*[-*]\s+/.test(lines[i])) {
+        ul.push('<li>' + inlineMd(lines[i].replace(/^\s*[-*]\s+/, '')) + '</li>');
+        i++;
+      }
+      out.push('<ul>' + ul.join('') + '</ul>');
+      continue;
+    }
+
+    if (/^\s*\d+\.\s+/.test(line)) {
+      var ol = [];
+      while (i < lines.length && /^\s*\d+\.\s+/.test(lines[i])) {
+        ol.push('<li>' + inlineMd(lines[i].replace(/^\s*\d+\.\s+/, '')) + '</li>');
+        i++;
+      }
+      out.push('<ol>' + ol.join('') + '</ol>');
+      continue;
+    }
+
+    if (/^\s*>\s?/.test(line)) {
+      var q = [];
+      while (i < lines.length && /^\s*>\s?/.test(lines[i])) {
+        q.push(inlineMd(lines[i].replace(/^\s*>\s?/, '')));
+        i++;
+      }
+      out.push('<blockquote>' + q.join('<br>') + '</blockquote>');
+      continue;
+    }
+
+    var para = [inlineMd(t)];
+    i++;
+    while (i < lines.length && lines[i].trim() && !isBlockStart(lines[i])) {
+      para.push(inlineMd(lines[i].trim()));
+      i++;
+    }
+    out.push('<p>' + para.join(' ') + '</p>');
+  }
+
+  return out.join('');
+}
+
+async function viewWorkflow(wfId) {
+  document.getElementById('wfViewModal').style.display = 'flex';
+  document.getElementById('wfViewTitle').textContent = 'Loading...';
+  document.getElementById('wfViewBody').innerHTML = '<div style="font-size:12px;color:var(--text-dim)">Loading...</div>';
+  try {
+    const r = await fetch('/api/workflows');
+    const d = await r.json();
+    const wf = (d.workflows || []).find(w => w.id === wfId);
+    if (!wf) { document.getElementById('wfViewBody').innerHTML = '<div style="color:var(--red)">Workflow not found</div>'; return; }
+    document.getElementById('wfViewTitle').textContent = wf.name || 'Untitled';
+
+    // Fetch workflow instances for this workflow
+    const ir = await fetch('/api/workflow-instances');
+    const id = await ir.json();
+    const instances = (id.instances || []).filter(i => i.workflow_id === wfId);
+
+    var nodeNames = (wf.nodes || []).reduce(function(acc, n) { acc[n.id] = n.name || n.id; return acc; }, {});
+    var sortedRuns = (instances || []).slice().sort(function(a, b) {
+      return (b.started_at || 0) - (a.started_at || 0);
+    });
+
+    // Workflow metadata
+    var nodeCount = (wf.nodes || []).length;
+    var edgeCount = (wf.edges || []).length;
+    var created = wf.created ? new Date(wf.created * 1000).toLocaleString() : '—';
+    var updated = wf.updated ? new Date(wf.updated * 1000).toLocaleString() : '—';
+
+    var detailsHtml = '<div class="admin-card"><h4>Details</h4>' +
+      '<div class="row"><span class="label">Nodes</span><span class="value">' + nodeCount + '</span></div>' +
+      '<div class="row"><span class="label">Edges</span><span class="value">' + edgeCount + '</span></div>' +
+      '<div class="row"><span class="label">Runs</span><span class="value">' + sortedRuns.length + '</span></div>' +
+      '<div class="row"><span class="label">Created</span><span class="value">' + created + '</span></div>' +
+      '<div class="row"><span class="label">Updated</span><span class="value">' + updated + '</span></div>' +
+      '</div>';
+
+    // Last Responses tab (latest completed summaries)
+    var responsesWithSummary = sortedRuns.filter(function(inst) { return !!inst.summary; });
+    var responsesHtml = '';
+    if (responsesWithSummary.length === 0) {
+      responsesHtml = '<div class="admin-card"><div style="font-size:12px;color:var(--text-dim)">No workflow summaries yet.</div></div>';
+    } else {
+      responsesWithSummary.slice(0, 8).forEach(function(inst, idx) {
+        var startedText = inst.started_at ? new Date(inst.started_at * 1000).toLocaleString() : '—';
+        responsesHtml += '<div class="admin-card">' +
+          '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center;margin-bottom:8px">' +
+          '<strong style="font-size:12px">Response #' + (idx + 1) + '</strong>' +
+          '<span style="font-size:10px;color:var(--text-dim)">' + startedText + '</span>' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--text-dim);margin-bottom:8px">Session: ' + escapeHtml((inst.session_id || '').slice(0, 24)) + ((inst.session_id || '').length > 24 ? '…' : '') + '</div>' +
+          '<div class="wf-doc">' + renderMarkdown(inst.summary) + '</div>' +
+          '</div>';
+      });
+    }
+
+    // Runs tab (table)
+    var runsHtml = '';
+    if (sortedRuns.length === 0) {
+      runsHtml = '<div class="admin-card"><div style="font-size:12px;color:var(--text-dim)">No runs found for this workflow.</div></div>';
+    } else {
+      var runRows = '';
+      sortedRuns.forEach(function(inst) {
+        var ns = inst.node_states || {};
+        var total = Object.keys(ns).length;
+        var done = Object.values(ns).filter(function(s) { return s.status === 'completed' || s.status === 'failed'; }).length;
+        var pct = total > 0 ? Math.round(done / total * 100) : 0;
+        var statusColor = inst.status === 'completed' ? 'var(--green)' : (inst.status === 'failed' ? 'var(--red)' : 'var(--yellow)');
+        var statusBg = inst.status === 'completed' ? '#3fb95022' : (inst.status === 'failed' ? '#f8514922' : '#d2992222');
+        var startedText = inst.started_at ? new Date(inst.started_at * 1000).toLocaleString() : '—';
+        var currentNode = inst.current_node ? (nodeNames[inst.current_node] || inst.current_node) : '—';
+        runRows += '<tr>' +
+          '<td style="font-family:monospace;font-size:10px">' + escapeHtml((inst.session_id || '').slice(0, 24)) + ((inst.session_id || '').length > 24 ? '…' : '') + '</td>' +
+          '<td><span class="wf-view-pill" style="color:' + statusColor + ';background:' + statusBg + '">' + escapeHtml(inst.status || 'unknown') + '</span></td>' +
+          '<td>' + escapeHtml(currentNode) + '</td>' +
+          '<td>' + pct + '%</td>' +
+          '<td style="white-space:nowrap">' + startedText + '</td>' +
+          '</tr>';
+      });
+      runsHtml = '<div class="admin-card">' +
+        '<table class="wf-view-run-table">' +
+        '<thead><tr><th>Session</th><th>Status</th><th>Current Stage</th><th>Progress</th><th>Started</th></tr></thead>' +
+        '<tbody>' + runRows + '</tbody>' +
+        '</table>' +
+        '</div>';
+    }
+
+    // Nodes list
+    var stagesHtml = '';
+    if (wf.nodes && wf.nodes.length > 0) {
+      stagesHtml += '<div class="admin-card"><h4>Stages</h4>';
+      wf.nodes.forEach(function(n) {
+        var nodeType = String(n.node_type || n.type || 'io').toLowerCase();
+        if (nodeType !== 'starter' && nodeType !== 'end') nodeType = 'io';
+        var typeBg = nodeType === 'starter' ? '#2ea04333' : (nodeType === 'end' ? '#f8514933' : '#1f6feb33');
+        var typeColor = nodeType === 'starter' ? '#3fb950' : (nodeType === 'end' ? '#ff7b72' : '#58a6ff');
+        var typeLabel = nodeType === 'starter' ? 'Starter' : (nodeType === 'end' ? 'End' : 'I/O');
+        var staff = n.staff_ic || '';
+        var mode = n.mode || '';
+        var model = n.model || '';
+        stagesHtml += '<div style="padding:10px;margin-bottom:8px;background:var(--surface2);border-radius:8px;font-size:12px">' +
+          '<div style="font-weight:500;margin-bottom:4px;display:flex;align-items:center;gap:8px">' + escapeHtml(n.name || n.id) +
+          '<span style="font-size:9px;padding:2px 6px;border-radius:999px;background:' + typeBg + ';color:' + typeColor + ';font-weight:600;text-transform:uppercase">' + typeLabel + '</span></div>' +
+          (n.instructions ? '<div style="color:var(--text-dim);margin-bottom:4px;white-space:pre-wrap">' + escapeHtml(n.instructions.slice(0, 200)) + (n.instructions.length > 200 ? '…' : '') + '</div>' : '') +
+          (staff || mode || model ? '<div style="display:flex;gap:6px;flex-wrap:wrap">' : '') +
+          (staff ? '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:var(--accent)22;color:var(--accent)">' + escapeHtml(staff) + '</span>' : '') +
+          (mode ? '<span style="font-size:10px;padding:1px 5px;border-radius:3px;background:' + (mode === 'plan' ? '#bc8cff33' : '#58a6ff33') + ';color:' + (mode === 'plan' ? '#bc8cff' : '#58a6ff') + '">' + escapeHtml(mode) + '</span>' : '') +
+          (model ? '<span style="font-size:10px;color:var(--text-dim)">' + escapeHtml(model) + '</span>' : '') +
+          (staff || mode || model ? '</div>' : '') +
+          '</div>';
+      });
+      stagesHtml += '</div>';
+    } else {
+      stagesHtml = '<div class="admin-card"><div style="font-size:12px;color:var(--text-dim)">No stages defined.</div></div>';
+    }
+
+    // Edges
+    var connectionsHtml = '';
+    if (wf.edges && wf.edges.length > 0) {
+      connectionsHtml += '<div class="admin-card"><h4>Connections</h4><table class="wf-view-run-table"><thead><tr><th>From</th><th>To</th></tr></thead><tbody>';
+      wf.edges.forEach(function(e) {
+        connectionsHtml += '<tr><td>' + escapeHtml(nodeNames[e.from] || e.from) + '</td><td>' + escapeHtml(nodeNames[e.to] || e.to) + '</td></tr>';
+      });
+      connectionsHtml += '</tbody></table></div>';
+    } else {
+      connectionsHtml = '<div class="admin-card"><div style="font-size:12px;color:var(--text-dim)">No connections defined.</div></div>';
+    }
+
+    var tabHtml = '' +
+      '<div class="wf-view-tabs" id="wfViewTabs">' +
+      '<button class="wf-view-tab" data-tab="responses" onclick="switchWorkflowViewTab(\'responses\')">Last Responses</button>' +
+      '<button class="wf-view-tab" data-tab="details" onclick="switchWorkflowViewTab(\'details\')">Details</button>' +
+      '<button class="wf-view-tab" data-tab="runs" onclick="switchWorkflowViewTab(\'runs\')">Runs</button>' +
+      '<button class="wf-view-tab" data-tab="stages" onclick="switchWorkflowViewTab(\'stages\')">Stages</button>' +
+      '<button class="wf-view-tab" data-tab="connections" onclick="switchWorkflowViewTab(\'connections\')">Connections</button>' +
+      '</div>' +
+      '<div class="wf-view-panel" data-panel="responses">' + responsesHtml + '</div>' +
+      '<div class="wf-view-panel" data-panel="details">' + detailsHtml + '</div>' +
+      '<div class="wf-view-panel" data-panel="runs">' + runsHtml + '</div>' +
+      '<div class="wf-view-panel" data-panel="stages">' + stagesHtml + '</div>' +
+      '<div class="wf-view-panel" data-panel="connections">' + connectionsHtml + '</div>';
+
+    document.getElementById('wfViewBody').innerHTML = tabHtml;
+    switchWorkflowViewTab('responses');
+  } catch(e) {
+    document.getElementById('wfViewBody').innerHTML = '<div style="color:var(--red)">Error: ' + e.message + '</div>';
+  }
+}
+
+function switchWorkflowViewTab(tabId) {
+  const tabRoot = document.getElementById('wfViewTabs');
+  const body = document.getElementById('wfViewBody');
+  if (!tabRoot || !body) return;
+  tabRoot.querySelectorAll('.wf-view-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tabId);
+  });
+  body.querySelectorAll('.wf-view-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.dataset.panel === tabId);
+  });
+}
+
+function closeWorkflowViewModal() {
+  document.getElementById('wfViewModal').style.display = 'none';
+}
+
+class WfEditor {
+  constructor() {
+    console.log('[WfEditor] Constructor called');
+    this.workflowId = null;
+    this.nodes = [];
+    this.edges = [];
+    this.selectedNodeId = null;
+    this.selectedNodeIds = new Set();
+    this.dragging = null;
+    this.connecting = null;
+    this.selectBox = null;
+    this.spacePressed = false;
+    this.panning = null;
+    this.overlayDragging = null;
+    this.overlayPos = { x: 12, y: 12 };
+    this.overlayReady = false;
+    this.zoom = 1;
+    this.minZoom = 0.5;
+    this.maxZoom = 2;
+    this.baseCanvasWidth = 2400;
+    this.baseCanvasHeight = 1600;
+    this._nodeIdCounter = 1;
+    this._cbs = {};
+    this._setupCanvas();
+  }
+
+  _screenToCanvas(clientX, clientY) {
+    const wrap = document.getElementById('wfCanvasWrap');
+    const rect = wrap.getBoundingClientRect();
+    const x = (clientX - rect.left + wrap.scrollLeft) / this.zoom;
+    const y = (clientY - rect.top + wrap.scrollTop) / this.zoom;
+    return { x, y };
+  }
+
+  _isTypingElement(el) {
+    if (!el) return false;
+    const tag = (el.tagName || '').toLowerCase();
+    return tag === 'input' || tag === 'textarea' || tag === 'select' || el.isContentEditable;
+  }
+
+  _syncOverlayPosition() {
+    const wrap = document.getElementById('wfCanvasWrap');
+    const overlay = document.getElementById('wfEdgeOverlay');
+    if (!wrap || !overlay) return;
+
+    if (!this.overlayReady) {
+      const defaultY = Math.max(12, wrap.clientHeight - overlay.offsetHeight - 12);
+      this.overlayPos.x = 12;
+      this.overlayPos.y = defaultY;
+      this.overlayReady = true;
+    }
+
+    const maxX = Math.max(12, wrap.clientWidth - overlay.offsetWidth - 12);
+    const maxY = Math.max(12, wrap.clientHeight - overlay.offsetHeight - 12);
+    this.overlayPos.x = Math.max(12, Math.min(maxX, this.overlayPos.x));
+    this.overlayPos.y = Math.max(12, Math.min(maxY, this.overlayPos.y));
+
+    overlay.style.left = (wrap.scrollLeft + this.overlayPos.x) + 'px';
+    overlay.style.top = (wrap.scrollTop + this.overlayPos.y) + 'px';
+    overlay.style.bottom = 'auto';
+  }
+
+  _updateCanvasSize() {
+    const wrap = document.getElementById('wfCanvasWrap');
+    const content = document.getElementById('wfCanvasContent');
+    const sizer = document.getElementById('wfCanvasSizer');
+    if (!wrap || !content || !sizer) return;
+
+    let maxX = this.baseCanvasWidth;
+    let maxY = this.baseCanvasHeight;
+    this.nodes.forEach(n => {
+      maxX = Math.max(maxX, n.x + 320);
+      maxY = Math.max(maxY, n.y + 220);
+    });
+
+    content.style.width = maxX + 'px';
+    content.style.height = maxY + 'px';
+    content.style.transform = 'scale(' + this.zoom + ')';
+    sizer.style.width = (maxX * this.zoom) + 'px';
+    sizer.style.height = (maxY * this.zoom) + 'px';
+    this._syncOverlayPosition();
+
+    const label = document.getElementById('wfZoomLabel');
+    if (label) label.textContent = Math.round(this.zoom * 100) + '%';
+  }
+
+  _setZoom(nextZoom, pivotClientX = null, pivotClientY = null) {
+    const wrap = document.getElementById('wfCanvasWrap');
+    if (!wrap) return;
+    const oldZoom = this.zoom;
+    const clamped = Math.max(this.minZoom, Math.min(this.maxZoom, nextZoom));
+    if (Math.abs(clamped - oldZoom) < 0.0001) return;
+
+    const rect = wrap.getBoundingClientRect();
+    const px = pivotClientX == null ? rect.left + rect.width / 2 : pivotClientX;
+    const py = pivotClientY == null ? rect.top + rect.height / 2 : pivotClientY;
+    const worldX = (px - rect.left + wrap.scrollLeft) / oldZoom;
+    const worldY = (py - rect.top + wrap.scrollTop) / oldZoom;
+
+    this.zoom = clamped;
+    this._updateCanvasSize();
+
+    wrap.scrollLeft = worldX * this.zoom - (px - rect.left);
+    wrap.scrollTop = worldY * this.zoom - (py - rect.top);
+
+    this.renderEdges();
+  }
+
+  zoomIn() { this._setZoom(this.zoom + 0.1); }
+  zoomOut() { this._setZoom(this.zoom - 0.1); }
+  resetZoom() { this._setZoom(1); }
+
+  _normalizeNodeType(rawType) {
+    const t = String(rawType || '').toLowerCase();
+    if (t === 'starter' || t === 'start') return 'starter';
+    if (t === 'end' || t === 'finish') return 'end';
+    return 'io';
+  }
+
+  _enforceNodeTypeRules() {
+    if (!this.nodes.length) return;
+    this.nodes.forEach(n => {
+      n.node_type = this._normalizeNodeType(n.node_type || n.type);
+    });
+    let starter = this.nodes.find(n => n.node_type === 'starter');
+    let end = this.nodes.find(n => n.node_type === 'end');
+    if (!starter) starter = this.nodes[0];
+    if (!end) end = this.nodes[this.nodes.length - 1];
+    this.nodes.forEach(n => {
+      if (n.id === starter.id) n.node_type = 'starter';
+      else if (n.id === end.id) n.node_type = 'end';
+      else n.node_type = 'io';
+    });
+  }
+
+  loadWorkflow(wf) {
+    if (wf) {
+      this.workflowId = wf.id;
+      this.nodes = JSON.parse(JSON.stringify(wf.nodes || []));
+      this.edges = JSON.parse(JSON.stringify(wf.edges || []));
+      this._enforceNodeTypeRules();
+      this._nodeIdCounter = Math.max(...this.nodes.map(n => parseInt(n.id.replace('n','')) || 0), 0) + 1;
+      document.getElementById('wfEditorTitle').value = wf.name || '';
+    } else {
+      this.workflowId = null;
+      this.nodes = [];
+      this.edges = [];
+      this._nodeIdCounter = 1;
+      document.getElementById('wfEditorTitle').value = '';
+    }
+    this.selectedNodeId = null;
+    this.selectedNodeIds = new Set();
+    this.dragging = null;
+    this.connecting = null;
+    this.selectBox = null;
+    this.spacePressed = false;
+    this.panning = null;
+    this.overlayDragging = null;
+    this.overlayPos = { x: 12, y: 12 };
+    this.overlayReady = false;
+    this.zoom = 1;
+    this.render();
+  }
+
+  _setupCanvas() {
+    const wrap = document.getElementById('wfCanvasWrap');
+    const overlay = document.getElementById('wfEdgeOverlay');
+    const overlayHeader = document.getElementById('wfEdgeOverlayHeader');
+
+    if (overlayHeader) {
+      this._cbs.overlayMouseDown = (e) => {
+        if (e.button !== 0) return;
+        this.overlayDragging = {
+          startX: e.clientX,
+          startY: e.clientY,
+          x: this.overlayPos.x,
+          y: this.overlayPos.y,
+        };
+        if (overlay) overlay.classList.add('dragging');
+        e.preventDefault();
+        e.stopPropagation();
+      };
+      overlayHeader.addEventListener('mousedown', this._cbs.overlayMouseDown);
+    }
+
+    // Canvas mousedown: start marquee selection when clicking blank area.
+    this._cbs.canvasMouseDown = (e) => {
+      if (e.button !== 0) return;
+
+      if (this.spacePressed) {
+        this.panning = {
+          startX: e.clientX,
+          startY: e.clientY,
+          scrollLeft: wrap.scrollLeft,
+          scrollTop: wrap.scrollTop,
+        };
+        wrap.classList.add('wf-panning');
+        e.preventDefault();
+        return;
+      }
+
+      if (!(e.target === wrap || e.target.classList.contains('wf-grid') || e.target.id === 'wfNodesLayer' || e.target.id === 'wfSvg')) return;
+
+      const pt = this._screenToCanvas(e.clientX, e.clientY);
+      const additive = e.shiftKey;
+      if (!additive) this.selectedNodeIds.clear();
+      this.selectedNodeId = null;
+      this.selectBox = { startX: pt.x, startY: pt.y, x: pt.x, y: pt.y, additive: additive };
+      this._renderSelectionBox();
+      this.render();
+      e.preventDefault();
+    };
+    wrap.addEventListener('mousedown', this._cbs.canvasMouseDown);
+
+    this._cbs.canvasScroll = () => {
+      this._syncOverlayPosition();
+    };
+    wrap.addEventListener('scroll', this._cbs.canvasScroll);
+
+    this._cbs.keyDown = (e) => {
+      if (e.code !== 'Space') return;
+      if (this._isTypingElement(e.target)) return;
+      this.spacePressed = true;
+      wrap.classList.add('wf-pan-mode');
+      e.preventDefault();
+    };
+    this._cbs.keyUp = (e) => {
+      if (e.code !== 'Space') return;
+      this.spacePressed = false;
+      wrap.classList.remove('wf-pan-mode');
+      if (!this.panning) wrap.classList.remove('wf-panning');
+      e.preventDefault();
+    };
+    document.addEventListener('keydown', this._cbs.keyDown);
+    document.addEventListener('keyup', this._cbs.keyUp);
+
+    this._cbs.windowResize = () => {
+      this._syncOverlayPosition();
+    };
+    window.addEventListener('resize', this._cbs.windowResize);
+
+    this._cbs.canvasWheel = (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const dir = e.deltaY > 0 ? -0.1 : 0.1;
+      this._setZoom(this.zoom + dir, e.clientX, e.clientY);
+    };
+    wrap.addEventListener('wheel', this._cbs.canvasWheel, { passive: false });
+
+    // Mouse move (drag nodes / draw connections)
+    this._cbs.mouseMove = (e) => {
+      if (this.overlayDragging) {
+        const dx = e.clientX - this.overlayDragging.startX;
+        const dy = e.clientY - this.overlayDragging.startY;
+        this.overlayPos.x = this.overlayDragging.x + dx;
+        this.overlayPos.y = this.overlayDragging.y + dy;
+        this._syncOverlayPosition();
+        return;
+      }
+
+      if (this.panning) {
+        wrap.scrollLeft = this.panning.scrollLeft - (e.clientX - this.panning.startX);
+        wrap.scrollTop = this.panning.scrollTop - (e.clientY - this.panning.startY);
+        this._syncOverlayPosition();
+        return;
+      }
+
+      if (this.dragging) {
+        const pt = this._screenToCanvas(e.clientX, e.clientY);
+        const dx = pt.x - this.dragging.startX;
+        const dy = pt.y - this.dragging.startY;
+        const moved = this.dragging.items || [];
+        moved.forEach(item => {
+          const node = this.nodes.find(n => n.id === item.id);
+          if (!node) return;
+          node.x = Math.max(0, item.origX + dx);
+          node.y = Math.max(0, item.origY + dy);
+        });
+        this.renderNodes();
+        this.renderEdges();
+      }
+      if (this.connecting) {
+        this.connecting.mouseX = e.clientX;
+        this.connecting.mouseY = e.clientY;
+        this._renderTempEdge();
+      }
+      if (this.selectBox) {
+        const pt = this._screenToCanvas(e.clientX, e.clientY);
+        this.selectBox.x = pt.x;
+        this.selectBox.y = pt.y;
+        this._renderSelectionBox();
+        this._applySelectionBox();
+      }
+    };
+    document.addEventListener('mousemove', this._cbs.mouseMove);
+
+    // Mouse up (stop drag / finish connection)
+    this._cbs.mouseUp = (e) => {
+      if (this.overlayDragging) {
+        this.overlayDragging = null;
+        if (overlay) overlay.classList.remove('dragging');
+      }
+      if (this.panning) {
+        this.panning = null;
+        wrap.classList.remove('wf-panning');
+      }
+      if (this.dragging) {
+        this.dragging = null;
+      }
+      if (this.connecting) {
+        this._finishConnection(e);
+      }
+      if (this.selectBox) {
+        this._clearSelectionBox();
+      }
+    };
+    document.addEventListener('mouseup', this._cbs.mouseUp);
+  }
+
+  _renderSelectionBox() {
+    const wrap = document.getElementById('wfCanvasWrap');
+    if (!this.selectBox) return;
+    if (!this._selectBoxEl) {
+      this._selectBoxEl = document.createElement('div');
+      this._selectBoxEl.className = 'wf-select-box';
+      wrap.appendChild(this._selectBoxEl);
+    }
+    const minX = Math.min(this.selectBox.startX, this.selectBox.x);
+    const minY = Math.min(this.selectBox.startY, this.selectBox.y);
+    const w = Math.abs(this.selectBox.x - this.selectBox.startX);
+    const h = Math.abs(this.selectBox.y - this.selectBox.startY);
+    this._selectBoxEl.style.left = minX + 'px';
+    this._selectBoxEl.style.top = minY + 'px';
+    this._selectBoxEl.style.width = w + 'px';
+    this._selectBoxEl.style.height = h + 'px';
+    this._selectBoxEl.style.transform = 'scale(' + this.zoom + ')';
+    this._selectBoxEl.style.transformOrigin = '0 0';
+  }
+
+  _applySelectionBox() {
+    if (!this.selectBox) return;
+    const minX = Math.min(this.selectBox.startX, this.selectBox.x);
+    const minY = Math.min(this.selectBox.startY, this.selectBox.y);
+    const maxX = Math.max(this.selectBox.startX, this.selectBox.x);
+    const maxY = Math.max(this.selectBox.startY, this.selectBox.y);
+    const selected = new Set(this.selectBox.additive ? Array.from(this.selectedNodeIds) : []);
+    this.nodes.forEach(n => {
+      const nx1 = n.x;
+      const ny1 = n.y;
+      const nx2 = n.x + 200;
+      const ny2 = n.y + 74;
+      const intersects = nx1 <= maxX && nx2 >= minX && ny1 <= maxY && ny2 >= minY;
+      if (intersects) selected.add(n.id);
+    });
+    this.selectedNodeIds = selected;
+    this.selectedNodeId = this.selectedNodeIds.size === 1 ? Array.from(this.selectedNodeIds)[0] : null;
+    this.render();
+  }
+
+  _clearSelectionBox() {
+    this.selectBox = null;
+    if (this._selectBoxEl && this._selectBoxEl.parentNode) {
+      this._selectBoxEl.parentNode.removeChild(this._selectBoxEl);
+    }
+    this._selectBoxEl = null;
+  }
+
+  destroy() {
+    document.removeEventListener('mousemove', this._cbs.mouseMove);
+    document.removeEventListener('mouseup', this._cbs.mouseUp);
+    const wrap = document.getElementById('wfCanvasWrap');
+    if (wrap) wrap.removeEventListener('mousedown', this._cbs.canvasMouseDown);
+    if (wrap) wrap.removeEventListener('wheel', this._cbs.canvasWheel);
+    if (wrap) wrap.removeEventListener('scroll', this._cbs.canvasScroll);
+    const overlayHeader = document.getElementById('wfEdgeOverlayHeader');
+    if (overlayHeader) overlayHeader.removeEventListener('mousedown', this._cbs.overlayMouseDown);
+    document.removeEventListener('keydown', this._cbs.keyDown);
+    document.removeEventListener('keyup', this._cbs.keyUp);
+    window.removeEventListener('resize', this._cbs.windowResize);
+    this._clearSelectionBox();
+  }
+
+  addNode(nodeType = 'io') {
+    const centerX = 50 + (this.nodes.length * 30) % 400;
+    const centerY = 80 + Math.floor(this.nodes.length / 5) * 140;
+    const id = 'n' + (this._nodeIdCounter++);
+    const desiredType = this._normalizeNodeType(nodeType);
+    this.nodes.push({ id, name: 'Stage ' + (this.nodes.length + 1), node_type: desiredType, instructions: '', staff_ic: '', mode: 'build', model: '', x: centerX, y: centerY });
+    if (desiredType === 'starter' || desiredType === 'end') {
+      this.nodes.forEach(n => {
+        if (n.id !== id && n.node_type === desiredType) n.node_type = 'io';
+      });
+    }
+    this._enforceNodeTypeRules();
+    this.selectNode(id);
+    this.render();
+  }
+
+  deleteSelected() {
+    const ids = this.selectedNodeIds.size ? new Set(this.selectedNodeIds) : (this.selectedNodeId ? new Set([this.selectedNodeId]) : new Set());
+    if (!ids.size) return;
+    this.nodes = this.nodes.filter(n => !ids.has(n.id));
+    this.edges = this.edges.filter(e => !ids.has(e.from) && !ids.has(e.to));
+    this.selectedNodeId = null;
+    this.selectedNodeIds.clear();
+    this.render();
+  }
+
+  selectNode(nodeId, additive = false) {
+    if (!additive) this.selectedNodeIds.clear();
+    if (additive && this.selectedNodeIds.has(nodeId)) {
+      this.selectedNodeIds.delete(nodeId);
+    } else {
+      this.selectedNodeIds.add(nodeId);
+    }
+    this.selectedNodeId = this.selectedNodeIds.size === 1 ? Array.from(this.selectedNodeIds)[0] : null;
+    this.render();
+  }
+
+  deselectAll() {
+    this.selectedNodeId = null;
+    this.selectedNodeIds.clear();
+    document.getElementById('wfInspector').classList.remove('open');
+    document.getElementById('wfDeleteBtn').disabled = true;
+    this.renderNodes();
+    this.renderEdgesList();
+  }
+
+  render() {
+    this._updateCanvasSize();
+    this.renderNodes();
+    this.renderEdges();
+    this.updateInspector();
+    this.renderEdgesList();
+    document.getElementById('wfDeleteBtn').disabled = !(this.selectedNodeId || this.selectedNodeIds.size);
+  }
+
+  renderEdgesList() {
+    const el = document.getElementById('wfEdgeList');
+    const count = document.getElementById('wfEdgeCount');
+    if (!this.edges.length) {
+      el.innerHTML = '<div style="font-size:10px;color:var(--text-dim)">No connections</div>';
+      count.textContent = '';
+      return;
+    }
+    count.textContent = '(' + this.edges.length + ')';
+    let rows = '';
+    for (const e of this.edges) {
+      const fromNode = this.nodes.find(n => n.id === e.from);
+      const toNode = this.nodes.find(n => n.id === e.to);
+      const fromName = fromNode ? fromNode.name || fromNode.id : e.from;
+      const toName = toNode ? toNode.name || toNode.id : e.to;
+      rows += '<tr>' +
+        '<td>' + escapeHtml(fromName) + ' → ' + escapeHtml(toName) + '</td>' +
+        '<td class="action"><button class="wf-edge-del-btn" title="Delete edge" data-edge-from="' + e.from + '" data-edge-to="' + e.to + '">×</button></td>' +
+        '</tr>';
+    }
+    el.innerHTML =
+      '<table class="wf-edge-table">' +
+      '<thead><tr><th>Connection</th><th class="action">Action</th></tr></thead>' +
+      '<tbody>' + rows + '</tbody>' +
+      '</table>';
+    // Attach click handlers to delete buttons
+    el.querySelectorAll('.wf-edge-del-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const from = btn.dataset.edgeFrom;
+        const to = btn.dataset.edgeTo;
+        this.edges = this.edges.filter(e2 => !(e2.from === from && e2.to === to));
+        this.render();
+        e.stopPropagation();
+      });
+    });
+  }
+
+  renderNodes() {
+    const layer = document.getElementById('wfNodesLayer');
+    layer.innerHTML = '';
+    for (const node of this.nodes) {
+      const nodeType = this._normalizeNodeType(node.node_type || node.type);
+      const isStarter = nodeType === 'starter';
+      const isEnd = nodeType === 'end';
+      const div = document.createElement('div');
+      const isSelected = this.selectedNodeIds.has(node.id) || node.id === this.selectedNodeId;
+      div.className = 'wf-node type-' + nodeType + (isSelected ? ' selected' : '');
+      div.style.left = node.x + 'px';
+      div.style.top = node.y + 'px';
+      div.dataset.nodeId = node.id;
+
+      // Find staff name
+      const staff = _wfStaffCache.find(s => s.name === node.staff_ic);
+      const staffLabel = staff ? staff.name : (node.staff_ic || 'No staff');
+
+      div.innerHTML = `
+        <div class="wf-node-header">
+          <span class="wf-node-drag">⠿</span>
+          <span class="wf-node-dot" style="background:${staff ? '#3fb950' : '#484f58'}"></span>
+          <span class="wf-node-name">${escapeHtml(node.name || 'Untitled')}</span>
+          <span class="wf-node-type-chip ${nodeType}">${nodeType === 'starter' ? 'Starter' : nodeType === 'end' ? 'End' : 'I/O'}</span>
+        </div>
+        <div class="wf-node-body">
+          <div style="font-size:10px;color:var(--text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml((node.instructions || '').substring(0, 40))}</div>
+          <div class="wf-node-staff">
+            <span style="font-size:10px;color:var(--accent)">${escapeHtml(staffLabel)}</span>
+            ${node.mode ? '<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:' + (node.mode === 'plan' ? '#bc8cff33' : '#58a6ff33') + ';color:' + (node.mode === 'plan' ? '#bc8cff' : '#58a6ff') + '">' + escapeHtml(node.mode) + '</span>' : ''}
+            ${node.model ? '<span style="font-size:9px;color:var(--text-dim)">' + escapeHtml(node.model.split('/').pop() || node.model) + '</span>' : ''}
+          </div>
+        </div>
+        ${isStarter ? '' : '<div class="wf-node-port wf-node-port-in" data-port="in" data-node="' + node.id + '"></div>'}
+        ${isEnd ? '' : '<div class="wf-node-port wf-node-port-out" data-port="out" data-node="' + node.id + '"></div>'}
+      `;
+
+      // Node click -> select
+      div.querySelector('.wf-node-header').addEventListener('click', (e) => {
+        if (this.spacePressed || this.panning) return;
+        e.stopPropagation();
+        this.selectNode(node.id, e.shiftKey);
+      });
+
+      // Node drag
+      div.querySelector('.wf-node-header').addEventListener('mousedown', (e) => {
+        if (this.spacePressed) return;
+        e.preventDefault();
+        const additive = e.shiftKey;
+        if (!this.selectedNodeIds.has(node.id)) {
+          if (!additive) this.selectedNodeIds.clear();
+          this.selectedNodeIds.add(node.id);
+        }
+        const selectedIds = this.selectedNodeIds.size ? Array.from(this.selectedNodeIds) : [node.id];
+        const items = selectedIds.map(id => {
+          const n = this.nodes.find(x => x.id === id);
+          return n ? { id: id, origX: n.x, origY: n.y } : null;
+        }).filter(Boolean);
+        this.selectedNodeId = this.selectedNodeIds.size === 1 ? selectedIds[0] : null;
+        const canvasPt = this._screenToCanvas(e.clientX, e.clientY);
+        this.dragging = { startX: canvasPt.x, startY: canvasPt.y, items: items };
+        this.render();
+      });
+
+      // Output port -> start connection
+      const outPort = div.querySelector('.wf-node-port-out');
+      if (outPort) {
+        outPort.addEventListener('mousedown', (e) => {
+          if (this.spacePressed) return;
+          e.stopPropagation();
+          e.preventDefault();
+          const rect = e.target.getBoundingClientRect();
+          const centerX = rect.left + (rect.width / 2);
+          const centerY = rect.top + (rect.height / 2);
+          const startPt = this._screenToCanvas(centerX, centerY);
+          this.connecting = { fromId: node.id, fromX: startPt.x, fromY: startPt.y, mouseX: e.clientX, mouseY: e.clientY };
+        });
+      }
+
+      // Input port -> drop connection here is handled in mouseup
+      layer.appendChild(div);
+    }
+  }
+
+  renderEdges() {
+    const svg = document.getElementById('wfSvg');
+    const svgRect = svg.getBoundingClientRect();
+    console.log('[WfEditor] renderEdges. SVG rect:', svgRect.left, svgRect.top, svgRect.width, svgRect.height);
+    console.log('[WfEditor] SVG scroll:', svg.parentElement?.scrollLeft, svg.parentElement?.scrollTop);
+    svg.querySelectorAll('.wf-edge-group, .wf-edge-temp').forEach(el => el.remove());
+
+    console.log('[WfEditor] renderEdges called. Edges to render:', this.edges.length);
+    if (this.edges.length > 0) console.log('[WfEditor] First edge from/to:', this.edges[0]);
+
+    for (const edge of this.edges) {
+      const fromNode = this.nodes.find(n => n.id === edge.from);
+      const toNode = this.nodes.find(n => n.id === edge.to);
+      if (!fromNode || !toNode) {
+        console.log('[WfEditor] Skipping edge — node not found:', edge.from, edge.to);
+        continue;
+      }
+      const wrap = document.getElementById('wfCanvasWrap');
+      const d = this._edgePath(fromNode, toNode);
+
+      console.log('[WfEditor] Edge path d:', d.slice(0, 80));
+
+      const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      g.setAttribute('class', 'wf-edge-group');
+      g.addEventListener('mouseenter', () => console.log('[WfEditor] Edge group mouseenter'));
+      g.addEventListener('mouseleave', () => console.log('[WfEditor] Edge group mouseleave'));
+
+      const delEdge = () => {
+        console.log('[WfEditor] Edge clicked — deleting:', edge.from, '->', edge.to);
+        this.edges = this.edges.filter(e2 => !(e2.from === edge.from && e2.to === edge.to));
+        this.renderEdges();
+      };
+
+      // Wider invisible hit area for easy clicking
+      const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      hit.setAttribute('d', d);
+      hit.setAttribute('stroke', 'transparent');
+      hit.setAttribute('stroke-width', '20');
+      hit.setAttribute('fill', 'none');
+      hit.addEventListener('click', (e) => { console.log('[WfEditor] hit path click'); e.stopPropagation(); delEdge(); });
+      g.appendChild(hit);
+
+      const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      p.setAttribute('d', d);
+      p.setAttribute('stroke', '#58a6ff');
+      p.setAttribute('stroke-width', '2');
+      p.setAttribute('fill', 'none');
+      p.setAttribute('marker-end', 'url(#wfArrow)');
+      p.addEventListener('click', (e) => { console.log('[WfEditor] visible path click'); e.stopPropagation(); delEdge(); });
+      g.appendChild(p);
+
+      svg.appendChild(g);
+    }
+  }
+
+  _edgePath(fromNode, toNode) {
+    const NODE_WIDTH = 200;
+    const NODE_HEIGHT = 74;
+    const x1 = fromNode.x + NODE_WIDTH;
+    const y1 = fromNode.y + NODE_HEIGHT / 2;
+    const x2 = toNode.x;
+    const y2 = toNode.y + NODE_HEIGHT / 2;
+    const dx = Math.max(50, Math.abs(x2 - x1) * 0.45);
+    return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+  }
+
+  _renderTempEdge() {
+    const svg = document.getElementById('wfSvg');
+    const old = svg.querySelector('.wf-edge-temp');
+    if (old) old.remove();
+    if (!this.connecting) return;
+    const mousePt = this._screenToCanvas(this.connecting.mouseX, this.connecting.mouseY);
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', this.connecting.fromX);
+    line.setAttribute('y1', this.connecting.fromY);
+    line.setAttribute('x2', mousePt.x);
+    line.setAttribute('y2', mousePt.y);
+    line.setAttribute('stroke', '#58a6ff');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('stroke-dasharray', '5,3');
+    line.setAttribute('class', 'wf-edge-temp');
+    svg.appendChild(line);
+  }
+
+  _finishConnection(e) {
+    if (!this.connecting) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (el && el.classList.contains('wf-node-port-in')) {
+      const toId = el.dataset.node;
+      if (toId && toId !== this.connecting.fromId) {
+        const fromNode = this.nodes.find(n => n.id === this.connecting.fromId);
+        const toNode = this.nodes.find(n => n.id === toId);
+        if (fromNode && this._normalizeNodeType(fromNode.node_type) === 'end') {
+          this.connecting = null;
+          return;
+        }
+        if (toNode && this._normalizeNodeType(toNode.node_type) === 'starter') {
+          this.connecting = null;
+          return;
+        }
+        // Check no duplicate
+        const exists = this.edges.some(e2 => e2.from === this.connecting.fromId && e2.to === toId);
+        if (!exists) {
+          this.edges.push({ from: this.connecting.fromId, to: toId });
+          this.render();
+        }
+      }
+    }
+    this.connecting = null;
+    const svg = document.getElementById('wfSvg');
+    const old = svg.querySelector('.wf-edge-temp');
+    if (old) old.remove();
+  }
+
+  updateInspector() {
+    const insp = document.getElementById('wfInspector');
+    const singleSelectedId = this.selectedNodeIds.size === 1 ? Array.from(this.selectedNodeIds)[0] : this.selectedNodeId;
+    const node = this.nodes.find(n => n.id === singleSelectedId);
+    if (!node) {
+      insp.classList.remove('open');
+      return;
+    }
+    insp.classList.add('open');
+    document.getElementById('wfInspType').value = this._normalizeNodeType(node.node_type || node.type);
+    document.getElementById('wfInspName').value = node.name || '';
+    document.getElementById('wfInspInstructions').value = node.instructions || '';
+
+    // Populate staff dropdown
+    const staffSel = document.getElementById('wfInspStaff');
+    staffSel.innerHTML = '<option value="">— None —</option>';
+    for (const s of _wfStaffCache) {
+      const opt = document.createElement('option');
+      opt.value = s.name;
+      opt.textContent = s.name + ' (' + (s.mode || 'build') + ')';
+      if (s.name === node.staff_ic) opt.selected = true;
+      staffSel.appendChild(opt);
+    }
+
+    // Populate mode dropdown
+    const modeSel = document.getElementById('wfInspMode');
+    modeSel.innerHTML = '<option value="build">Build</option><option value="plan">Plan</option>';
+    const agents = getCustomAgents();
+    if (agents.length > 0) {
+      modeSel.innerHTML += '<option disabled style="font-size:9px;color:var(--text-dim)">── Custom Agents ──</option>';
+      agents.forEach(a => {
+        modeSel.innerHTML += '<option value="' + escapeHtml(a.name) + '">' + escapeHtml(a.name) + '</option>';
+      });
+    }
+    modeSel.value = node.mode || 'build';
+
+    // Populate model dropdown
+    const modelSel = document.getElementById('wfInspModel');
+    if (modelSel.options.length <= 1) {
+      // Load models from status.json
+      fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
+        const models = data.available_models || [];
+        if (!models.length) return;
+        const grouped = {};
+        models.forEach(m => {
+          if (!grouped[m.provider]) grouped[m.provider] = [];
+          grouped[m.provider].push(m.id);
+        });
+        let html = '<option value="">Default model</option>';
+        for (const [provider, ids] of Object.entries(grouped)) {
+          html += '<optgroup label="' + provider + '">';
+          ids.forEach(id => {
+            const selAttr = id === node.model ? ' selected' : '';
+            html += '<option value="' + id.replace(/"/g,'&quot;') + '"' + selAttr + '>' + id + '</option>';
+          });
+          html += '</optgroup>';
+        }
+        modelSel.innerHTML = html;
+        modelSel.value = node.model || '';
+      }).catch(() => {});
+    }
+    modelSel.value = node.model || '';
+
+    // Auto-fill mode/model when a staff is selected
+    const selectedStaff = node.staff_ic;
+    if (selectedStaff) {
+      const found = _wfStaffCache.find(s => s.name === selectedStaff);
+      if (found) {
+        if (found.mode) {
+          modeSel.value = found.mode;
+          modeSel.disabled = true;
+        }
+        if (found.model) {
+          modelSel.value = found.model;
+          modelSel.disabled = true;
+        }
+      }
+    } else {
+      modeSel.disabled = false;
+      modelSel.disabled = false;
+    }
+  }
+
+  onInspectorChange() {
+    const node = this.nodes.find(n => n.id === this.selectedNodeId);
+    if (!node) return;
+    node.node_type = this._normalizeNodeType(document.getElementById('wfInspType').value);
+    if (node.node_type === 'starter' || node.node_type === 'end') {
+      this.nodes.forEach(n => {
+        if (n.id !== node.id && this._normalizeNodeType(n.node_type) === node.node_type) n.node_type = 'io';
+      });
+    }
+    node.name = document.getElementById('wfInspName').value || 'Untitled';
+    node.instructions = document.getElementById('wfInspInstructions').value;
+    node.staff_ic = document.getElementById('wfInspStaff').value;
+    node.mode = document.getElementById('wfInspMode').value;
+    node.model = document.getElementById('wfInspModel').value;
+    // If staff selected, re-populate mode/model from staff config (disables manual edit)
+    if (node.staff_ic) {
+      const found = _wfStaffCache.find(s => s.name === node.staff_ic);
+      if (found) {
+        if (found.mode) node.mode = found.mode;
+        if (found.model) node.model = found.model;
+      }
+    }
+    this._enforceNodeTypeRules();
+    this.renderNodes();
+    this.updateInspector();
+  }
+
+  _validateFlowStructure() {
+    const starters = this.nodes.filter(n => this._normalizeNodeType(n.node_type) === 'starter');
+    const ends = this.nodes.filter(n => this._normalizeNodeType(n.node_type) === 'end');
+    if (!starters.length) return 'Workflow requires a Starter node.';
+    if (!ends.length) return 'Workflow requires an End node.';
+
+    const outgoing = new Map();
+    const incoming = new Map();
+    this.nodes.forEach(n => {
+      outgoing.set(n.id, []);
+      incoming.set(n.id, []);
+    });
+    this.edges.forEach(e => {
+      if (outgoing.has(e.from) && incoming.has(e.to)) {
+        outgoing.get(e.from).push(e.to);
+        incoming.get(e.to).push(e.from);
+      }
+    });
+
+    const hasStarterWithOutput = starters.some(n => (outgoing.get(n.id) || []).length > 0);
+    if (!hasStarterWithOutput) return 'Starter node must connect to at least one next node.';
+
+    const hasEndWithInput = ends.some(n => (incoming.get(n.id) || []).length > 0);
+    if (!hasEndWithInput) return 'End node must have at least one incoming connection.';
+
+    const queue = starters.map(n => n.id);
+    const seen = new Set(queue);
+    while (queue.length) {
+      const current = queue.shift();
+      if (ends.some(n => n.id === current)) return null;
+      (outgoing.get(current) || []).forEach(nextId => {
+        if (!seen.has(nextId)) {
+          seen.add(nextId);
+          queue.push(nextId);
+        }
+      });
+    }
+    return 'No valid path from Starter node to End node.';
+  }
+
+  async save() {
+    const name = document.getElementById('wfEditorTitle').value.trim();
+    if (!name) { showToast('Please enter a workflow name', 'error'); return; }
+    if (!this.nodes.length) { showToast('Add at least one stage', 'error'); return; }
+    const flowError = this._validateFlowStructure();
+    if (flowError) { showToast(flowError, 'error'); return; }
+    const status = document.getElementById('wfEditorStatus');
+    status.textContent = 'Saving...';
+    const wf = {
+      id: this.workflowId || 'wf_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+      name: name,
+      nodes: this.nodes.map(n => ({ ...n, node_type: this._normalizeNodeType(n.node_type) })),
+      edges: this.edges.map(e => ({ ...e })),
+    };
+    try {
+      const resp = await sendQueued('workflow-save', { workflow: wf });
+      this.workflowId = wf.id;
+      status.textContent = 'Saved ✓';
+      showToast('Workflow saved', 'success');
+      setTimeout(() => { status.textContent = ''; }, 2000);
+    } catch(e) {
+      status.textContent = 'Save failed';
+      showToast('Error: ' + e.message, 'error');
+    }
+  }
+}
+
 const _exports = {
   sha256, getUsers, saveUsers, getAuth, setAuth, clearAuth,
   initDefaultUsers, openLoginModal, closeLoginModal, closeAdminModal,
@@ -4817,7 +6608,7 @@ const _exports = {
   switchTab, renderCasesTab, assignStaff, stopSession, viewSession,
   continueSession, openNewSessionModal, startNewSession, loadModels,
   sessionInstructView, showQuestions, selectQuestionOption, sendAnswers,
-  closeQuestionModal, renderSystemTab, restartDaemon, killDaemon,
+  closeQuestionModal, closeTasksModal, showTasks, renderSystemTab, restartDaemon, killDaemon,
   renderUsersTab, addUser, deleteUser, renderNamesTab, saveName,
   resetName, resetAllNames, updateSettingPreview, saveSettings,
   loadSettings, toggleApiKeyVisibility, openCropModal, closeCropModal,
@@ -4836,10 +6627,14 @@ const _exports = {
   renderModeOptions, showToast, copyToastMessage, dismissToast,
   closeViewModal, closeContinueModal, closeNewSessionModal,
   renameSession, closeRenameModal, saveRename,
+  onNewCaseWorkflowChange,
   formatDuration, formatExactTime, getCronCountdown, updateCronCountdowns,
   renderCronTab, openCronModal, onCronModeChange, closeCronModal,
   toggleCronType, saveCronJob, deleteCronJob, toggleCronJob, runCronJob,
-  apiFetch, getModal
+  apiFetch, getModal,
+  renderWorkflowsTab, openWorkflowEditor, closeWorkflowEditor, deleteWorkflow,
+  viewWorkflow, closeWorkflowViewModal, switchWorkflowViewTab, renderMarkdown,
+  loadWorkflowStaff, WfEditor
 };
 for (const key in _exports) {
   global[key] = _exports[key];

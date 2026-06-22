@@ -1,0 +1,51 @@
+[
+  {
+    "id": "ntf_ff492556dddb1277",
+    "message": "Test",
+    "type": "info",
+    "created_at": 1781987201.7199202,
+    "dismissed": true
+  },
+  {
+    "id": "ntf_332396f020e3c36b",
+    "message": "Earth is moving!",
+    "type": "error",
+    "created_at": 1781984303.384033,
+    "dismissed": true
+  },
+  {
+    "id": "ntf_194683478313294a",
+    "message": "This is new updates!",
+    "type": "success",
+    "created_at": 1781984284.294327,
+    "dismissed": true
+  },
+  {
+    "id": "ntf_af531d061f1f7a6f",
+    "message": "This is new updates!",
+    "type": "info",
+    "created_at": 1781984269.238059,
+    "dismissed": true
+  },
+  {
+    "id": "ntf_cdb93ccdf045c33b",
+    "message": "This is new updates!",
+    "type": "info",
+    "created_at": 1781984090.43358,
+    "dismissed": true
+  },
+  {
+    "id": "ntf_734c0762661d518e",
+    "message": "Test",
+    "type": "info",
+    "created_at": 1781983959.8178408,
+    "dismissed": true
+  },
+  {
+    "id": "ntf_a9ed461641fe00e0",
+    "message": "Test notification from admin panel",
+    "type": "info",
+    "created_at": 1781983875.4398432,
+    "dismissed": true
+  }
+]

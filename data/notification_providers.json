@@ -1,0 +1,22 @@
+[
+  {
+    "id": "np_48ed4e2f2fba",
+    "name": "Waha",
+    "type": "custom",
+    "webhook_url": "https://n8n.brandon.my/webhook/fc405b98-90ff-4734-bebb-bd51e04ebec6",
+    "enabled": true,
+    "created_at": 1782061079.77457,
+    "gap_sec": 600,
+    "no_active_timeout": 43200,
+    "scopes": {
+      "state_change": true,
+      "user_interaction": true,
+      "desks_full": true,
+      "no_active_cases": true
+    },
+    "failure_count": 0,
+    "last_error": "",
+    "last_success_at": 1782127066.975258,
+    "last_failure_at": null
+  }
+]

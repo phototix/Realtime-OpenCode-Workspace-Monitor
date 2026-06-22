@@ -190,14 +190,20 @@ def enrich_session_details(sessions: list, detail_cache: dict) -> tuple:
         sid = s.get('id', '')
         updated = s.get('updated', 0)
         cached = detail_cache.get(sid, {})
-        if cached.get('updated') != updated:
+        needs_export = sid not in detail_cache
+        if needs_export or cached.get('updated') != updated:
             needs_refresh.append(s)
-            if len(needs_refresh) >= 2:
+            if len(needs_refresh) >= 10:
                 break
 
     if needs_refresh and not export_running:
-        # Prioritize sessions with unanswered questions so they appear in UI faster
-        needs_refresh.sort(key=lambda s: 0 if any(not q.get('answered') for q in detail_cache.get(s.get('id', ''), {}).get('pending_questions', [])) else 1)
+        # Sort: brand new sessions (never exported) first, then sessions with unanswered questions, then rest
+        def sort_key(s):
+            sid = s.get('id', '')
+            is_new = 0 if sid not in detail_cache else 1
+            has_questions = 0 if any(not q.get('answered') for q in detail_cache.get(sid, {}).get('pending_questions', [])) else 1
+            return (is_new, has_questions)
+        needs_refresh.sort(key=sort_key)
         session_to_fetch = needs_refresh[0]
         sid = session_to_fetch['id']
         export_tmp = os.path.join(data_dir, f'export_{sid}.tmp')
@@ -207,6 +213,8 @@ def enrich_session_details(sessions: list, detail_cache: dict) -> tuple:
         with open(export_lock_file, 'w') as f:
             f.write(sid)
         try:
+            def _ss(obj, key, default=None):
+                return obj.get(key, default) if isinstance(obj, dict) else default
             with open(export_tmp, 'w') as f:
                 subprocess.run(
                     ['opencode', 'export', sid],
@@ -218,17 +226,39 @@ def enrich_session_details(sessions: list, detail_cache: dict) -> tuple:
             json_start = raw.find('{')
             if json_start < 0:
                 raise ValueError('No JSON in export output')
-            export_data = json.loads(raw[json_start:])
-            info = export_data.get('info', {})
-            msgs = export_data.get('messages', [])
+            raw_json = raw[json_start:]
+            export_data = None
+            try:
+                export_data = json.loads(raw_json)
+            except json.JSONDecodeError:
+                pass
 
-            slug = info.get('slug', '')
-            last_msg = msgs[-1] if msgs else {}
-            last_info = last_msg.get('info', {})
-            finish = last_info.get('finish')
-            last_role = last_info.get('role', '')
-            last_mode = last_info.get('mode', '')
-            last_parts = last_msg.get('parts', [])
+            if export_data is not None:
+                if not isinstance(export_data, dict):
+                    raise TypeError(f'export_data is {type(export_data).__name__}, expected dict')
+                info = export_data.get('info', {})
+                msgs = export_data.get('messages', [])
+                slug = info.get('slug', '')
+                last_msg = msgs[-1] if msgs else {}
+                last_info = last_msg.get('info', {})
+                finish = last_info.get('finish')
+                last_role = last_info.get('role', '')
+                last_mode = last_info.get('mode', '')
+                last_parts = last_msg.get('parts', [])
+            else:
+                log_activity_py(f"Export JSON parse failed for {sid}, using regex fallback")
+                import re
+                info = {}
+                msgs = []
+                slug = ''
+                fin = re.search(r'"finish"\s*:\s*"([^"]+)"', raw_json)
+                finish = fin.group(1) if fin else None
+                last_role = ''
+                last_mode = ''
+                last_parts = []
+                slug_m = re.search(r'"slug"\s*:\s*"([^"]+)"', raw_json)
+                if slug_m:
+                    slug = slug_m.group(1)
 
             if finish is None or finish == '':
                 state = 'thinking'
@@ -244,26 +274,39 @@ def enrich_session_details(sessions: list, detail_cache: dict) -> tuple:
             last_text = ''
             tool_name = ''
             for p in reversed(last_parts):
-                if p.get('type') == 'text' and p.get('text', '').strip():
-                    last_text = p.get('text', '').strip()
+                if _ss(p, 'type') == 'text' and _ss(p, 'text', '').strip():
+                    last_text = _ss(p, 'text', '').strip()
                     break
-                elif p.get('type') == 'tool' and not tool_name:
-                    tool_name = p.get('name') or p.get('tool') or ''
+                elif _ss(p, 'type') == 'tool' and not tool_name:
+                    tool_name = _ss(p, 'name') or _ss(p, 'tool') or ''
 
             pending_questions = []
             for m in reversed(msgs):
-                for p in reversed(m.get('parts', [])):
-                    if p.get('type') == 'tool' and (p.get('name') or p.get('tool')) == 'question':
-                        inp = p.get('state', {}).get('input', {})
-                        questions = inp.get('questions', [])
-                        metadata = p.get('state', {}).get('metadata', {})
-                        answers_data = metadata.get('answers', [])
-                        already_answered = bool(answers_data)
+                parts = _ss(m, 'parts', [])
+                if not isinstance(parts, list):
+                    parts = []
+                for p in parts:
+                    ptype = _ss(p, 'type')
+                    pname = _ss(p, 'name') or _ss(p, 'tool')
+                    if ptype == 'tool' and pname == 'question':
+                        tool_state = _ss(p, 'state', {})
+                        inp = _ss(tool_state, 'input', {})
+                        questions = _ss(inp, 'questions', [])
+                        if not isinstance(questions, list):
+                            questions = []
+                        metadata = _ss(tool_state, 'metadata', {})
+                        answers_data = _ss(metadata, 'answers', [])
+                        if not isinstance(answers_data, list):
+                            answers_data = []
+                        already_answered = bool(answers_data) and all(isinstance(a, dict) for a in answers_data)
                         for qi, q in enumerate(questions):
+                            q_options = _ss(q, 'options', [])
+                            if not isinstance(q_options, list):
+                                q_options = []
                             q_entry = {
-                                'header': q.get('header', ''),
-                                'question': q.get('question', ''),
-                                'options': [{'label': o.get('label', ''), 'description': o.get('description', '')} for o in q.get('options', [])],
+                                'header': _ss(q, 'header', ''),
+                                'question': _ss(q, 'question', ''),
+                                'options': [{'label': _ss(o, 'label', ''), 'description': _ss(o, 'description', '')} for o in q_options if isinstance(o, dict)],
                                 'answered': already_answered,
                             }
                             if already_answered:
@@ -277,10 +320,14 @@ def enrich_session_details(sessions: list, detail_cache: dict) -> tuple:
 
             last_user_prompt = ''
             for m in reversed(msgs):
-                if m.get('info', {}).get('role') == 'user':
-                    for p in m.get('parts', []):
-                        if p.get('type') == 'text' and p.get('text', '').strip():
-                            last_user_prompt = p.get('text', '').strip()
+                minfo = _ss(m, 'info', {})
+                parts = _ss(m, 'parts', [])
+                if not isinstance(parts, list):
+                    parts = []
+                if minfo.get('role') == 'user':
+                    for p in parts:
+                        if _ss(p, 'type') == 'text' and _ss(p, 'text', '').strip():
+                            last_user_prompt = _ss(p, 'text', '').strip()
                             break
                     if last_user_prompt:
                         break
@@ -293,6 +340,7 @@ def enrich_session_details(sessions: list, detail_cache: dict) -> tuple:
             agent_type = info.get('agent', '')
             model_id = info.get('model', {}).get('id', '')
 
+            log_activity_py(f"Export state for {sid}: type={type(state).__name__} state='{str(state)[:100]}'")
             detail_cache[sid] = {
                 'updated': session_to_fetch['updated'],
                 'slug': slug,
@@ -310,7 +358,9 @@ def enrich_session_details(sessions: list, detail_cache: dict) -> tuple:
                 'pending_questions': pending_questions
             }
         except Exception as e:
-            log_activity_py(f"Export failed for {sid}: {str(e)[:100]}")
+            import traceback
+            log_activity_py(f"Export failed for {sid}: {str(e)[:200]}")
+            log_activity_py(f"Traceback: {traceback.format_exc()[:200]}")
         finally:
             if os.path.exists(export_lock_file):
                 try:

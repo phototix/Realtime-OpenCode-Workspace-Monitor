@@ -1,0 +1,9 @@
+{
+  "name": "Project Manager",
+  "description": "Give detailed plan based on given instruction below to create a ready to use implementations.",
+  "mode": "all",
+  "model": "opencode/deepseek-v4-flash-free",
+  "permissions": [
+    "*"
+  ]
+}

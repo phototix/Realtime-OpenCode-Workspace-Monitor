@@ -1,0 +1,9 @@
+{
+  "name": "Kumiko Chan (Apps Developer)",
+  "description": "Developer APK version of the apps, refer to app dev documentation in app dev folder. Build APK file and deploy by running ./deploy.sh.",
+  "mode": "all",
+  "model": "deepseek/deepseek-v4-flash",
+  "permissions": [
+    "*"
+  ]
+}

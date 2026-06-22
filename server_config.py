@@ -26,13 +26,18 @@ NOTIFICATIONS_FILE = os.path.join(DATA_DIR, 'notifications.json')
 NOTIFICATION_PROVIDERS_FILE = os.path.join(DATA_DIR, 'notification_providers.json')
 STAFF_FILE = os.path.join(DATA_DIR, 'super_staff.json')
 ASSIGNMENTS_FILE = os.path.join(DATA_DIR, 'case_assignments.json')
+WORKFLOWS_FILE = os.path.join(DATA_DIR, 'workflows.json')
+WORKFLOW_INSTANCES_FILE = os.path.join(DATA_DIR, 'workflow_instances.json')
 STATIC_DIR = os.path.expanduser('~/.opencode-dashboard')
 API_KEY_FILE = os.path.join(DATA_DIR, 'api_key')
+CONFIG_FILE = os.path.join(os.path.dirname(DATA_DIR), 'config.json')
 
 _cron_lock = threading.Lock()
 _notifications_lock = threading.Lock()
+_notification_providers_lock = threading.Lock()
 _staff_lock = threading.Lock()
 _assignments_lock = threading.Lock()
+_workflow_lock = threading.RLock()
 
 def _load_or_generate_api_key() -> str:
     key = os.environ.get('DASHBOARD_API_KEY', '').strip()
@@ -195,3 +200,37 @@ def _save_notification_providers(items: list) -> None:
             json.dump(items, f, indent=2)
     except Exception:
         pass
+
+def _load_workflows() -> list:
+    if not os.path.exists(WORKFLOWS_FILE):
+        return []
+    try:
+        with open(WORKFLOWS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def _save_workflows(items: list) -> None:
+    try:
+        with open(WORKFLOWS_FILE, 'w') as f:
+            json.dump(items, f, indent=2)
+    except Exception:
+        pass
+
+def _load_workflow_instances() -> list:
+    with _workflow_lock:
+        if not os.path.exists(WORKFLOW_INSTANCES_FILE):
+            return []
+        try:
+            with open(WORKFLOW_INSTANCES_FILE) as f:
+                return json.load(f)
+        except Exception:
+            return []
+
+def _save_workflow_instances(items: list) -> None:
+    with _workflow_lock:
+        try:
+            with open(WORKFLOW_INSTANCES_FILE, 'w') as f:
+                json.dump(items, f, indent=2)
+        except Exception:
+            pass

@@ -1,0 +1,42 @@
+[
+  {
+    "id": "q_e36006cbb250",
+    "type": "api-key/regenerate",
+    "payload": {},
+    "status": "done",
+    "result": {
+      "ok": true,
+      "key": "Xj35BSMal6hBhjPPscz_QVXHNycZUiYe7PjEymnvtYI"
+    },
+    "error": null,
+    "created_at": 1781983036.163778
+  },
+  {
+    "id": "q_66bd433e1dbb",
+    "type": "restart-daemon",
+    "payload": {},
+    "status": "done",
+    "result": {
+      "ok": true,
+      "message": "Daemon restarted"
+    },
+    "error": null,
+    "created_at": 1781983099.4523
+  },
+  {
+    "id": "q_c7280d905e51",
+    "type": "session-instruct",
+    "payload": {
+      "id": "ses_119adccaaffejU0sWvWdnzw0YG",
+      "message": "*sync the mirror repo back to v1*",
+      "model": "",
+      "mode": "build",
+      "directory": "/Users/brandonchong",
+      "fork": false
+    },
+    "status": "processing",
+    "result": null,
+    "error": null,
+    "created_at": 1781983154.1400142
+  }
+]

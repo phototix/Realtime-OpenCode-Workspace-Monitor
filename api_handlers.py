@@ -324,67 +324,6 @@ def _handle_new_session(body: dict) -> tuple:
     except Exception as e:
         return False, {'ok': False, 'message': str(e)[:200]}
 
-def _handle_new_session_step2(body: dict) -> tuple:
-    """Step 2 retry for new-session: send message to existing session via -s."""
-    session_id = body.get('existing_session_id', '')
-    message = re.sub(r'^[\s"\']+|[\s"\']+$', '', body.get('message', ''))
-    model = body.get('model', '')
-    mode_val = body.get('mode', '')
-    directory = body.get('directory', '')
-    workflow_id = body.get('workflow_id', '')
-    attach = _check_engine()
-    if not session_id or not message or not attach:
-        return False, {'ok': False, 'message': 'Missing session_id, message, or engine unreachable'}
-    retry_count = body.get('retry_count', 0)
-    try:
-        cwd = directory or None
-        password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
-        msg_cmd = ['opencode', 'run', '-s', session_id, '--attach', attach]
-        if password:
-            msg_cmd.extend(['-p', password])
-        if model:
-            msg_cmd.extend(['-m', model])
-        if mode_val:
-            msg_cmd.extend(['--agent', mode_val])
-        msg_cmd.append(message)
-        r = subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
-        if r.returncode != 0 and retry_count < 3:
-            backoff = [10, 30, 60][retry_count]
-            retry_payload = dict(body)
-            retry_payload['retry_count'] = retry_count + 1
-            retry_item = {
-                'id': 'q_' + secrets.token_hex(6),
-                'type': 'new-session/step2',
-                'payload': retry_payload,
-                'retry_at': time.time() + backoff,
-                'status': 'queued',
-                'result': None,
-                'error': None,
-                'created_at': time.time(),
-            }
-            queue = _load_queue()
-            queue.append(retry_item)
-            _save_queue(queue)
-            log(f"Session step2 retry {retry_count+1}/3 in {backoff}s: {session_id[:16]}...")
-            return True, {'ok': True, 'message': f'Retry in {backoff}s', 'session_id': session_id}
-        if r.returncode != 0:
-            return False, {'ok': False, 'message': (r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]}
-        log(f"Admin: step2 delivered to {session_id[:16]}...")
-        result = {'ok': True, 'message': 'Message delivered', 'session_id': session_id}
-        if workflow_id:
-            try:
-                wf_ok, wf_res = _handle_workflow_attach({'session_id': session_id, 'workflow_id': workflow_id})
-                if wf_ok:
-                    result['workflow'] = 'attached'
-                else:
-                    result['workflow_error'] = wf_res.get('message', '')
-            except Exception as e:
-                result['workflow_error'] = str(e)[:100]
-        return True, result
-    except subprocess.TimeoutExpired:
-        return False, {'ok': False, 'message': 'Timeout sending message'}
-    except Exception as e:
-        return False, {'ok': False, 'message': str(e)[:200]}
 
 def _handle_provider_logout(body: dict) -> tuple:
     name = body.get('provider', '')
@@ -1021,6 +960,12 @@ def _run_workflow_stage(wf_instance: dict) -> tuple:
             except Exception:
                 pass
 
+    # Override with node's own mode/model if explicitly set in the workflow editor
+    if node.get('mode'):
+        staff_mode = node['mode']
+    if node.get('model'):
+        staff_model = node['model']
+
     # Fetch last response from the session to prepend as context
     last_response = ''
     status_path = os.path.join(DATA_DIR, 'status.json')
@@ -1074,11 +1019,86 @@ def _run_workflow_stage(wf_instance: dict) -> tuple:
     except Exception as e:
         return False, str(e)[:200]
 
+def _normalize_node_type(node: dict) -> str:
+    t = str(node.get('node_type') or node.get('type') or '').lower()
+    if t in ('starter', 'start'):
+        return 'starter'
+    if t in ('end', 'finish'):
+        return 'end'
+    return 'io'
+
+def _validate_workflow_structure(wf: dict, require_explicit_types: bool = False) -> tuple:
+    nodes = wf.get('nodes', []) or []
+    edges = wf.get('edges', []) or []
+    if not nodes:
+        return False, 'Workflow has no nodes'
+
+    node_ids = {n.get('id') for n in nodes if n.get('id')}
+    if len(node_ids) != len(nodes):
+        return False, 'Workflow nodes must have unique ids'
+
+    for e in edges:
+        if e.get('from') not in node_ids or e.get('to') not in node_ids:
+            return False, 'Workflow has invalid edge references'
+
+    starters = [n for n in nodes if _normalize_node_type(n) == 'starter']
+    ends = [n for n in nodes if _normalize_node_type(n) == 'end']
+
+    # Backward compatibility for legacy workflows that have no node_type fields yet.
+    if not starters or not ends:
+        has_incoming = {e.get('to') for e in edges}
+        has_outgoing = {e.get('from') for e in edges}
+        inferred_starter = next((n for n in nodes if n.get('id') not in has_incoming), None)
+        inferred_end = next((n for n in nodes if n.get('id') not in has_outgoing), None)
+        if not starters and inferred_starter and not require_explicit_types:
+            starters = [inferred_starter]
+        if not ends and inferred_end and not require_explicit_types:
+            ends = [inferred_end]
+
+    if not starters:
+        return False, 'Workflow must include a Starter node'
+    if not ends:
+        return False, 'Workflow must include an End node'
+
+    incoming = {nid: [] for nid in node_ids}
+    outgoing = {nid: [] for nid in node_ids}
+    for e in edges:
+        outgoing[e['from']].append(e['to'])
+        incoming[e['to']].append(e['from'])
+
+    if not any(outgoing.get(n['id']) for n in starters):
+        return False, 'Starter node must connect to at least one next node'
+    if not any(incoming.get(n['id']) for n in ends):
+        return False, 'End node must have at least one incoming connection'
+
+    target_end_ids = {n['id'] for n in ends}
+    queue = [n['id'] for n in starters]
+    visited = set(queue)
+    while queue:
+        cur = queue.pop(0)
+        if cur in target_end_ids:
+            return True, ''
+        for nxt in outgoing.get(cur, []):
+            if nxt not in visited:
+                visited.add(nxt)
+                queue.append(nxt)
+    return False, 'No valid path from Starter node to End node'
+
 def _handle_workflow_save(body: dict) -> tuple:
     """Create or update a workflow definition."""
     wf = body.get('workflow', {})
     if not wf.get('id') or not wf.get('name') or not wf.get('nodes'):
         return False, {'ok': False, 'message': 'Missing id, name, or nodes'}
+
+    # Normalize node types before validation/save for backward compatibility.
+    wf['nodes'] = [
+        {**n, 'node_type': _normalize_node_type(n)}
+        for n in (wf.get('nodes') or [])
+    ]
+    valid, message = _validate_workflow_structure(wf, require_explicit_types=True)
+    if not valid:
+        return False, {'ok': False, 'message': message}
+
     workflows = _load_workflows()
     existing = next((w for w in workflows if w['id'] == wf['id']), None)
     now = time.time()
@@ -1118,9 +1138,18 @@ def _handle_workflow_attach(body: dict) -> tuple:
     nodes = wf.get('nodes', [])
     if not nodes:
         return False, {'ok': False, 'message': 'Workflow has no nodes'}
+
+    valid, message = _validate_workflow_structure(wf, require_explicit_types=False)
+    if not valid:
+        return False, {'ok': False, 'message': message}
+
     edges = wf.get('edges', [])
-    has_incoming = {e['to'] for e in edges}
-    first = next((n for n in nodes if n['id'] not in has_incoming), nodes[0])
+    starter = next((n for n in nodes if _normalize_node_type(n) == 'starter'), None)
+    if starter:
+        first = starter
+    else:
+        has_incoming = {e['to'] for e in edges}
+        first = next((n for n in nodes if n['id'] not in has_incoming), nodes[0])
     node_states = {}
     for n in nodes:
         node_states[n['id']] = {'status': 'pending'}

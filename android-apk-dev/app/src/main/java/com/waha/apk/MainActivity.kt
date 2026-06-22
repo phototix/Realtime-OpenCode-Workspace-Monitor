@@ -14,8 +14,12 @@ import androidx.core.content.ContextCompat
 import androidx.annotation.RawRes
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,12 +44,16 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Visibility
@@ -66,7 +74,16 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.Divider
+import androidx.compose.material3.DrawerValue
+import androidx.compose.material3.ModalDrawerSheet
+import androidx.compose.material3.ModalNavigationDrawer
+import androidx.compose.material3.NavigationDrawerItem
+import androidx.compose.material3.rememberDrawerState
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -76,7 +93,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -99,12 +119,14 @@ import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import okhttp3.OkHttpClient
@@ -116,6 +138,9 @@ import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Url
 import retrofit2.HttpException
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -125,6 +150,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
@@ -137,6 +163,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.viewinterop.AndroidView
 import java.net.URI
 
 private val ComponentActivity.dataStore by preferencesDataStore(name = "monitor_settings")
@@ -172,6 +199,7 @@ enum class TabItem(val label: String) {
     Cases("Cases"),
     Staff("Super Staff"),
     Cron("Cron"),
+    Workflows("Workflows"),
     Settings("Settings")
 }
 
@@ -180,6 +208,7 @@ private fun MonitorApp(vm: MonitorViewModel) {
     val state by vm.uiState.collectAsState()
     var tab by remember { mutableStateOf(TabItem.Dashboard) }
     var caseFormTarget by remember { mutableStateOf<SessionDto?>(null) }
+    var showNewCaseDialog by remember { mutableStateOf(false) }
     val snack = remember { SnackbarHostState() }
 
     LaunchedEffect(state.notice) {
@@ -201,15 +230,45 @@ private fun MonitorApp(vm: MonitorViewModel) {
         }
     }
 
-    Scaffold(
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(5000)
+            vm.pollNotifications()
+        }
+    }
+
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Text("Menu", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(16.dp))
+                Divider()
+                NavigationDrawerItem(icon = { Icon(Icons.Filled.Build, null) }, label = { Text("Cron") }, selected = tab == TabItem.Cron, onClick = { tab = TabItem.Cron; scope.launch { drawerState.close() } })
+                NavigationDrawerItem(icon = { Icon(Icons.Filled.Settings, null) }, label = { Text("Settings") }, selected = tab == TabItem.Settings, onClick = { tab = TabItem.Settings; scope.launch { drawerState.close() } })
+            }
+        }
+    ) {
+        Scaffold(
         snackbarHost = { SnackbarHost(snack) },
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(tab == TabItem.Dashboard, { tab = TabItem.Dashboard }, { Icon(Icons.Filled.Dashboard, null) }, label = { Text("Dashboard") })
                 NavigationBarItem(tab == TabItem.Cases, { tab = TabItem.Cases }, { Icon(Icons.AutoMirrored.Filled.List, null) }, label = { Text("Cases") })
                 NavigationBarItem(tab == TabItem.Staff, { tab = TabItem.Staff }, { Icon(Icons.Filled.SupportAgent, null) }, label = { Text("Staff") })
-                NavigationBarItem(tab == TabItem.Cron, { tab = TabItem.Cron }, { Icon(Icons.Filled.Build, null) }, label = { Text("Cron") })
-                NavigationBarItem(tab == TabItem.Settings, { tab = TabItem.Settings }, { Icon(Icons.Filled.Settings, null) }, label = { Text("Settings") })
+                NavigationBarItem(tab == TabItem.Workflows, { tab = TabItem.Workflows }, { Icon(Icons.Filled.AccountTree, null) }, label = { Text("Workflows") })
+            }
+        },
+        floatingActionButton = {
+            if (tab == TabItem.Cases && caseFormTarget == null) {
+                FloatingActionButton(
+                    onClick = { showNewCaseDialog = true },
+                    containerColor = Color(0xFF58A6FF)
+                ) {
+                    Icon(Icons.Filled.Add, contentDescription = "New Case")
+                }
             }
         }
     ) { padding ->
@@ -225,6 +284,10 @@ private fun MonitorApp(vm: MonitorViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(state.bossName.ifBlank { "MyDora Monitor" }, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                    Icon(Icons.Filled.Menu, contentDescription = "Menu")
+                }
                 if (caseFormTarget != null) {
                     IconButton(onClick = { caseFormTarget = null }) {
                         Box(
@@ -243,11 +306,42 @@ private fun MonitorApp(vm: MonitorViewModel) {
                 }
             }
 
+            state.remoteNotifications.firstOrNull()?.let { ntf ->
+                var visible by remember(ntf.id) { mutableStateOf(true) }
+                LaunchedEffect(ntf.id) {
+                    delay(5000)
+                    visible = false
+                    vm.dismissNotification(ntf.id)
+                }
+                AnimatedVisibility(
+                    visible = visible,
+                    enter = slideInVertically { -it },
+                    exit = slideOutVertically { -it }
+                ) {
+                    val bg = when (ntf.type) {
+                        "error" -> Color(0xFFF85149)
+                        "warning" -> Color(0xFFD29922)
+                        "success" -> Color(0xFF3FB950)
+                        else -> Color(0xFF58A6FF)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().background(bg).padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(ntf.message, color = Color.White, modifier = Modifier.weight(1f), fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                        IconButton(onClick = { visible = false; vm.dismissNotification(ntf.id) }, modifier = Modifier.size(24.dp)) {
+                            Icon(Icons.Filled.Clear, contentDescription = "Dismiss", tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                    }
+                }
+            }
+
             when (tab) {
-                TabItem.Dashboard -> DashboardScreen(state, vm::refreshAll)
+                TabItem.Dashboard -> DashboardScreen(state, vm, vm::refreshAll, caseFormTarget) { caseFormTarget = it }
                 TabItem.Cases -> CasesScreen(state, vm, vm::refreshAll, caseFormTarget) { caseFormTarget = it }
-                TabItem.Staff -> StaffScreen(state, vm::refreshAll)
+                TabItem.Staff -> StaffScreen(state, vm, vm::refreshAll)
                 TabItem.Cron -> CronScreen(state, vm, vm::refreshAll)
+                TabItem.Workflows -> WorkflowsScreen(state, vm, vm::refreshAll)
                 TabItem.Settings -> SettingsScreen(state, vm, vm::refreshAll)
             }
         }
@@ -257,28 +351,51 @@ private fun MonitorApp(vm: MonitorViewModel) {
                 CircularProgressIndicator()
             }
         }
+        }
+    }
+
+    if (showNewCaseDialog) {
+        NewCaseFormDialog(state, vm) { showNewCaseDialog = false }
     }
 }
 
 @Composable
-private fun DashboardScreen(state: UiState, onRefresh: () -> Unit) {
+private fun DashboardScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> Unit, formTarget: SessionDto? = null, onFormTargetChange: (SessionDto?) -> Unit = {}) {
+    var viewTarget by remember { mutableStateOf<SessionDto?>(null) }
+    var renameTarget by remember { mutableStateOf<SessionDto?>(null) }
+    var stopTarget by remember { mutableStateOf<SessionDto?>(null) }
+
     PullToRefreshContainer(isRefreshing = state.loading, onRefresh = onRefresh) {
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    StatCard("Cases", state.sessions.size.toString(), Modifier.weight(1f))
-                    StatCard("Staff", state.staff.size.toString(), Modifier.weight(1f))
-                    StatCard("CPU", state.summary.cpuLabel, Modifier.weight(1f))
+        if (formTarget != null) {
+            CaseFormScreen(formTarget, state, vm) { onFormTargetChange(null) }
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                        StatCard("Cases", state.sessions.size.toString(), Modifier.weight(1f))
+                        StatCard("Staff", state.staff.size.toString(), Modifier.weight(1f))
+                        StatCard("CPU", state.summary.cpuLabel, Modifier.weight(1f))
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    OfficeStrip(state.sessions, state.staff)
+                    Spacer(Modifier.height(12.dp))
+                    Text("Cases", fontWeight = FontWeight.SemiBold)
                 }
-                Spacer(Modifier.height(12.dp))
-                OfficeStrip(state.sessions, state.staff)
-                Spacer(Modifier.height(12.dp))
-                Text("Cases", fontWeight = FontWeight.SemiBold)
+                items(state.sessions.take(10)) { session ->
+                    SwipeableCaseItem(session, isActive = session.state == "thinking" || session.state == "running-tools",
+                        onSelect = { onFormTargetChange(session) },
+                        onView = { viewTarget = session },
+                        onRename = { renameTarget = session },
+                        onStop = { stopTarget = session }
+                    ) { SessionCard(session) }
+                }
+                item { Spacer(Modifier.height(64.dp)) }
             }
-            items(state.sessions.take(10)) { SessionCard(it) }
-            item { Spacer(Modifier.height(64.dp)) }
         }
     }
+    viewTarget?.let { ViewCaseDialog(it) { viewTarget = null } }
+    renameTarget?.let { RenameCaseDialog(it, vm) { renameTarget = null } }
+    stopTarget?.let { StopConfirmDialog(it, vm) { stopTarget = null } }
 }
 
 @Composable
@@ -409,17 +526,34 @@ private fun CasesScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> U
     stopTarget?.let { StopConfirmDialog(it, vm) { stopTarget = null } }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StaffScreen(state: UiState, onRefresh: () -> Unit) {
+private fun StaffScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> Unit) {
+    var formTarget by remember { mutableStateOf<StaffDto?>(null) }
+    var deleteTarget by remember { mutableStateOf<StaffDto?>(null) }
+
     PullToRefreshContainer(isRefreshing = state.loading, onRefresh = onRefresh) {
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Staff", fontWeight = FontWeight.SemiBold)
+                    Button(onClick = { formTarget = StaffDto() }) { Text("+ New") }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
             items(state.staff) { s ->
-                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(s.name, fontWeight = FontWeight.SemiBold)
-                        Text("${s.gender ?: "-"} • ${s.mode ?: "default"} • ${s.model?.takeIf { it.isNotBlank() } ?: "default model"}", color = Color(0xFF8B949E))
-                        if (!s.description.isNullOrBlank()) {
-                            Text(s.description ?: "", maxLines = 2, overflow = TextOverflow.Ellipsis)
+                SwipeableStaffItem(
+                    staff = s,
+                    onEdit = { formTarget = s },
+                    onDelete = { deleteTarget = s }
+                ) {
+                    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(s.name, fontWeight = FontWeight.SemiBold)
+                            Text("${s.gender ?: "-"} • ${s.mode ?: "default"} • ${s.model?.takeIf { it.isNotBlank() } ?: "default model"}", color = Color(0xFF8B949E))
+                            if (!s.description.isNullOrBlank()) {
+                                Text(s.description ?: "", maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                 }
@@ -427,30 +561,360 @@ private fun StaffScreen(state: UiState, onRefresh: () -> Unit) {
             item { Spacer(Modifier.height(64.dp)) }
         }
     }
+    formTarget?.let { StaffFormDialog(it, state, vm) { formTarget = null } }
+    deleteTarget?.let { s ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete staff?") },
+            text = { Text("Are you sure you want to delete \"${s.name}\"?") },
+            confirmButton = { Button(colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF85149)), onClick = { vm.deleteStaff(s.name); deleteTarget = null }) { Text("Delete") } },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }
+        )
+    }
 }
 
 @Composable
+private fun SwipeableStaffItem(staff: StaffDto, onEdit: () -> Unit, onDelete: () -> Unit, content: @Composable () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    val revealWidthPx = with(density) { 200.dp.toPx() }
+    val offsetX = remember { Animatable(0f) }
+
+    Box(modifier = Modifier.fillMaxWidth().clipToBounds().padding(vertical = 6.dp)) {
+        Row(modifier = Modifier.align(Alignment.CenterEnd).height(IntrinsicSize.Min).background(Color(0xFF0D1117), RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)), horizontalArrangement = Arrangement.End) {
+            val btnMod = Modifier.width(100.dp).fillMaxHeight().padding(vertical = 14.dp)
+            SwipeActionButton("Edit", Icons.Filled.Edit, Color(0xFFD29922), btnMod) {
+                scope.launch { offsetX.animateTo(0f, tween(150)) }; onEdit()
+            }
+            SwipeActionButton("Delete", Icons.Filled.Delete, Color(0xFFF85149), btnMod) {
+                scope.launch { offsetX.animateTo(0f, tween(150)) }; onDelete()
+            }
+        }
+        Box(modifier = Modifier
+            .offset { IntOffset(offsetX.value.roundToInt(), 0) }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragEnd = { scope.launch { offsetX.animateTo(if (offsetX.value < -revealWidthPx * 0.4f) -revealWidthPx else 0f, tween(200)) } },
+                    onHorizontalDrag = { _, dragAmount -> scope.launch { offsetX.snapTo((offsetX.value + dragAmount).coerceIn(-revealWidthPx, 0f)) } }
+                )
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { if (offsetX.value < 0f) scope.launch { offsetX.animateTo(0f, tween(150)) } })
+            }
+        ) { content() }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StaffFormDialog(staff: StaffDto, state: UiState, vm: MonitorViewModel, onDismiss: () -> Unit) {
+    val isNew = staff.name.isBlank()
+    var name by remember { mutableStateOf(staff.name) }
+    var description by remember { mutableStateOf(staff.description ?: "") }
+    var gender by remember { mutableStateOf(staff.gender ?: "male") }
+    var mode by remember { mutableStateOf(staff.mode ?: "build") }
+    var model by remember { mutableStateOf(staff.model ?: "") }
+    var genderMenuOpen by remember { mutableStateOf(false) }
+    var modeMenuOpen by remember { mutableStateOf(false) }
+    var modelMenuOpen by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
+            Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (isNew) "New Staff" else "Edit Staff", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Clear, contentDescription = "Close", tint = Color(0xFFF85149)) }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                ExposedDropdownMenuBox(expanded = genderMenuOpen, onExpandedChange = { genderMenuOpen = !genderMenuOpen }) {
+                    OutlinedTextField(value = gender.replaceFirstChar { it.uppercase() }, onValueChange = {}, readOnly = true, label = { Text("Gender") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = genderMenuOpen) })
+                    DropdownMenu(expanded = genderMenuOpen, onDismissRequest = { genderMenuOpen = false }) {
+                        DropdownMenuItem(text = { Text("Male") }, onClick = { gender = "male"; genderMenuOpen = false })
+                        DropdownMenuItem(text = { Text("Female") }, onClick = { gender = "female"; genderMenuOpen = false })
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Roles & Scope") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+                Spacer(Modifier.height(8.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ExposedDropdownMenuBox(expanded = modeMenuOpen, onExpandedChange = { modeMenuOpen = !modeMenuOpen }, modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(value = modeLabel(mode), onValueChange = {}, readOnly = true, label = { Text("Mode") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modeMenuOpen) })
+                        DropdownMenu(expanded = modeMenuOpen, onDismissRequest = { modeMenuOpen = false }) {
+                            DropdownMenuItem(text = { Text("Build") }, onClick = { mode = "build"; modeMenuOpen = false })
+                            DropdownMenuItem(text = { Text("Plan") }, onClick = { mode = "plan"; modeMenuOpen = false })
+                        }
+                    }
+                    ExposedDropdownMenuBox(expanded = modelMenuOpen, onExpandedChange = { modelMenuOpen = !modelMenuOpen }, modifier = Modifier.weight(1f)) {
+                        OutlinedTextField(value = model.ifBlank { "Default model" }, onValueChange = {}, readOnly = true, label = { Text("Model") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelMenuOpen) })
+                        DropdownMenu(expanded = modelMenuOpen, onDismissRequest = { modelMenuOpen = false }) {
+                            if (state.availableModels.isEmpty()) {
+                                DropdownMenuItem(text = { Text("Default model") }, onClick = { model = ""; modelMenuOpen = false })
+                            } else {
+                                state.availableModels.forEach { m ->
+                                    DropdownMenuItem(text = { Text(m.label()) }, onClick = { model = m.id.orEmpty(); modelMenuOpen = false })
+                                }
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = {
+                    if (name.isBlank()) { vm.showNotice("Name is required"); return@Button }
+                    val path = staff.path ?: "~"
+                    if (isNew) vm.createStaff(name, description, gender, mode, model, path)
+                    else vm.updateStaff(staff.name, name, description, gender, mode, model, path)
+                    onDismiss()
+                }, modifier = Modifier.fillMaxWidth()) { Text(if (isNew) "Create" else "Save") }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NewCaseFormDialog(state: UiState, vm: MonitorViewModel, onDismiss: () -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf("") }
+    var selectedMode by remember { mutableStateOf("build") }
+    var selectedModel by remember { mutableStateOf("") }
+    var workspace by remember { mutableStateOf("") }
+    var modeMenuOpen by remember { mutableStateOf(false) }
+    var modelMenuOpen by remember { mutableStateOf(false) }
+    var workspaceMenuOpen by remember { mutableStateOf(false) }
+
+    val selectedStaff = findStaffByModeName(selectedMode, state.staff)
+
+    val workspaceOptions = remember(state.allSessions, state.sessions) {
+        val sessions = state.allSessions.takeIf { it.isNotEmpty() } ?: state.sessions
+        listOf("") + sessions.mapNotNull { it.directory?.takeIf { d -> d.isNotBlank() } }.distinct().sorted()
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
+            Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("New Case", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Clear, contentDescription = "Close", tint = Color(0xFFF85149)) }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = message, onValueChange = { message = it }, label = { Text("Message") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+                Spacer(Modifier.height(8.dp))
+                ExposedDropdownMenuBox(expanded = modeMenuOpen, onExpandedChange = { modeMenuOpen = !modeMenuOpen }) {
+                    OutlinedTextField(value = modeLabel(selectedMode), onValueChange = {}, readOnly = true, label = { Text("Mode") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modeMenuOpen) })
+                    DropdownMenu(expanded = modeMenuOpen, onDismissRequest = { modeMenuOpen = false }) {
+                        buildModeOptions(state.staff).forEach { mode ->
+                            DropdownMenuItem(text = { Text(modeLabel(mode)) }, onClick = {
+                                selectedMode = mode
+                                val staffModel = findStaffByModeName(mode, state.staff)?.model?.takeIf { it.isNotBlank() }
+                                selectedModel = staffModel ?: ""
+                                modeMenuOpen = false
+                            })
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                ExposedDropdownMenuBox(expanded = modelMenuOpen && selectedStaff == null, onExpandedChange = { if (selectedStaff == null) modelMenuOpen = !modelMenuOpen }) {
+                    OutlinedTextField(value = selectedModel.ifBlank { "Default model" }, onValueChange = {}, readOnly = true, enabled = selectedStaff == null, label = { Text("Model") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelMenuOpen) })
+                    DropdownMenu(expanded = modelMenuOpen && selectedStaff == null, onDismissRequest = { modelMenuOpen = false }) {
+                        if (state.availableModels.isEmpty()) {
+                            DropdownMenuItem(text = { Text("Default model") }, onClick = { selectedModel = ""; modelMenuOpen = false })
+                        } else {
+                            state.availableModels.forEach { m ->
+                                DropdownMenuItem(text = { Text(m.label()) }, onClick = { selectedModel = m.id.orEmpty(); modelMenuOpen = false })
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                ExposedDropdownMenuBox(expanded = workspaceMenuOpen, onExpandedChange = { workspaceMenuOpen = !workspaceMenuOpen }) {
+                    OutlinedTextField(value = if (workspace.isBlank()) "Default (home)" else workspace.split("/").lastOrNull() ?: workspace, onValueChange = {}, readOnly = true, label = { Text("Workspace") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = workspaceMenuOpen) })
+                    DropdownMenu(expanded = workspaceMenuOpen, onDismissRequest = { workspaceMenuOpen = false }) {
+                        workspaceOptions.forEach { dir ->
+                            DropdownMenuItem(text = { Text(if (dir.isBlank()) "Default (home)" else dir, maxLines = 1, overflow = TextOverflow.Ellipsis) }, onClick = { workspace = dir; workspaceMenuOpen = false })
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = {
+                    if (title.isBlank()) { vm.showNotice("Title is required"); return@Button }
+                    if (message.isBlank()) { vm.showNotice("Message is required"); return@Button }
+                    val staff = selectedStaff
+                    val finalMessage = if (staff != null && !staff.description.isNullOrBlank()) "${staff.description}\n\n$message" else message
+                    val finalMode = staff?.mode?.takeIf { it.isNotBlank() } ?: selectedMode
+                    val finalModel = if (staff != null) (staff.model?.takeIf { it.isNotBlank() } ?: "") else selectedModel
+                    vm.createSession(title, finalMessage, finalMode, finalModel, workspace)
+                    onDismiss()
+                }, modifier = Modifier.fillMaxWidth()) { Text("Create") }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun CronScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> Unit) {
+    val allSessions = state.allSessions.takeIf { it.isNotEmpty() } ?: state.sessions
+    var cronFormTarget by remember { mutableStateOf<CronJobDto?>(null) }
+    var deleteTarget by remember { mutableStateOf<CronJobDto?>(null) }
+
     PullToRefreshContainer(isRefreshing = state.loading, onRefresh = onRefresh) {
         LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+            item {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text("Scheduled Jobs", fontWeight = FontWeight.SemiBold)
+                    Button(onClick = { cronFormTarget = CronJobDto() }) { Text("+ New") }
+                }
+                Spacer(Modifier.height(8.dp))
+            }
             items(state.cronJobs) { c ->
                 Card(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
                     Column(Modifier.padding(12.dp)) {
-                        Text(c.name ?: "Cron job", fontWeight = FontWeight.SemiBold)
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(c.name ?: "Cron job", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Switch(checked = c.enabled != false, onCheckedChange = { c.id?.let(vm::toggleCron) })
+                        }
+                        Spacer(Modifier.height(4.dp))
                         Text("Every ${c.intervalSec ?: 0}s", color = Color(0xFF8B949E))
                         Text("Last run: ${formatTimestamp(c.lastRun)}  -  Next run: ${c.nextRunDisplay()}", color = Color(0xFF8B949E), style = MaterialTheme.typography.bodySmall)
                         val countdown = formatCountdown(c.lastRun, c.intervalSec)
                         if (countdown.isNotBlank()) {
                             Text("Time to next run: $countdown", color = Color(0xFFD29922), style = MaterialTheme.typography.bodySmall)
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { c.id?.let(vm::toggleCron) }) { Text("Toggle") }
-                            Button(onClick = { c.id?.let(vm::runCron) }) { Text("Run") }
+                        if (c.lastStatus != null) {
+                            Text("Status: ${c.lastStatus}", color = if (c.lastStatus?.startsWith("fail") == true) Color(0xFFF85149) else Color(0xFF3FB950), style = MaterialTheme.typography.bodySmall)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Button(onClick = { c.id?.let(vm::runCron) }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) { Text("Run", fontSize = MaterialTheme.typography.bodySmall.fontSize) }
+                            Button(onClick = { cronFormTarget = c }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) { Text("Edit", fontSize = MaterialTheme.typography.bodySmall.fontSize) }
+                            Button(onClick = { deleteTarget = c }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF85149)), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) { Text("Delete", fontSize = MaterialTheme.typography.bodySmall.fontSize) }
                         }
                     }
                 }
             }
             item { Spacer(Modifier.height(64.dp)) }
+        }
+    }
+    cronFormTarget?.let { CronFormDialog(it, state, vm, allSessions) { cronFormTarget = null } }
+    deleteTarget?.let { c ->
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("Delete cron job?") },
+            text = { Text("Are you sure you want to delete \"${c.name}\"?") },
+            confirmButton = {
+                Button(colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF85149)), onClick = { c.id?.let(vm::deleteCronJob); deleteTarget = null }) { Text("Delete") }
+            },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text("Cancel") } }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CronFormDialog(job: CronJobDto, state: UiState, vm: MonitorViewModel, allSessions: List<SessionDto>, onDismiss: () -> Unit) {
+    val isNew = job.id.isNullOrBlank()
+    var name by remember { mutableStateOf(job.name ?: "") }
+    var intervalMin by remember { mutableStateOf(((job.interval_sec ?: 300) / 60).toString()) }
+    var type by remember { mutableStateOf(job.actionType ?: "session") }
+    var message by remember { mutableStateOf(job.actionMessage ?: "") }
+    var sessionId by remember { mutableStateOf(job.actionSessionId ?: "") }
+    var fork by remember { mutableStateOf(job.actionFork ?: false) }
+    var directory by remember { mutableStateOf(job.actionDirectory ?: "") }
+    var selectedMode by remember { mutableStateOf(job.actionMode ?: "build") }
+    var selectedModel by remember { mutableStateOf(job.actionModel ?: "") }
+    var typeMenuOpen by remember { mutableStateOf(false) }
+    var modeMenuOpen by remember { mutableStateOf(false) }
+    var modelMenuOpen by remember { mutableStateOf(false) }
+    var sessionMenuOpen by remember { mutableStateOf(false) }
+
+    val selectedStaff = findStaffByModeName(selectedMode, state.staff)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(modifier = Modifier.fillMaxWidth().fillMaxHeight(0.9f), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
+            Column(Modifier.padding(16.dp).verticalScroll(rememberScrollState())) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (isNew) "New Cron Job" else "Edit Cron Job", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    IconButton(onClick = onDismiss) { Icon(Icons.Filled.Clear, contentDescription = "Close", tint = Color(0xFFF85149)) }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = intervalMin, onValueChange = { intervalMin = it.filter { c -> c.isDigit() } }, label = { Text("Interval (minutes)") }, modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                ExposedDropdownMenuBox(expanded = typeMenuOpen, onExpandedChange = { typeMenuOpen = !typeMenuOpen }) {
+                    OutlinedTextField(value = if (type == "session") "Continue Existing Case" else "New Case", onValueChange = {}, readOnly = true, label = { Text("Type") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeMenuOpen) })
+                    DropdownMenu(expanded = typeMenuOpen, onDismissRequest = { typeMenuOpen = false }) {
+                        DropdownMenuItem(text = { Text("Continue Existing Case") }, onClick = { type = "session"; typeMenuOpen = false })
+                        DropdownMenuItem(text = { Text("New Case") }, onClick = { type = "workspace"; typeMenuOpen = false })
+                    }
+                }
+                if (type == "session") {
+                    Spacer(Modifier.height(8.dp))
+                    ExposedDropdownMenuBox(expanded = sessionMenuOpen, onExpandedChange = { sessionMenuOpen = !sessionMenuOpen }) {
+                        OutlinedTextField(value = allSessions.firstOrNull { it.id == sessionId }?.displayLabel() ?: sessionId, onValueChange = {}, readOnly = true, label = { Text("Case") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sessionMenuOpen) })
+                        DropdownMenu(expanded = sessionMenuOpen, onDismissRequest = { sessionMenuOpen = false }) {
+                            allSessions.forEach { s ->
+                                DropdownMenuItem(text = { Text(s.displayLabel()) }, onClick = { sessionId = s.id.orEmpty(); sessionMenuOpen = false })
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = fork, onCheckedChange = { fork = it })
+                        Spacer(Modifier.width(4.dp))
+                        Text("Start new conversation", color = Color(0xFF8B949E), style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = message, onValueChange = { message = it }, label = { Text("Message") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+                Spacer(Modifier.height(8.dp))
+                ExposedDropdownMenuBox(expanded = modeMenuOpen, onExpandedChange = { modeMenuOpen = !modeMenuOpen }) {
+                    OutlinedTextField(value = modeLabel(selectedMode), onValueChange = {}, readOnly = true, label = { Text("Mode") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modeMenuOpen) })
+                    DropdownMenu(expanded = modeMenuOpen, onDismissRequest = { modeMenuOpen = false }) {
+                        buildModeOptions(state.staff).forEach { mode ->
+                            DropdownMenuItem(text = { Text(modeLabel(mode)) }, onClick = {
+                                selectedMode = mode
+                                val staffModel = findStaffByModeName(mode, state.staff)?.model?.takeIf { it.isNotBlank() }
+                                selectedModel = staffModel ?: ""
+                                modeMenuOpen = false
+                            })
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                ExposedDropdownMenuBox(expanded = modelMenuOpen && selectedStaff == null, onExpandedChange = { if (selectedStaff == null) modelMenuOpen = !modelMenuOpen }) {
+                    OutlinedTextField(value = selectedModel.ifBlank { "Default model" }, onValueChange = {}, readOnly = true, enabled = selectedStaff == null, label = { Text("Model") }, modifier = Modifier.fillMaxWidth().menuAnchor(), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelMenuOpen) })
+                    DropdownMenu(expanded = modelMenuOpen && selectedStaff == null, onDismissRequest = { modelMenuOpen = false }) {
+                        if (state.availableModels.isEmpty()) {
+                            DropdownMenuItem(text = { Text("Default model") }, onClick = { selectedModel = ""; modelMenuOpen = false })
+                        } else {
+                            state.availableModels.forEach { model ->
+                                DropdownMenuItem(text = { Text(model.label()) }, onClick = { selectedModel = model.id.orEmpty(); modelMenuOpen = false })
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Button(onClick = {
+                    if (name.isBlank() || message.isBlank()) { vm.showNotice("Name and message required"); return@Button }
+                    val intervalSec = (intervalMin.toIntOrNull() ?: 5) * 60
+                    val staff = selectedStaff
+                    val action = JsonObject().apply {
+                        addProperty("type", type)
+                        addProperty("message", message)
+                        if (staff != null) { addProperty("staff", staff.name); addProperty("mode", staff.mode ?: ""); addProperty("model", staff.model ?: "") }
+                        else { addProperty("mode", selectedMode); addProperty("model", selectedModel) }
+                        if (type == "session") { addProperty("session_id", sessionId); addProperty("fork", fork) }
+                        else { addProperty("directory", directory) }
+                    }
+                    if (isNew) vm.createCronJob(name, intervalSec, action) else vm.updateCronJob(job.id!!, name, intervalSec, action)
+                    onDismiss()
+                }, modifier = Modifier.fillMaxWidth()) { Text(if (isNew) "Create" else "Save") }
+            }
         }
     }
 }
@@ -502,6 +966,367 @@ private fun SettingsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -
         }
     }
 }
+
+@Composable
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
+private fun WorkflowsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> Unit) {
+    var editingWf by remember { mutableStateOf<WorkflowDto?>(null) }
+    var editingNodes by remember { mutableStateOf<List<WorkflowNodeDto>>(emptyList()) }
+    var editingEdges by remember { mutableStateOf<List<WorkflowEdgeDto>>(emptyList()) }
+    var wfName by remember { mutableStateOf("") }
+    var selectedNodeId by remember { mutableStateOf<String?>(null) }
+    var showNodeEditor by remember { mutableStateOf(false) }
+    var draggingFrom by remember { mutableStateOf<String?>(null) }
+    var dragPointer by remember { mutableStateOf(Offset.Zero) }
+    var pendingDeleteEdge by remember { mutableStateOf<WorkflowEdgeDto?>(null) }
+    val staff = state.staff
+
+    PullToRefreshContainer(isRefreshing = state.loading, onRefresh = onRefresh) {
+        if (editingWf != null) {
+            // Editor View
+            Column(Modifier.fillMaxSize().padding(8.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { editingWf = null }) { Text("← Back") }
+                    OutlinedTextField(
+                        value = wfName,
+                        onValueChange = { wfName = it },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        placeholder = { Text("Workflow name") }
+                    )
+                    Button(onClick = {
+                        if (wfName.isNotBlank()) {
+                            vm.saveWorkflow(WorkflowDto(
+                                id = editingWf?.id ?: "wf_${System.currentTimeMillis()}",
+                                name = wfName,
+                                nodes = editingNodes.toList(),
+                                edges = editingEdges.toList()
+                            ))
+                        }
+                    }) { Text("Save", fontSize = MaterialTheme.typography.labelMedium.fontSize) }
+                }
+                Spacer(Modifier.height(4.dp))
+                Button(onClick = {
+                    val newId = "n${System.currentTimeMillis()}"
+                    editingNodes = editingNodes + WorkflowNodeDto(
+                        id = newId, name = "Stage ${editingNodes.size + 1}",
+                        x = 40f + (editingNodes.size % 3) * 220f, y = 40f + (editingNodes.size / 3) * 120f
+                    )
+                }, modifier = Modifier.align(Alignment.Start)) { Text("+ Add Node", fontSize = MaterialTheme.typography.labelMedium.fontSize) }
+                Spacer(Modifier.height(4.dp))
+
+                // Canvas with overlay nodes
+                val NODE_W = 200f
+                val NODE_H = 70f
+                val PORT_R = 6f
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth()
+                        .background(Color(0xFF0D1117), RoundedCornerShape(8.dp))
+                        .pointerInput(Unit) {
+                            detectTapGestures { offset ->
+                                // Check edge hits first
+                                val edgeHit = editingEdges.find { edge ->
+                                    val from = editingNodes.find { it.id == edge.from }
+                                    val to = editingNodes.find { it.id == edge.to }
+                                    if (from != null && to != null) {
+                                        val mx = (from.x + NODE_W / 2 + to.x + NODE_W / 2) / 2
+                                        val my = (from.y + NODE_H + to.y) / 2
+                                        kotlin.math.sqrt((offset.x - mx) * (offset.x - mx) + (offset.y - my) * (offset.y - my)) < 30f
+                                    } else false
+                                }
+                                if (edgeHit != null) {
+                                    pendingDeleteEdge = edgeHit
+                                    return@detectTapGestures
+                                }
+                                // Check node hits
+                                val tapped = editingNodes.findLast { n ->
+                                    offset.x in n.x..(n.x + NODE_W) && offset.y in n.y..(n.y + NODE_H)
+                                }
+                                if (tapped != null) {
+                                    selectedNodeId = tapped.id
+                                } else {
+                                    selectedNodeId = null
+                                }
+                            }
+                        }
+                        .pointerInput(Unit) {
+                            detectDragGestures(
+                                onDragStart = { offset ->
+                                    val dragged = editingNodes.findLast { n ->
+                                        offset.x in n.x..(n.x + NODE_W) && offset.y in n.y..(n.y + NODE_H)
+                                    }
+                                    if (dragged != null) {
+                                        // Check if drag started on output port (right side)
+                                        val portX = dragged.x + NODE_W
+                                        val portY = dragged.y + NODE_H / 2
+                                        if (kotlin.math.sqrt((offset.x - portX) * (offset.x - portX) + (offset.y - portY) * (offset.y - portY)) < PORT_R + 4f) {
+                                            draggingFrom = dragged.id
+                                            dragPointer = offset
+                                            return@detectDragGestures
+                                        }
+                                        selectedNodeId = dragged.id
+                                    }
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    if (draggingFrom != null) {
+                                        dragPointer = change.position
+                                    } else {
+                                        selectedNodeId?.let { id ->
+                                            val idx = editingNodes.indexOfFirst { it.id == id }
+                                            if (idx >= 0) {
+                                                val n = editingNodes[idx]
+                                                editingNodes = editingNodes.toMutableList().apply {
+                                                    set(idx, n.copy(x = (n.x + dragAmount.x).coerceAtLeast(0f), y = (n.y + dragAmount.y).coerceAtLeast(0f)))
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                onDragEnd = {
+                                    draggingFrom?.let { fromId ->
+                                        val target = editingNodes.findLast { n ->
+                                            val px = n.x
+                                            val py = n.y + NODE_H / 2
+                                            kotlin.math.sqrt((dragPointer.x - px) * (dragPointer.x - px) + (dragPointer.y - py) * (dragPointer.y - py)) < PORT_R + 8f
+                                        }
+                                        if (target != null && target.id != fromId && editingEdges.none { it.from == fromId && it.to == target.id }) {
+                                            editingEdges = editingEdges + WorkflowEdgeDto(from = fromId, to = target.id)
+                                        }
+                                    }
+                                    draggingFrom = null
+                                }
+                            )
+                        }
+                ) {
+                    // Canvas for edges
+                    Canvas(Modifier.fillMaxSize()) {
+                        for (edge in editingEdges) {
+                            val from = editingNodes.find { it.id == edge.from }
+                            val to = editingNodes.find { it.id == edge.to }
+                            if (from != null && to != null) {
+                                val x1 = from.x + NODE_W / 2
+                                val y1 = from.y + NODE_H
+                                val x2 = to.x + NODE_W / 2
+                                val y2 = to.y
+                                val cy = (y1 + y2) / 2
+                                val path = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(x1, y1)
+                                    cubicTo(x1, cy, x2, cy, x2, y2)
+                                }
+                                drawPath(path, color = Color(0xFF58A6FF), style = Stroke(width = 2f))
+                                val angle = kotlin.math.atan2(y2 - cy, x2 - x1)
+                                val ax = x2 - 8f * kotlin.math.cos(angle)
+                                val ay = y2 - 8f * kotlin.math.sin(angle)
+                                val arrow = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(x2, y2)
+                                    lineTo(ax - 4f * kotlin.math.sin(angle), ay + 4f * kotlin.math.cos(angle))
+                                    lineTo(ax + 4f * kotlin.math.sin(angle), ay - 4f * kotlin.math.cos(angle))
+                                    close()
+                                }
+                                drawPath(arrow, color = Color(0xFF58A6FF))
+                            }
+                        }
+                        // Draw temp edge while dragging
+                        draggingFrom?.let { fromId ->
+                            val from = editingNodes.find { it.id == fromId }
+                            if (from != null) {
+                                val x1 = from.x + NODE_W / 2
+                                val y1 = from.y + NODE_H
+                                val path = androidx.compose.ui.graphics.Path().apply {
+                                    moveTo(x1, y1)
+                                    cubicTo(x1, (y1 + dragPointer.y) / 2, dragPointer.x, (y1 + dragPointer.y) / 2, dragPointer.x, dragPointer.y)
+                                }
+                                drawPath(path, color = Color(0xAA58A6FF), style = Stroke(width = 2f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 4f))))
+                            }
+                        }
+                    }
+                    // Nodes as composable overlays
+                    editingNodes.forEach { n ->
+                        val isSel = n.id == selectedNodeId
+                        Box(
+                            modifier = Modifier
+                                .offset { IntOffset(n.x.roundToInt(), n.y.roundToInt()) }
+                                .width(NODE_W.dp).height(NODE_H.dp)
+                        ) {
+                            Card(
+                                modifier = Modifier.fillMaxSize().then(if (isSel) Modifier.border(2.dp, Color(0xFF58A6FF), RoundedCornerShape(8.dp)) else Modifier),
+                                colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Column(Modifier.padding(4.dp)) {
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Filled.OpenWith, contentDescription = "Drag", tint = Color(0xFF8B949E), modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(2.dp))
+                                        Text(n.name.ifBlank { "Untitled" }, fontWeight = FontWeight.SemiBold, fontSize = MaterialTheme.typography.labelSmall.fontSize, color = if (isSel) Color(0xFF58A6FF) else Color.White, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        IconButton(onClick = { selectedNodeId = n.id; showNodeEditor = true }, modifier = Modifier.size(20.dp)) {
+                                            Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Color(0xFF8B949E), modifier = Modifier.size(14.dp))
+                                        }
+                                    }
+                                    Spacer(Modifier.height(2.dp))
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        // Input port
+                                        Box(Modifier.size(PORT_R.dp * 2).background(if (editingEdges.any { it.to == n.id }) Color(0xFF58A6FF) else Color(0xFF30363D), CircleShape))
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(n.staffIc ?: "No staff", fontSize = MaterialTheme.typography.labelSmall.fontSize, color = Color(0xFF8B949E), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Spacer(Modifier.width(4.dp))
+                                        // Output port
+                                        Box(Modifier.size(PORT_R.dp * 2).background(if (editingEdges.any { it.from == n.id }) Color(0xFF58A6FF) else Color(0xFF30363D), CircleShape))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Node editor dialog
+            if (showNodeEditor && selectedNodeId != null) {
+                val node = editingNodes.find { it.id == selectedNodeId }
+                if (node != null) {
+                    var editName by remember(node.id) { mutableStateOf(node.name) }
+                    var editInstr by remember(node.id) { mutableStateOf(node.instructions) }
+                    var editStaff by remember(node.id) { mutableStateOf(node.staffIc ?: "") }
+                    var editMode by remember(node.id) { mutableStateOf(node.mode ?: "") }
+                    var editModel by remember(node.id) { mutableStateOf(node.model ?: "") }
+                    var staffExp by remember { mutableStateOf(false) }
+                    var modeExp by remember { mutableStateOf(false) }
+                    var modelExp by remember { mutableStateOf(false) }
+                    val selectedStaff = staff.firstOrNull { it.name == editStaff }
+
+                    LaunchedEffect(editStaff) {
+                        val s = staff.firstOrNull { it.name == editStaff }
+                        if (s != null) { editMode = s.mode ?: ""; editModel = s.model ?: "" }
+                    }
+
+                    AlertDialog(
+                        onDismissRequest = { showNodeEditor = false },
+                        title = { Text("Edit Stage") },
+                        text = {
+                            Column(Modifier.verticalScroll(rememberScrollState())) {
+                                OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                                Spacer(Modifier.height(8.dp))
+                                OutlinedTextField(value = editInstr, onValueChange = { editInstr = it }, label = { Text("Instructions") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
+                                Spacer(Modifier.height(8.dp))
+                                ExposedDropdownMenuBox(expanded = staffExp, onExpandedChange = { staffExp = it }) {
+                                    OutlinedTextField(value = editStaff.ifBlank { "— None —" }, onValueChange = {}, readOnly = true, label = { Text("Staff IC") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(staffExp) }, modifier = Modifier.menuAnchor().fillMaxWidth())
+                                    ExposedDropdownMenu(expanded = staffExp, onDismissRequest = { staffExp = false }) {
+                                        DropdownMenuItem(text = { Text("— None —") }, onClick = { editStaff = ""; staffExp = false })
+                                        staff.forEach { s -> DropdownMenuItem(text = { Text(s.name) }, onClick = { editStaff = s.name; staffExp = false }) }
+                                    }
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                val staffMode = selectedStaff?.mode?.takeIf { it.isNotBlank() }
+                                val staffModel = selectedStaff?.model?.takeIf { it.isNotBlank() }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    ExposedDropdownMenuBox(expanded = modeExp, onExpandedChange = { if (selectedStaff == null) modeExp = it }, modifier = Modifier.weight(1f)) {
+                                        OutlinedTextField(value = if (staffMode != null) modeLabel(staffMode) else editMode.ifBlank { "Select mode" }, onValueChange = {}, readOnly = true, enabled = selectedStaff == null, label = { Text(if (selectedStaff == null) "Mode *" else "Mode") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(modeExp) }, modifier = Modifier.menuAnchor().fillMaxWidth())
+                                        ExposedDropdownMenu(expanded = modeExp && selectedStaff == null, onDismissRequest = { modeExp = false }) {
+                                            listOf("build", "plan").forEach { m -> DropdownMenuItem(text = { Text(modeLabel(m)) }, onClick = { editMode = m; modeExp = false }) }
+                                        }
+                                    }
+                                    ExposedDropdownMenuBox(expanded = modelExp, onExpandedChange = { if (selectedStaff == null) modelExp = it }, modifier = Modifier.weight(1f)) {
+                                        OutlinedTextField(value = if (staffModel != null) staffModel else editModel.ifBlank { "Default model" }, onValueChange = {}, readOnly = true, enabled = selectedStaff == null, label = { Text(if (selectedStaff == null) "Model *" else "Model") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(modelExp) }, modifier = Modifier.menuAnchor().fillMaxWidth())
+                                        ExposedDropdownMenu(expanded = modelExp && selectedStaff == null, onDismissRequest = { modelExp = false }) {
+                                            if (state.availableModels.isEmpty()) {
+                                                DropdownMenuItem(text = { Text("Default model") }, onClick = { editModel = ""; modelExp = false })
+                                            } else {
+                                                state.availableModels.forEach { m -> DropdownMenuItem(text = { Text(m.label()) }, onClick = { editModel = m.id.orEmpty(); modelExp = false }) }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                val idx = editingNodes.indexOfFirst { it.id == node.id }
+                                if (idx >= 0) {
+                                    val s = staff.firstOrNull { it.name == editStaff }
+                                    editingNodes = editingNodes.toMutableList().apply {
+                                        set(idx, node.copy(
+                                            name = editName, instructions = editInstr, staffIc = editStaff.ifBlank { null },
+                                            mode = if (s != null) (s.mode?.takeIf { it.isNotBlank() } ?: editMode) else editMode,
+                                            model = if (s != null) (s.model?.takeIf { it.isNotBlank() } ?: editModel) else editModel
+                                        ))
+                                    }
+                                }
+                                showNodeEditor = false
+                            }) { Text("Done") }
+                        },
+                        dismissButton = { TextButton(onClick = { showNodeEditor = false }) { Text("Cancel") } }
+                    )
+                }
+            }
+
+            // Edge deletion confirmation
+            if (pendingDeleteEdge != null) {
+                AlertDialog(
+                    onDismissRequest = { pendingDeleteEdge = null },
+                    title = { Text("Remove this connection?") },
+                    text = { Text("This will disconnect the two stages.") },
+                    confirmButton = { Button(colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF85149)), onClick = { editingEdges = editingEdges.filter { it != pendingDeleteEdge }; pendingDeleteEdge = null }) { Text("Remove") } },
+                    dismissButton = { TextButton(onClick = { pendingDeleteEdge = null }) { Text("Cancel") } }
+                )
+            }
+        } else {
+            // List View
+            LazyColumn(Modifier.fillMaxSize().padding(8.dp)) {
+                item {
+                    Text("🔁 Workflows", style = MaterialTheme.typography.titleMedium)
+                    Spacer(Modifier.height(8.dp))
+                }
+                if (state.workflows.isEmpty()) {
+                    item {
+                        Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                            Text("No workflows defined", color = Color(0xFF8B949E))
+                        }
+                    }
+                } else {
+                    items(state.workflows) { wf ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))
+                        ) {
+                            Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(wf.name, fontWeight = FontWeight.SemiBold)
+                                    Text("${wf.nodes.size} stages", fontSize = MaterialTheme.typography.bodySmall.fontSize, color = Color(0xFF8B949E))
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Button(onClick = {
+                                        editingNodes = wf.nodes.map { it.copy() }
+                                        editingEdges = wf.edges.map { it.copy() }
+                                        wfName = wf.name
+                                        selectedNodeId = null
+                                        editingWf = wf
+                                    }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)) { Text("Edit", fontSize = MaterialTheme.typography.labelSmall.fontSize) }
+                                    TextButton(onClick = { vm.deleteWorkflow(wf.id) }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) {
+                                        Text("Delete", fontSize = MaterialTheme.typography.labelSmall.fontSize, color = Color(0xFFF85149))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                item { Spacer(Modifier.height(8.dp)) }
+                item {
+                    Button(onClick = {
+                        editingWf = WorkflowDto(id = "wf_${System.currentTimeMillis()}", name = "")
+                        editingNodes = emptyList()
+                        editingEdges = emptyList()
+                        wfName = ""
+                        selectedNodeId = null
+                    }, modifier = Modifier.fillMaxWidth()) { Text("+ New Workflow") }
+                }
+            }
+        }
+    }
+}
+
+private const val NODE_W = 200f
+private const val NODE_H = 70f
 
 @Composable
 @OptIn(ExperimentalMaterialApi::class)
@@ -580,7 +1405,7 @@ private fun SwipeableCaseItem(
                 .background(Color(0xFF0D1117), RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)),
             horizontalArrangement = Arrangement.End
         ) {
-            val btnMod = Modifier.width(100.dp).fillMaxHeight().padding(vertical = 6.dp)
+            val btnMod = Modifier.width(100.dp).fillMaxHeight().padding(vertical = 14.dp)
             SwipeActionButton("View", Icons.Filled.Visibility, Color(0xFF58A6FF), btnMod) {
                 scope.launch { offsetX.animateTo(0f, tween(150)) }
                 onView()
@@ -845,7 +1670,7 @@ private fun CaseFormScreen(session: SessionDto, state: UiState, vm: MonitorViewM
             }
         }
         Spacer(Modifier.height(8.dp))
-        OutlinedTextField(value = instruction, onValueChange = { instruction = it }, label = { Text("Instruction") }, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = instruction, onValueChange = { instruction = it }, label = { Text("Instruction") }, modifier = Modifier.fillMaxWidth(), enabled = !isSending)
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = fork, onCheckedChange = { fork = it })
@@ -871,8 +1696,7 @@ private fun CaseFormScreen(session: SessionDto, state: UiState, vm: MonitorViewM
                     selectedModel
                 }
                 isSending = true
-                vm.sendInstruction(session.id ?: "", finalInstruction, session.directory, requestMode, requestModel, fork = fork)
-                instruction = ""
+                vm.sendInstruction(session.id ?: "", finalInstruction, session.directory, requestMode, requestModel, fork = fork, onSuccess = { instruction = "" })
             },
             enabled = !isSending,
             modifier = Modifier.fillMaxWidth()
@@ -880,25 +1704,49 @@ private fun CaseFormScreen(session: SessionDto, state: UiState, vm: MonitorViewM
         Spacer(Modifier.height(64.dp))
     }
     if (showResponseDialog && session.lastText != null) {
+        val respContext = LocalContext.current
         AlertDialog(
             onDismissRequest = { showResponseDialog = false },
             title = { Text("Last response") },
             text = {
                 Box(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
-                    Text(session.lastText ?: "", color = Color(0xFF8B949E))
+                    AndroidView(factory = { ctx ->
+                        android.widget.TextView(ctx).apply {
+                            isVerticalScrollBarEnabled = true
+                            io.noties.markwon.Markwon.builder(ctx).usePlugin(io.noties.markwon.ext.tables.TablePlugin.create(ctx)).build().setMarkdown(this, session.lastText ?: "")
+                        }
+                    }, modifier = Modifier.fillMaxWidth())
                 }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    val clip = android.content.ClipData.newPlainText("response", session.lastText)
+                    (respContext.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager)?.setPrimaryClip(clip)
+                }) { Text("Copy") }
             },
             confirmButton = { TextButton(onClick = { showResponseDialog = false }) { Text("Close") } }
         )
     }
     if (showInstructionDialog && session.lastUserPrompt != null) {
+        val instrContext = LocalContext.current
         AlertDialog(
             onDismissRequest = { showInstructionDialog = false },
             title = { Text("Last instruction") },
             text = {
                 Box(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
-                    Text(session.lastUserPrompt ?: "", color = Color(0xFF8B949E))
+                    AndroidView(factory = { ctx ->
+                        android.widget.TextView(ctx).apply {
+                            isVerticalScrollBarEnabled = true
+                            io.noties.markwon.Markwon.builder(ctx).usePlugin(io.noties.markwon.ext.tables.TablePlugin.create(ctx)).build().setMarkdown(this, session.lastUserPrompt ?: "")
+                        }
+                    }, modifier = Modifier.fillMaxWidth())
                 }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    val clip = android.content.ClipData.newPlainText("instruction", session.lastUserPrompt)
+                    (instrContext.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager)?.setPrimaryClip(clip)
+                }) { Text("Copy") }
             },
             confirmButton = { TextButton(onClick = { showInstructionDialog = false }) { Text("Close") } }
         )
@@ -922,6 +1770,12 @@ data class NotificationEvent(
     val sessionId: String? = null
 )
 
+data class RemoteNotification(
+    val id: String,
+    val message: String,
+    val type: String
+)
+
 data class UiState(
     val loading: Boolean = false,
     val notice: String? = null,
@@ -933,8 +1787,10 @@ data class UiState(
     val staff: List<StaffDto> = emptyList(),
     val availableModels: List<ModelOption> = emptyList(),
     val cronJobs: List<CronJobDto> = emptyList(),
+    val workflows: List<WorkflowDto> = emptyList(),
     val summary: SummaryDto = SummaryDto(),
-    val notificationEvent: NotificationEvent? = null
+    val notificationEvent: NotificationEvent? = null,
+    val remoteNotifications: List<RemoteNotification> = emptyList()
 )
 
 data class StatusPayload(
@@ -967,7 +1823,8 @@ data class StaffDto(
     val description: String? = null,
     val gender: String? = null,
     val mode: String? = null,
-    val model: String? = null
+    val model: String? = null,
+    val path: String? = null
 )
 data class ModelOption(val id: String? = null, val provider: String? = null) { fun label(): String = if (provider.isNullOrBlank()) id.orEmpty() else "$provider · ${id.orEmpty()}" }
 data class CronJobDto(
@@ -976,7 +1833,15 @@ data class CronJobDto(
     val interval_sec: Int? = null,
     val enabled: Boolean? = null,
     @SerializedName("last_run") val lastRun: Long? = null,
-    @SerializedName("last_status") val lastStatus: String? = null
+    @SerializedName("last_status") val lastStatus: String? = null,
+    @SerializedName("action_type") val actionType: String? = null,
+    @SerializedName("action_message") val actionMessage: String? = null,
+    @SerializedName("action_staff") val actionStaff: String? = null,
+    @SerializedName("action_mode") val actionMode: String? = null,
+    @SerializedName("action_model") val actionModel: String? = null,
+    @SerializedName("action_session_id") val actionSessionId: String? = null,
+    @SerializedName("action_fork") val actionFork: Boolean? = null,
+    @SerializedName("action_directory") val actionDirectory: String? = null
 ) {
     val intervalSec: Int? get() = interval_sec
     fun nextRunDisplay(): String {
@@ -985,6 +1850,78 @@ data class CronJobDto(
         val interval = interval_sec ?: return "\u2014"
         val next = last + interval
         return if (next <= System.currentTimeMillis() / 1000L) "Due now" else formatTimestamp(next)
+    }
+}
+
+data class WorkflowNodeDto(
+    val id: String = "",
+    val name: String = "",
+    val instructions: String = "",
+    @SerializedName("staff_ic") val staffIc: String? = null,
+    val mode: String? = null,
+    val model: String? = null,
+    val x: Float = 0f,
+    val y: Float = 0f
+)
+data class WorkflowEdgeDto(
+    val from: String = "",
+    val to: String = ""
+)
+data class WorkflowDto(
+    val id: String = "",
+    val name: String = "",
+    val nodes: List<WorkflowNodeDto> = emptyList(),
+    val edges: List<WorkflowEdgeDto> = emptyList()
+)
+data class WorkflowInstanceDto(
+    @SerializedName("session_id") val sessionId: String = "",
+    @SerializedName("workflow_id") val workflowId: String = "",
+    val status: String = "",
+    val paused: Boolean = false,
+    @SerializedName("current_node") val currentNode: String? = null,
+    @SerializedName("node_states") val nodeStates: Map<String, NodeStateDto>? = null
+)
+data class NodeStateDto(
+    val status: String = "",
+    @SerializedName("completed_at") val completedAt: Long? = null
+)
+
+private fun JsonObject.toWorkflowList(): List<WorkflowDto> {
+    val arr = getAsJsonArray("workflows") ?: return emptyList()
+    return arr.mapNotNull {
+        runCatching {
+            val o = it.asJsonObject
+            val nodes = o.getAsJsonArray("nodes")?.mapNotNull { n ->
+                runCatching {
+                    val no = n.asJsonObject
+                    WorkflowNodeDto(
+                        id = no.get("id")?.asString ?: "",
+                        name = no.get("name")?.asString ?: "",
+                        instructions = no.get("instructions")?.asString ?: "",
+                        staffIc = no.get("staff_ic")?.asString,
+                        mode = no.get("mode")?.asString,
+                        model = no.get("model")?.asString,
+                        x = no.get("x")?.asFloat ?: 0f,
+                        y = no.get("y")?.asFloat ?: 0f
+                    )
+                }.getOrNull()
+            } ?: emptyList()
+            val edges = o.getAsJsonArray("edges")?.mapNotNull { e ->
+                runCatching {
+                    val eo = e.asJsonObject
+                    WorkflowEdgeDto(
+                        from = eo.get("from")?.asString ?: "",
+                        to = eo.get("to")?.asString ?: ""
+                    )
+                }.getOrNull()
+            } ?: emptyList()
+            WorkflowDto(
+                id = o.get("id")?.asString ?: "",
+                name = o.get("name")?.asString ?: "",
+                nodes = nodes,
+                edges = edges
+            )
+        }.getOrNull()
     }
 }
 
@@ -1070,7 +2007,20 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
             val cron = runCatching {
                 api.getJson("$base/api/cron-jobs").toCronList()
             }.getOrDefault(emptyList())
+            val workflows = runCatching {
+                api.getJson("$base/api/workflows").toWorkflowList()
+            }.getOrDefault(emptyList())
             val models = collectModels(status, staff)
+            val remoteNotifs = runCatching {
+                val resp = api.getJson("$base/api/notifications/messages")
+                val arr = resp?.getAsJsonArray("notifications") ?: return@runCatching emptyList<RemoteNotification>()
+                arr.mapNotNull { it?.asJsonObject?.let { obj ->
+                    val id = obj.get("id")?.asString ?: return@mapNotNull null
+                    val msg = obj.get("message")?.asString ?: return@mapNotNull null
+                    val typ = obj.get("type")?.asString ?: "info"
+                    RemoteNotification(id, msg, typ)
+                }}
+            }.getOrDefault(emptyList())
             _uiState.value = _uiState.value.copy(
                 loading = false,
                 sessions = status.sessions ?: emptyList(),
@@ -1079,7 +2029,9 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
                 staff = staff,
                 availableModels = models,
                 cronJobs = cron,
-                bossName = status.bossName?.takeIf { it.isNotBlank() } ?: _uiState.value.bossName
+                workflows = workflows,
+                bossName = status.bossName?.takeIf { it.isNotBlank() } ?: _uiState.value.bossName,
+                remoteNotifications = remoteNotifs
             )
             val newList = status.allSessions ?: status.sessions ?: emptyList()
             if (prevSessions.isNotEmpty()) {
@@ -1110,7 +2062,7 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
         }
     }
 
-    fun sendInstruction(sessionId: String, message: String, directory: String? = null, mode: String? = null, model: String? = null, fork: Boolean = false) {
+    fun sendInstruction(sessionId: String, message: String, directory: String? = null, mode: String? = null, model: String? = null, fork: Boolean = false, onSuccess: (() -> Unit)? = null) {
         viewModelScope.launch {
             runCatching {
                 val base = _uiState.value.baseUrl.trimEnd('/')
@@ -1127,6 +2079,7 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
                 val ok = resp.get("ok")?.asBoolean ?: false
                 val msg = resp.get("message")?.asString ?: "Instruction sent"
                 _uiState.value = _uiState.value.copy(notice = if (ok) msg else "Error: $msg")
+                if (ok) onSuccess?.invoke()
             }.onFailure {
                 _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
             }
@@ -1144,6 +2097,27 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
                     addProperty("title", title)
                 })
                 _uiState.value = _uiState.value.copy(notice = "Case renamed")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
+    fun createSession(title: String, message: String, mode: String, model: String, directory: String) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "new-session", JsonObject().apply {
+                    addProperty("title", title)
+                    addProperty("message", message)
+                    addProperty("mode", mode)
+                    addProperty("model", model)
+                    addProperty("directory", directory)
+                    addProperty("fresh", true)
+                })
+                _uiState.value = _uiState.value.copy(notice = "New case started")
             }.onFailure {
                 _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
             }
@@ -1196,6 +2170,180 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
         }
     }
 
+    fun createCronJob(name: String, intervalSec: Int, action: JsonObject) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "cron-jobs/create", JsonObject().apply {
+                    addProperty("name", name)
+                    addProperty("interval_sec", intervalSec)
+                    add("action", action)
+                })
+                _uiState.value = _uiState.value.copy(notice = "Cron job created")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
+    fun updateCronJob(id: String, name: String, intervalSec: Int, action: JsonObject) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "cron-jobs/update", JsonObject().apply {
+                    addProperty("id", id)
+                    addProperty("name", name)
+                    addProperty("interval_sec", intervalSec)
+                    add("action", action)
+                })
+                _uiState.value = _uiState.value.copy(notice = "Cron job updated")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
+    fun deleteCronJob(id: String) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "cron-jobs/delete", JsonObject().apply { addProperty("id", id) })
+                _uiState.value = _uiState.value.copy(notice = "Cron job deleted")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
+    fun saveWorkflow(wf: WorkflowDto) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "workflow-save", JsonObject().apply {
+                    add("workflow", Gson().toJsonTree(wf))
+                })
+                _uiState.value = _uiState.value.copy(notice = "Workflow saved")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
+    fun deleteWorkflow(id: String) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "workflow-delete", JsonObject().apply { addProperty("id", id) })
+                _uiState.value = _uiState.value.copy(notice = "Workflow deleted")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
+    fun attachWorkflow(sessionId: String, workflowId: String) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "workflow-attach", JsonObject().apply {
+                    addProperty("session_id", sessionId)
+                    addProperty("workflow_id", workflowId)
+                })
+                _uiState.value = _uiState.value.copy(notice = "Workflow attached")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
+    fun advanceWorkflow(sessionId: String) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "workflow-advance", JsonObject().apply { addProperty("session_id", sessionId) })
+                _uiState.value = _uiState.value.copy(notice = "Workflow advanced")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
+    fun pauseWorkflow(sessionId: String) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "workflow-pause", JsonObject().apply { addProperty("session_id", sessionId) })
+                _uiState.value = _uiState.value.copy(notice = "Workflow paused/resumed")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
+    fun createStaff(name: String, description: String, gender: String, mode: String, model: String, path: String) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "super-staff-create", JsonObject().apply {
+                    addProperty("name", name); addProperty("description", description); addProperty("gender", gender)
+                    addProperty("mode", mode); addProperty("model", model); addProperty("path", path)
+                })
+                _uiState.value = _uiState.value.copy(notice = "Staff created")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
+    fun updateStaff(originalName: String, name: String, description: String, gender: String, mode: String, model: String, path: String) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "super-staff-update", JsonObject().apply {
+                    addProperty("originalName", originalName); addProperty("name", name); addProperty("description", description)
+                    addProperty("gender", gender); addProperty("mode", mode); addProperty("model", model); addProperty("path", path)
+                })
+                _uiState.value = _uiState.value.copy(notice = "Staff updated")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
+    fun deleteStaff(name: String) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "super-staff-delete", JsonObject().apply { addProperty("name", name) })
+                _uiState.value = _uiState.value.copy(notice = "Staff deleted")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
     fun restartDaemon() {
         viewModelScope.launch {
             runCatching {
@@ -1222,6 +2370,25 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
         }
     }
 
+    fun pollNotifications() {
+        viewModelScope.launch {
+            val base = _uiState.value.baseUrl.trimEnd('/')
+            if (base.isBlank()) return@launch
+            val api = createApi(_uiState.value.apiKey)
+            val remoteNotifs = runCatching {
+                val resp = api.getJson("$base/api/notifications/messages")
+                val arr = resp?.getAsJsonArray("notifications") ?: return@runCatching emptyList<RemoteNotification>()
+                arr.mapNotNull { it?.asJsonObject?.let { obj ->
+                    val id = obj.get("id")?.asString ?: return@mapNotNull null
+                    val msg = obj.get("message")?.asString ?: return@mapNotNull null
+                    val typ = obj.get("type")?.asString ?: "info"
+                    RemoteNotification(id, msg, typ)
+                }}
+            }.getOrDefault(emptyList())
+            _uiState.value = _uiState.value.copy(remoteNotifications = remoteNotifs)
+        }
+    }
+
     fun saveBossName(name: String) {
         viewModelScope.launch {
             runCatching {
@@ -1233,6 +2400,18 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
                 _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
             }
             refreshAll()
+        }
+    }
+
+    fun dismissNotification(id: String) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "notifications-dismiss", JsonObject().apply { addProperty("id", id) })
+            }
+            val updated = _uiState.value.remoteNotifications.filter { it.id != id }
+            _uiState.value = _uiState.value.copy(remoteNotifications = updated)
         }
     }
 }
@@ -1438,7 +2617,8 @@ private fun JsonObject.toStaffList(): List<StaffDto> {
                 description = o.get("description")?.asString,
                 gender = o.get("gender")?.asString,
                 mode = o.get("mode")?.asString,
-                model = o.get("model")?.asString
+                model = o.get("model")?.asString,
+                path = o.get("path")?.asString
             )
         }.getOrNull()
     }
@@ -1449,13 +2629,22 @@ private fun JsonObject.toCronList(): List<CronJobDto> {
     return arr.mapNotNull {
         runCatching {
             val o = it.asJsonObject
+            val action = o.getAsJsonObject("action")
             CronJobDto(
                 id = o.get("id")?.asString ?: o.get("id")?.asInt?.toString(),
                 name = o.get("name")?.asString,
                 interval_sec = o.get("interval_sec")?.asInt,
                 enabled = o.get("enabled")?.asBoolean,
                 lastRun = o.get("last_run")?.asLong,
-                lastStatus = o.get("last_status")?.asString
+                lastStatus = o.get("last_status")?.asString,
+                actionType = action?.get("type")?.asString,
+                actionMessage = action?.get("message")?.asString,
+                actionStaff = action?.get("staff")?.asString,
+                actionMode = action?.get("mode")?.asString,
+                actionModel = action?.get("model")?.asString,
+                actionSessionId = action?.get("session_id")?.asString,
+                actionFork = action?.get("fork")?.asBoolean,
+                actionDirectory = action?.get("directory")?.asString
             )
         }.getOrNull()
     }

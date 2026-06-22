@@ -1,0 +1,14 @@
+R_DEF: Internal format may change without notice
+local
+drawable discuss_empty
+drawable discuss_group_loop
+drawable homescreen_apps_mock
+drawable profile_photo
+drawable working_desk_empty
+drawable working_staff_loop
+drawable working_staff_loop_female
+raw discuss_group_loop
+raw working_staff_loop
+raw working_staff_loop_female
+string app_name
+style Theme.RealtimeOpenCodeMonitor

@@ -359,7 +359,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     from api_handlers import (
         _handle_stop_session, _handle_session_instruct, _handle_session_answer,
-        _handle_new_session, _handle_new_session_step2,
+        _handle_new_session,
         _handle_provider_logout, _handle_provider_login,
         _handle_ollama_add, _handle_ollama_remove,
         _handle_super_staff_create, _handle_super_staff_delete,
@@ -384,7 +384,6 @@ if __name__ == '__main__':
         ('session-instruct', _handle_session_instruct),
         ('session-answer', _handle_session_answer),
         ('new-session', _handle_new_session),
-        ('new-session/step2', _handle_new_session_step2),
         ('provider-logout', _handle_provider_logout),
         ('provider-login', _handle_provider_login),
         ('ollama-add', _handle_ollama_add),
@@ -524,11 +523,11 @@ if __name__ == '__main__':
                                         _save_workflow_instances(instances)
                                         log(f"Workflow watcher: queued branch {branch_id} for session {inst['session_id'][:16]}")
                                 else:
-                                    inst['status'] = 'completed'
                                     inst['current_node'] = None
-                                    _save_workflow_instances(instances)
-                                    log(f"Workflow watcher: completed for session {inst['session_id'][:16]}")
-                                    # Activate next pending branch for the same session
+                                    node_states[current_id]['status'] = 'completed'
+                                    node_states[current_id]['completed_at'] = time.time()
+                                    # Check if there are pending branches to activate
+                                    activated_branch = False
                                     for other in instances:
                                         if other.get('session_id') == inst.get('session_id') and other.get('status') == 'running':
                                             ns = other.get('node_states', {})
@@ -538,10 +537,33 @@ if __name__ == '__main__':
                                                 _save_workflow_instances(instances)
                                                 threading.Thread(target=lambda i=dict(other): _run_workflow_stage(i), daemon=True).start()
                                                 log(f"Workflow watcher: activating branch {cn} for session {inst['session_id'][:16]}")
+                                                activated_branch = True
                                                 break
+                                    if not activated_branch:
+                                        # All branches done — trigger summary and mark completed
+                                        inst['_pending_summary'] = True
+                                        _save_workflow_instances(instances)
+                                        threading.Thread(target=lambda sid=inst['session_id']: (
+                                            subprocess.run(
+                                                ['opencode', 'run', '-s', sid, 'Summarize what was accomplished in this session end to end. Cover all stages, key outcomes, decisions, and results. Be concise.'],
+                                                capture_output=True, text=True, timeout=120
+                                            ), None
+                                        ), daemon=True).start()
+                                        log(f"Workflow watcher: summary triggered for session {inst['session_id'][:16]}")
                                     else:
-                                        continue
-                                    break
+                                        _save_workflow_instances(instances)
+                                    # Handle _pending_summary: check if session has last_text yet
+                                    for pend_inst in instances:
+                                        if pend_inst.get('_pending_summary') and pend_inst.get('status') == 'running':
+                                            psession = session_map.get(pend_inst['session_id'])
+                                            if psession:
+                                                lt = psession.get('last_text', '') or ''
+                                                if lt and len(lt) > 20:
+                                                    pend_inst['summary'] = lt[:5000]
+                                                    pend_inst['status'] = 'completed'
+                                                    pend_inst['_pending_summary'] = False
+                                                    _save_workflow_instances(instances)
+                                                    log(f"Workflow watcher: summary saved for session {pend_inst['session_id'][:16]}")
             except Exception as e:
                 log(f"Workflow watcher error: {e}")
 

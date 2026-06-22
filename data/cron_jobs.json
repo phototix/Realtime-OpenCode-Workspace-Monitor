@@ -1,0 +1,55 @@
+[
+  {
+    "id": "cron_b9752a9f6784",
+    "name": "Project Review",
+    "interval_sec": 43200,
+    "last_run": 1782019961.4628139,
+    "last_status": "done",
+    "enabled": false,
+    "action": {
+      "type": "session",
+      "message": "Do project review and provide improvement suggestions.",
+      "staff": "Linus Torvalds (Software Manager)",
+      "mode": "plan",
+      "model": "moonshotai/kimi-k2.7-code",
+      "session_id": "ses_129cff6d4ffeEXV4kiXqA0e5pC",
+      "fork": true
+    },
+    "created": 1781800852.716038
+  },
+  {
+    "id": "cron_518739940c5e",
+    "name": "MyDora Health Checker",
+    "interval_sec": 3600,
+    "last_run": 1782126464.247058,
+    "last_status": "done",
+    "enabled": true,
+    "action": {
+      "type": "session",
+      "message": "Do complete check on website health, functions, consoles monitoring. Report if any issue.",
+      "mode": "plan",
+      "model": "",
+      "session_id": "ses_119ed4840ffe1VsxrXIhv36OKm",
+      "fork": false
+    },
+    "created": 1781988008.0486898
+  },
+  {
+    "id": "cron_9c7f90fd90ab",
+    "name": "VPS Monitoring",
+    "interval_sec": 86400,
+    "last_run": 1782066360.099518,
+    "last_status": "done",
+    "enabled": true,
+    "action": {
+      "type": "session",
+      "message": "SSH into all 4 VPS, ssh details in markdown .md. then use \"sudo su\" to run \"./clean.sh -y\".\nGenerate reports for review.",
+      "staff": "Ben Treynor Sloss (Google Server Engineer)",
+      "mode": "build",
+      "model": "opencode-go/deepseek-v4-flash",
+      "session_id": "ses_1244314eeffeJ84jDkYD5hQxSS",
+      "fork": false
+    },
+    "created": 1782065044.570118
+  }
+]
