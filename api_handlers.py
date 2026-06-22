@@ -13,13 +13,16 @@ import stat
 import threading
 
 from server_config import (
-    DATA_DIR, PID_FILE, STATIC_DIR, API_KEY_FILE, CRON_FILE,
-    NOTIFICATION_PROVIDERS_FILE,
+    DATA_DIR, PID_FILE, STATIC_DIR, API_KEY_FILE, CRON_FILE, CONFIG_FILE,
+    NOTIFICATION_PROVIDERS_FILE, WORKFLOWS_FILE, WORKFLOW_INSTANCES_FILE,
     _get_api_key, _set_api_key, _safe_agent_name, strip_ansi,
     _get_session_lock, _check_engine, get_engine_restarted,
     get_attach_url, engine_is_reachable, log, _error_id,
     _load_notifications, _save_notifications,
-    _load_notification_providers, _save_notification_providers
+    _load_notification_providers, _save_notification_providers,
+    _load_workflows, _save_workflows,
+    _load_workflow_instances, _save_workflow_instances,
+    _workflow_lock,
 )
 from queue import _load_queue, _save_queue
 
@@ -30,10 +33,11 @@ def _handle_stop_session(body: dict) -> tuple:
     try:
         cwd = body.get('directory') or None
         r = subprocess.run(['opencode', 'session', 'delete', sid], capture_output=True, text=True, timeout=15, cwd=cwd)
-        if r.returncode == 0:
-            log(f"Admin: deleted session {sid}")
+        err = r.stderr.strip()
+        if r.returncode == 0 or 'not found' in err.lower():
+            log(f"Admin: deleted session {sid}" if r.returncode == 0 else f"Admin: session {sid} already removed")
             return True, {'ok': True, 'message': 'Session deleted'}
-        return False, {'ok': False, 'message': r.stderr.strip() or 'Unknown error'}
+        return False, {'ok': False, 'message': err or 'Unknown error'}
     except subprocess.TimeoutExpired:
         return False, {'ok': False, 'message': 'Timeout stopping session'}
     except Exception as e:
@@ -175,6 +179,7 @@ def _handle_new_session(body: dict) -> tuple:
     model = body.get('model', '')
     mode_val = body.get('mode', '')
     fresh = body.get('fresh', False)
+    workflow_id = body.get('workflow_id', '')
     if not message:
         return False, {'ok': False, 'message': 'Missing message'}
     try:
@@ -212,23 +217,92 @@ def _handle_new_session(body: dict) -> tuple:
             cmd.extend(['-p', password])
         if title:
             cmd.extend(['--title', title])
-        if model:
-            cmd.extend(['-m', model])
-        if mode_val:
-            cmd.extend(['--agent', mode_val])
         if directory:
             cmd.extend(['--dir', directory])
-        cmd.append(message)
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=cwd)
+        # When a workflow is attached, create session WITHOUT the user message first
+        # (the message is sent separately to avoid engine issues with simultaneous commands)
+        if workflow_id:
+            cmd.append("[Workflow]")
+        else:
+            if model:
+                cmd.extend(['-m', model])
+            if mode_val:
+                cmd.extend(['--agent', mode_val])
+            cmd.append(message)
+        try:
+            r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
+        except subprocess.TimeoutExpired:
+            log(f"Admin: session creation timed out (120s), retrying once...")
+            try:
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
+            except subprocess.TimeoutExpired:
+                return False, {'ok': False, 'message': 'Timeout starting session'}
+        session_id = None
+        workflow_id = body.get('workflow_id', '')
         if fresh:
             session_created = '"sessionID"' in r.stdout or r.returncode == 0
             if session_created:
                 log(f"Admin: fresh session started \"{title or message[:40]}\"")
-                return True, {'ok': True, 'message': 'Session started'}
+                try:
+                    import re as _re2
+                    m2 = _re2.search(r'"sessionID"\s*:\s*"([^"]+)"', r.stdout)
+                    if m2:
+                        session_id = m2.group(1)
+                except Exception:
+                    pass
+                result = {'ok': True, 'message': 'Session started', 'session_id': session_id or ''}
+                if workflow_id and session_id:
+                    # Send the user's message locally (no --attach) with model specified
+                    try:
+                        msg_cmd = ['opencode', 'run', '-s', session_id]
+                        if model:
+                            msg_cmd.extend(['-m', model])
+                        if mode_val:
+                            msg_cmd.extend(['--agent', mode_val])
+                        msg_cmd.append(message)
+                        subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
+                    except Exception:
+                        pass
+                    try:
+                        wf_ok, wf_res = _handle_workflow_attach({'session_id': session_id, 'workflow_id': workflow_id})
+                        if wf_ok:
+                            result['workflow'] = 'attached'
+                        else:
+                            result['workflow_error'] = wf_res.get('message', '')
+                    except Exception as e:
+                        result['workflow_error'] = str(e)[:100]
+                return True, result
             return False, {'ok': False, 'message': (r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]}
         if r.returncode == 0:
+            try:
+                import re as _re3
+                m3 = _re3.search(r'(?:Session|session|ID|id)[:\s]+([a-z0-9_]{10,})', r.stdout)
+                if m3:
+                    session_id = m3.group(1)
+            except Exception:
+                pass
             log(f"Admin: new session started \"{title or message[:40]}\"")
-            return True, {'ok': True, 'message': 'Session started'}
+            result = {'ok': True, 'message': 'Session started', 'session_id': session_id or ''}
+            if workflow_id and session_id:
+                try:
+                    msg_cmd = ['opencode', 'run', '-s', session_id]
+                    if model:
+                        msg_cmd.extend(['-m', model])
+                    if mode_val:
+                        msg_cmd.extend(['--agent', mode_val])
+                    msg_cmd.append(message)
+                    subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
+                except Exception:
+                    pass
+                try:
+                    wf_ok, wf_res = _handle_workflow_attach({'session_id': session_id, 'workflow_id': workflow_id})
+                    if wf_ok:
+                        result['workflow'] = 'attached'
+                    else:
+                        result['workflow_error'] = wf_res.get('message', '')
+                except Exception as e:
+                    result['workflow_error'] = str(e)[:100]
+            return True, result
         return False, {'ok': False, 'message': (r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]}
     except subprocess.TimeoutExpired:
         return False, {'ok': False, 'message': 'Timeout starting session'}
@@ -501,9 +575,14 @@ def _handle_save_boss_name(body: dict) -> tuple:
     if not name:
         return False, {'ok': False, 'message': 'Missing name'}
     try:
-        dest = os.path.join(DATA_DIR, 'boss_name.json')
-        with open(dest, 'w') as f:
-            json.dump({'name': name}, f)
+        # Read existing config or start fresh
+        cfg = {}
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE) as f:
+                cfg = json.load(f)
+        cfg['boss_name'] = name
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(cfg, f, indent=2)
         return True, {'ok': True}
     except Exception as e:
         return False, {'ok': False, 'message': str(e)[:200]}
@@ -829,6 +908,249 @@ def _handle_cron_jobs_toggle(body: dict) -> tuple:
             break
     _save_cron_jobs(jobs)
     return True, {'ok': True, 'message': 'Toggled'}
+
+def _run_workflow_stage(wf_instance: dict) -> tuple:
+    """Execute the current pending stage for a workflow instance."""
+    session_id = wf_instance['session_id']
+    workflow_id = wf_instance['workflow_id']
+    workflows = _load_workflows()
+    wf = next((w for w in workflows if w['id'] == workflow_id), None)
+    if not wf:
+        return False, 'Workflow definition not found'
+
+    current_id = wf_instance.get('current_node')
+    if not current_id:
+        return False, 'No current node set'
+
+    node = next((n for n in wf['nodes'] if n['id'] == current_id), None)
+    if not node:
+        return False, f'Node {current_id} not found in workflow'
+
+    staff_name = node.get('staff_ic', '')
+    staff_mode = ''
+    staff_model = ''
+    staff_desc = ''
+    if staff_name:
+        staff_file = os.path.join(DATA_DIR, 'super_staff.json')
+        if os.path.exists(staff_file):
+            try:
+                with open(staff_file) as f:
+                    all_staff = json.load(f)
+                found = next((s for s in all_staff if s['name'] == staff_name), None)
+                if found:
+                    staff_mode = found.get('mode', '')
+                    staff_model = found.get('model', '')
+                    staff_desc = found.get('description', '')
+            except Exception:
+                pass
+
+    # Fetch last response from the session to prepend as context
+    last_response = ''
+    status_path = os.path.join(DATA_DIR, 'status.json')
+    if os.path.exists(status_path):
+        try:
+            with open(status_path) as f:
+                sd = json.load(f)
+            all_sessions = sd.get('all_sessions', sd.get('sessions', []))
+            sdata = next((s for s in all_sessions if s.get('id') == session_id), None)
+            if sdata:
+                lt = sdata.get('last_text', '') or ''
+                if lt:
+                    last_response = lt[:2000]
+        except Exception:
+            pass
+
+    # Build message with previous response context + staff scope + instructions
+    parts = []
+    if last_response:
+        parts.append(f"Response to: {last_response}")
+    if staff_desc:
+        parts.append(staff_desc)
+    if node.get('instructions', ''):
+        parts.append(node['instructions'])
+    message = '\n\n'.join(parts) if parts else node.get('instructions', '')
+
+    cmd = ['opencode', 'run', '-s', session_id]
+    if staff_model:
+        cmd.extend(['-m', staff_model])
+    if staff_mode:
+        cmd.extend(['--agent', staff_mode])
+    cmd.append(message)
+
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+        log(f"[WF STAGE] cmd={' '.join(cmd[-4:])}, rc={r.returncode}, stderr={r.stderr[:100] if r.stderr else 'none'}")
+        if r.returncode == 0:
+            log(f"Workflow: stage '{node.get('name', current_id)}' started for session {session_id[:16]}")
+            return True, 'Stage started'
+        err_text = strip_ansi(r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]
+        if staff_model and ('Model not found' in err_text or 'UnknownError' in err_text):
+            cmd_nomodel = [c for c in cmd if c not in ('-m', staff_model)]
+            r2 = subprocess.run(cmd_nomodel, capture_output=True, text=True, timeout=180)
+            if r2.returncode == 0:
+                log(f"Workflow: stage '{node.get('name', current_id)}' started (no model)")
+                return True, 'Stage started (model ignored)'
+            err_text = strip_ansi(r2.stderr.strip() or r2.stdout.strip()[:200] or 'Unknown error')[:200]
+        return False, err_text
+    except subprocess.TimeoutExpired:
+        return False, 'Timeout starting stage'
+    except Exception as e:
+        return False, str(e)[:200]
+
+def _handle_workflow_save(body: dict) -> tuple:
+    """Create or update a workflow definition."""
+    wf = body.get('workflow', {})
+    if not wf.get('id') or not wf.get('name') or not wf.get('nodes'):
+        return False, {'ok': False, 'message': 'Missing id, name, or nodes'}
+    workflows = _load_workflows()
+    existing = next((w for w in workflows if w['id'] == wf['id']), None)
+    now = time.time()
+    if existing:
+        existing.update(wf)
+        existing['updated'] = now
+    else:
+        wf['created'] = now
+        wf['updated'] = now
+        workflows.append(wf)
+    _save_workflows(workflows)
+    log(f"Workflow saved: {wf['name']} ({wf['id']})")
+    return True, {'ok': True, 'workflow': wf}
+
+def _handle_workflow_delete(body: dict) -> tuple:
+    """Delete a workflow definition."""
+    wf_id = body.get('id', '')
+    if not wf_id:
+        return False, {'ok': False, 'message': 'Missing workflow id'}
+    workflows = _load_workflows()
+    workflows = [w for w in workflows if w['id'] != wf_id]
+    _save_workflows(workflows)
+    log(f"Workflow deleted: {wf_id}")
+    return True, {'ok': True, 'message': 'Workflow deleted'}
+
+def _handle_workflow_attach(body: dict) -> tuple:
+    """Attach a workflow to a session and start stage 1."""
+    session_id = body.get('session_id', '')
+    workflow_id = body.get('workflow_id', '')
+    log(f"[WF ATTACH] Called with session_id={session_id[:16] if session_id else '?'}, workflow_id={workflow_id[:16] if workflow_id else '?'}")
+    if not session_id or not workflow_id:
+        return False, {'ok': False, 'message': 'Missing session_id or workflow_id'}
+    workflows = _load_workflows()
+    wf = next((w for w in workflows if w['id'] == workflow_id), None)
+    if not wf:
+        return False, {'ok': False, 'message': 'Workflow not found'}
+    nodes = wf.get('nodes', [])
+    if not nodes:
+        return False, {'ok': False, 'message': 'Workflow has no nodes'}
+    edges = wf.get('edges', [])
+    has_incoming = {e['to'] for e in edges}
+    first = next((n for n in nodes if n['id'] not in has_incoming), nodes[0])
+    node_states = {}
+    for n in nodes:
+        node_states[n['id']] = {'status': 'pending'}
+    node_states[first['id']]['status'] = 'running'
+    instance = {
+        'session_id': session_id,
+        'workflow_id': workflow_id,
+        'status': 'running',
+        'current_node': first['id'],
+        'node_states': node_states,
+        'paused': False,
+        'started_at': time.time(),
+    }
+    with _workflow_lock:
+        instances = _load_workflow_instances()
+        instances = [i for i in instances if i['session_id'] != session_id]
+        instances.append(instance)
+        _save_workflow_instances(instances)
+        log(f"[WF ATTACH] Instance saved (n1 running)")
+    ok, msg = _run_workflow_stage(instance)
+    if ok:
+        log(f"Workflow attached: {workflow_id} -> session {session_id[:16]}, stage '{first.get('name')}'")
+        return True, {'ok': True, 'message': 'Workflow attached, first stage started', 'instance': instance}
+    with _workflow_lock:
+        instances = _load_workflow_instances()
+        inst = next((i for i in instances if i['session_id'] == session_id), None)
+        if inst:
+            ns = inst.get('node_states', {})
+            if first['id'] in ns:
+                ns[first['id']]['status'] = 'failed'
+            inst['status'] = 'failed'
+            _save_workflow_instances(instances)
+    return False, {'ok': False, 'message': msg}
+
+def _handle_workflow_advance(body: dict) -> tuple:
+    """Advance to the next stage in the workflow."""
+    session_id = body.get('session_id', '')
+    if not session_id:
+        return False, {'ok': False, 'message': 'Missing session_id'}
+    with _workflow_lock:
+        instances = _load_workflow_instances()
+        instance = next((i for i in instances if i['session_id'] == session_id), None)
+        if not instance:
+            return False, {'ok': False, 'message': 'No workflow instance for this session'}
+        if instance['status'] == 'completed':
+            return False, {'ok': False, 'message': 'Workflow already completed'}
+        workflows = _load_workflows()
+        wf = next((w for w in workflows if w['id'] == instance['workflow_id']), None)
+        if not wf:
+            return False, {'ok': False, 'message': 'Workflow definition not found'}
+        nodes = wf.get('nodes', [])
+        edges = wf.get('edges', [])
+        current_id = instance.get('current_node')
+        node_states = instance.get('node_states', {})
+
+        # Mark current node as completed
+        if current_id and current_id in node_states:
+            node_states[current_id]['status'] = 'completed'
+            node_states[current_id]['completed_at'] = time.time()
+
+        # Find next node via edges
+        next_id = None
+        for e in edges:
+            if e['from'] == current_id:
+                next_id = e['to']
+                break
+        if not next_id:
+            instance['status'] = 'completed'
+            instance['current_node'] = None
+            _save_workflow_instances(instances)
+            log(f"Workflow completed for session {session_id[:16]}")
+            return True, {'ok': True, 'message': 'Workflow completed'}
+
+        # Start next stage
+        instance['current_node'] = next_id
+        node_states[next_id]['status'] = 'running'
+        _save_workflow_instances(instances)
+    ok, msg = _run_workflow_stage(instance)
+    if ok:
+        log(f"Workflow advanced: session {session_id[:16]} -> stage '{next_id}'")
+        return True, {'ok': True, 'message': 'Advanced to next stage'}
+    with _workflow_lock:
+        instances = _load_workflow_instances()
+        inst = next((i for i in instances if i['session_id'] == session_id), None)
+        if inst:
+            ns = inst.get('node_states', {})
+            if next_id in ns:
+                ns[next_id]['status'] = 'failed'
+            inst['status'] = 'failed'
+            _save_workflow_instances(instances)
+    return False, {'ok': False, 'message': msg}
+
+def _handle_workflow_pause(body: dict) -> tuple:
+    """Toggle pause/resume on a workflow instance."""
+    session_id = body.get('session_id', '')
+    if not session_id:
+        return False, {'ok': False, 'message': 'Missing session_id'}
+    with _workflow_lock:
+        instances = _load_workflow_instances()
+        instance = next((i for i in instances if i['session_id'] == session_id), None)
+        if not instance:
+            return False, {'ok': False, 'message': 'No workflow instance for this session'}
+        instance['paused'] = not instance.get('paused', False)
+        _save_workflow_instances(instances)
+        state = 'paused' if instance['paused'] else 'resumed'
+    log(f"Workflow {state} for session {session_id[:16]}")
+    return True, {'ok': True, 'message': f'Workflow {state}', 'paused': instance['paused']}
 
 def _handle_cron_jobs_run(body: dict) -> tuple:
     job_id = body.get('id', '')
