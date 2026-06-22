@@ -221,9 +221,10 @@ def _handle_new_session(body: dict) -> tuple:
             cmd.extend(['--dir', directory])
         # When a workflow is attached, create session WITHOUT the user message first
         # (the message is sent separately to avoid engine issues with simultaneous commands)
+        # For fresh sessions, also skip message in the first command — deliver it via -s below
         if workflow_id:
             cmd.append("[Workflow]")
-        else:
+        elif not fresh:
             if model:
                 cmd.extend(['-m', model])
             if mode_val:
@@ -251,26 +252,31 @@ def _handle_new_session(body: dict) -> tuple:
                 except Exception:
                     pass
                 result = {'ok': True, 'message': 'Session started', 'session_id': session_id or ''}
-                if workflow_id and session_id:
-                    # Send the user's message locally (no --attach) with model specified
+                if session_id:
+                    # Deliver the user's message via -s to start the processing loop
                     try:
-                        msg_cmd = ['opencode', 'run', '-s', session_id]
+                        msg_cmd = ['opencode', 'run', '-s', session_id, '--attach', attach]
+                        if password:
+                            msg_cmd.extend(['-p', password])
                         if model:
                             msg_cmd.extend(['-m', model])
                         if mode_val:
                             msg_cmd.extend(['--agent', mode_val])
+                        if directory:
+                            msg_cmd.extend(['--dir', directory])
                         msg_cmd.append(message)
                         subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
                     except Exception:
                         pass
-                    try:
-                        wf_ok, wf_res = _handle_workflow_attach({'session_id': session_id, 'workflow_id': workflow_id})
-                        if wf_ok:
-                            result['workflow'] = 'attached'
-                        else:
-                            result['workflow_error'] = wf_res.get('message', '')
-                    except Exception as e:
-                        result['workflow_error'] = str(e)[:100]
+                    if workflow_id:
+                        try:
+                            wf_ok, wf_res = _handle_workflow_attach({'session_id': session_id, 'workflow_id': workflow_id})
+                            if wf_ok:
+                                result['workflow'] = 'attached'
+                            else:
+                                result['workflow_error'] = wf_res.get('message', '')
+                        except Exception as e:
+                            result['workflow_error'] = str(e)[:100]
                 return True, result
             return False, {'ok': False, 'message': (r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]}
         if r.returncode == 0:
@@ -1047,7 +1053,6 @@ def _handle_workflow_attach(body: dict) -> tuple:
     node_states = {}
     for n in nodes:
         node_states[n['id']] = {'status': 'pending'}
-    node_states[first['id']]['status'] = 'running'
     instance = {
         'session_id': session_id,
         'workflow_id': workflow_id,
@@ -1056,27 +1061,15 @@ def _handle_workflow_attach(body: dict) -> tuple:
         'node_states': node_states,
         'paused': False,
         'started_at': time.time(),
+        '_activate_on_complete': True,
     }
     with _workflow_lock:
         instances = _load_workflow_instances()
         instances = [i for i in instances if i['session_id'] != session_id]
         instances.append(instance)
         _save_workflow_instances(instances)
-        log(f"[WF ATTACH] Instance saved (n1 running)")
-    ok, msg = _run_workflow_stage(instance)
-    if ok:
-        log(f"Workflow attached: {workflow_id} -> session {session_id[:16]}, stage '{first.get('name')}'")
-        return True, {'ok': True, 'message': 'Workflow attached, first stage started', 'instance': instance}
-    with _workflow_lock:
-        instances = _load_workflow_instances()
-        inst = next((i for i in instances if i['session_id'] == session_id), None)
-        if inst:
-            ns = inst.get('node_states', {})
-            if first['id'] in ns:
-                ns[first['id']]['status'] = 'failed'
-            inst['status'] = 'failed'
-            _save_workflow_instances(instances)
-    return False, {'ok': False, 'message': msg}
+        log(f"[WF ATTACH] Instance saved (pending, _activate_on_complete)")
+    return True, {'ok': True, 'message': 'Workflow attached', 'instance': instance}
 
 def _handle_workflow_advance(body: dict) -> tuple:
     """Advance to the next stage in the workflow."""
