@@ -8,7 +8,7 @@ import multiprocessing
 from datetime import datetime, timezone
 
 from poller_config import (
-    data_dir, status_file, activity_file, session_details_file,
+    data_dir, config_file, status_file, activity_file, session_details_file,
     prev_pids_file, skip_utils, log_activity_py, timestamp
 )
 from poller_system import (
@@ -353,15 +353,14 @@ try:
 except Exception:
     pass
 
-# Read boss name
+# Read boss name from config.json
 boss_name = 'Brandon'
 try:
-    bn_path = os.path.join(data_dir, 'boss_name.json')
-    if os.path.exists(bn_path):
-        with open(bn_path) as f:
-            bn = json.load(f)
-            if bn.get('name'):
-                boss_name = bn['name']
+    if os.path.exists(config_file):
+        with open(config_file) as f:
+            cfg = json.load(f)
+            if cfg.get('boss_name'):
+                boss_name = cfg['boss_name']
 except Exception:
     pass
 
@@ -392,6 +391,7 @@ payload = {
     'standalone': standalone,
     'processes': proc_list,
     'tree_root': tree_root,
+    'boss_name': boss_name,
     'sessions': sessions,
     'all_sessions': all_sessions_enriched,
     'available_models': available_models,
