@@ -193,7 +193,6 @@ def _handle_new_session(body: dict) -> tuple:
         engine_restarted = get_engine_restarted()
         cmd = ['opencode', 'run']
         if fresh:
-            # Step 1: Create empty session with --format json to get session ID
             cmd.extend(['--attach', attach, '--format', 'json'])
         elif engine_restarted:
             cmd.extend(['-c', '--attach', attach])
@@ -235,13 +234,19 @@ def _handle_new_session(body: dict) -> tuple:
         session_id = None
         workflow_id = body.get('workflow_id', '')
         if fresh:
-            # Parse session ID from JSON output (includes it even on error)
+            # Parse session ID: try JSON first, then regex fallback
             try:
-                import json as _json2
-                _d = _json2.loads(r.stdout)
+                import json as _j2
+                _d = _j2.loads(r.stdout)
                 session_id = _d.get('sessionID', '')
             except Exception:
-                pass
+                import re as _r2
+                _m2 = _r2.search(r'(?:sessionID|Session\s*ID|session\s*id)[:"\s]+"?([a-z0-9_]{10,})"?', r.stdout, re.IGNORECASE)
+                if _m2:
+                    session_id = _m2.group(1)
+                else:
+                    eid = _error_id()
+                    log(f"Fresh session: no sessionID in stdout [{eid}]: {r.stdout[:200]}")
             if session_id:
                 # Step 2: Send real message via -s (model/agent already set in Step 1)
                 retry_count = body.get('retry_count', 0)
