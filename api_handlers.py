@@ -218,13 +218,11 @@ def _handle_new_session(body: dict) -> tuple:
             cmd.extend(['-p', password])
         if directory:
             cmd.extend(['--dir', directory])
-        # For fresh sessions, skip message/model/agent in first command (sent via -s below)
-        if not fresh:
-            if model:
-                cmd.extend(['-m', model])
-            if mode_val:
-                cmd.extend(['--agent', mode_val])
-            cmd.append(message)
+        if model:
+            cmd.extend(['-m', model])
+        if mode_val:
+            cmd.extend(['--agent', mode_val])
+        cmd.append(message)
         try:
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
         except subprocess.TimeoutExpired:
