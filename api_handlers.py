@@ -223,7 +223,9 @@ def _handle_new_session(body: dict) -> tuple:
             cmd.extend(['-m', model])
         if mode_val:
             cmd.extend(['--agent', mode_val])
-        if not fresh:
+        if fresh:
+            cmd.append("placeholder")
+        else:
             cmd.append(message)
         try:
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
