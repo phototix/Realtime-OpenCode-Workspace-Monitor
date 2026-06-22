@@ -193,7 +193,7 @@ def _handle_new_session(body: dict) -> tuple:
         engine_restarted = get_engine_restarted()
         cmd = ['opencode', 'run']
         if fresh:
-            cmd.extend(['-c', '--fork', '--attach', attach])
+            cmd.extend(['-c', '--attach', attach])
         elif engine_restarted:
             cmd.extend(['-c', '--attach', attach])
         else:
@@ -215,8 +215,6 @@ def _handle_new_session(body: dict) -> tuple:
                 cmd.extend(['-c', '--attach', attach])
         if password:
             cmd.extend(['-p', password])
-        if title:
-            cmd.extend(['--title', title])
         if directory:
             cmd.extend(['--dir', directory])
         # Include message inline in the first command so the engine processes it immediately
