@@ -222,7 +222,8 @@ def _handle_new_session(body: dict) -> tuple:
             cmd.extend(['-m', model])
         if mode_val:
             cmd.extend(['--agent', mode_val])
-        cmd.append(message)
+        if not fresh:
+            cmd.append(message)
         try:
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
         except subprocess.TimeoutExpired:
@@ -242,17 +243,11 @@ def _handle_new_session(body: dict) -> tuple:
             except Exception:
                 pass
             if session_id:
-                # Step 2: Send real message via -s (messages are added even if UnknownError)
+                # Step 2: Send real message via -s (model/agent already set in Step 1)
                 try:
                     msg_cmd = ['opencode', 'run', '-s', session_id, '--attach', attach]
                     if password:
                         msg_cmd.extend(['-p', password])
-                    if model:
-                        msg_cmd.extend(['-m', model])
-                    if mode_val:
-                        msg_cmd.extend(['--agent', mode_val])
-                    if directory:
-                        msg_cmd.extend(['--dir', directory])
                     msg_cmd.append(message)
                     subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
                 except Exception:
