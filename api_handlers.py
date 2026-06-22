@@ -244,14 +244,32 @@ def _handle_new_session(body: dict) -> tuple:
                 pass
             if session_id:
                 # Step 2: Send real message via -s (model/agent already set in Step 1)
-                try:
-                    msg_cmd = ['opencode', 'run', '-s', session_id, '--attach', attach]
-                    if password:
-                        msg_cmd.extend(['-p', password])
-                    msg_cmd.append(message)
-                    subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
-                except Exception:
-                    pass
+                retry_count = body.get('retry_count', 0)
+                msg_cmd = ['opencode', 'run', '-s', session_id, '--attach', attach]
+                if password:
+                    msg_cmd.extend(['-p', password])
+                msg_cmd.append(message)
+                r2 = subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
+                if r2.returncode != 0 and retry_count < 3:
+                    eid = _error_id()
+                    backoff = [10, 30, 60][retry_count]
+                    retry_item = {
+                        'id': 'q_' + secrets.token_hex(6),
+                        'type': 'new-session',
+                        'payload': {**body, 'retry_count': retry_count + 1},
+                        'retry_at': time.time() + backoff,
+                        'status': 'queued',
+                        'result': None,
+                        'error': None,
+                        'created_at': time.time(),
+                    }
+                    queue = _load_queue()
+                    queue.append(retry_item)
+                    _save_queue(queue)
+                    log(f"Session creation retry {retry_count+1}/3 in {backoff}s: {session_id[:16]}... [{eid}]")
+                    return True, {'ok': True, 'message': f'Session queued, retry in {backoff}s', 'session_id': session_id}
+                if r2.returncode != 0:
+                    log(f"Admin: session created but message delivery failed: {session_id[:16]}... [{_error_id()}]")
                 log(f"Admin: fresh session started \"{title or message[:40]}\" ({session_id[:16]}...)")
                 result = {'ok': True, 'message': 'Session started', 'session_id': session_id}
                 if workflow_id:
