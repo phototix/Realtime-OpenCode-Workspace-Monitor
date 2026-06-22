@@ -193,7 +193,7 @@ def _handle_new_session(body: dict) -> tuple:
         engine_restarted = get_engine_restarted()
         cmd = ['opencode', 'run']
         if fresh:
-            cmd.extend(['--attach', attach])
+            cmd.extend(['-c', '--fork', '--attach', attach])
         elif engine_restarted:
             cmd.extend(['-c', '--attach', attach])
         else:
