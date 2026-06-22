@@ -193,7 +193,7 @@ def _handle_new_session(body: dict) -> tuple:
         engine_restarted = get_engine_restarted()
         cmd = ['opencode', 'run']
         if fresh:
-            cmd.extend(['--attach', attach, '--format', 'json'])
+            cmd.extend(['--attach', attach])
         elif engine_restarted:
             cmd.extend(['-c', '--attach', attach])
         else:
@@ -219,17 +219,12 @@ def _handle_new_session(body: dict) -> tuple:
             cmd.extend(['--title', title])
         if directory:
             cmd.extend(['--dir', directory])
-        # When a workflow is attached, create session WITHOUT the user message first
-        # (the message is sent separately to avoid engine issues with simultaneous commands)
-        # For fresh sessions, also skip message in the first command — deliver it via -s below
-        if workflow_id:
-            cmd.append("[Workflow]")
-        elif not fresh:
-            if model:
-                cmd.extend(['-m', model])
-            if mode_val:
-                cmd.extend(['--agent', mode_val])
-            cmd.append(message)
+        # Include message inline in the first command so the engine processes it immediately
+        if model:
+            cmd.extend(['-m', model])
+        if mode_val:
+            cmd.extend(['--agent', mode_val])
+        cmd.append(message)
         try:
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
         except subprocess.TimeoutExpired:
@@ -240,45 +235,6 @@ def _handle_new_session(body: dict) -> tuple:
                 return False, {'ok': False, 'message': 'Timeout starting session'}
         session_id = None
         workflow_id = body.get('workflow_id', '')
-        if fresh:
-            session_created = '"sessionID"' in r.stdout or r.returncode == 0
-            if session_created:
-                log(f"Admin: fresh session started \"{title or message[:40]}\"")
-                try:
-                    import re as _re2
-                    m2 = _re2.search(r'"sessionID"\s*:\s*"([^"]+)"', r.stdout)
-                    if m2:
-                        session_id = m2.group(1)
-                except Exception:
-                    pass
-                result = {'ok': True, 'message': 'Session started', 'session_id': session_id or ''}
-                if session_id:
-                    # Deliver the user's message via -s to start the processing loop
-                    try:
-                        msg_cmd = ['opencode', 'run', '-s', session_id, '--attach', attach]
-                        if password:
-                            msg_cmd.extend(['-p', password])
-                        if model:
-                            msg_cmd.extend(['-m', model])
-                        if mode_val:
-                            msg_cmd.extend(['--agent', mode_val])
-                        if directory:
-                            msg_cmd.extend(['--dir', directory])
-                        msg_cmd.append(message)
-                        subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
-                    except Exception:
-                        pass
-                    if workflow_id:
-                        try:
-                            wf_ok, wf_res = _handle_workflow_attach({'session_id': session_id, 'workflow_id': workflow_id})
-                            if wf_ok:
-                                result['workflow'] = 'attached'
-                            else:
-                                result['workflow_error'] = wf_res.get('message', '')
-                        except Exception as e:
-                            result['workflow_error'] = str(e)[:100]
-                return True, result
-            return False, {'ok': False, 'message': (r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]}
         if r.returncode == 0:
             try:
                 import re as _re3
@@ -290,16 +246,6 @@ def _handle_new_session(body: dict) -> tuple:
             log(f"Admin: new session started \"{title or message[:40]}\"")
             result = {'ok': True, 'message': 'Session started', 'session_id': session_id or ''}
             if workflow_id and session_id:
-                try:
-                    msg_cmd = ['opencode', 'run', '-s', session_id]
-                    if model:
-                        msg_cmd.extend(['-m', model])
-                    if mode_val:
-                        msg_cmd.extend(['--agent', mode_val])
-                    msg_cmd.append(message)
-                    subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
-                except Exception:
-                    pass
                 try:
                     wf_ok, wf_res = _handle_workflow_attach({'session_id': session_id, 'workflow_id': workflow_id})
                     if wf_ok:
