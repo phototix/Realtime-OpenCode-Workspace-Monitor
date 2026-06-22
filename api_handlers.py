@@ -264,10 +264,14 @@ def _handle_new_session(body: dict) -> tuple:
                 if r2.returncode != 0 and retry_count < 3:
                     eid = _error_id()
                     backoff = [10, 30, 60][retry_count]
+                    # Retry Step 2 only — reuse the same session_id, don't create a new session
+                    retry_payload = dict(body)
+                    retry_payload['retry_count'] = retry_count + 1
+                    retry_payload['existing_session_id'] = session_id
                     retry_item = {
                         'id': 'q_' + secrets.token_hex(6),
-                        'type': 'new-session',
-                        'payload': {**body, 'retry_count': retry_count + 1},
+                        'type': 'new-session/step2',
+                        'payload': retry_payload,
                         'retry_at': time.time() + backoff,
                         'status': 'queued',
                         'result': None,
@@ -277,8 +281,8 @@ def _handle_new_session(body: dict) -> tuple:
                     queue = _load_queue()
                     queue.append(retry_item)
                     _save_queue(queue)
-                    log(f"Session creation retry {retry_count+1}/3 in {backoff}s: {session_id[:16]}... [{eid}]")
-                    return True, {'ok': True, 'message': f'Session queued, retry in {backoff}s', 'session_id': session_id}
+                    log(f"Session step2 retry {retry_count+1}/3 in {backoff}s: {session_id[:16]}... [{eid}]")
+                    return True, {'ok': True, 'message': f'Message queued, retry in {backoff}s', 'session_id': session_id}
                 if r2.returncode != 0:
                     log(f"Admin: session created but message delivery failed: {session_id[:16]}... [{_error_id()}]")
                 log(f"Admin: fresh session started \"{title or message[:40]}\" ({session_id[:16]}...)")
@@ -317,6 +321,68 @@ def _handle_new_session(body: dict) -> tuple:
         return False, {'ok': False, 'message': (r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]}
     except subprocess.TimeoutExpired:
         return False, {'ok': False, 'message': 'Timeout starting session'}
+    except Exception as e:
+        return False, {'ok': False, 'message': str(e)[:200]}
+
+def _handle_new_session_step2(body: dict) -> tuple:
+    """Step 2 retry for new-session: send message to existing session via -s."""
+    session_id = body.get('existing_session_id', '')
+    message = re.sub(r'^[\s"\']+|[\s"\']+$', '', body.get('message', ''))
+    model = body.get('model', '')
+    mode_val = body.get('mode', '')
+    directory = body.get('directory', '')
+    workflow_id = body.get('workflow_id', '')
+    attach = _check_engine()
+    if not session_id or not message or not attach:
+        return False, {'ok': False, 'message': 'Missing session_id, message, or engine unreachable'}
+    retry_count = body.get('retry_count', 0)
+    try:
+        cwd = directory or None
+        password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
+        msg_cmd = ['opencode', 'run', '-s', session_id, '--attach', attach]
+        if password:
+            msg_cmd.extend(['-p', password])
+        if model:
+            msg_cmd.extend(['-m', model])
+        if mode_val:
+            msg_cmd.extend(['--agent', mode_val])
+        msg_cmd.append(message)
+        r = subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
+        if r.returncode != 0 and retry_count < 3:
+            backoff = [10, 30, 60][retry_count]
+            retry_payload = dict(body)
+            retry_payload['retry_count'] = retry_count + 1
+            retry_item = {
+                'id': 'q_' + secrets.token_hex(6),
+                'type': 'new-session/step2',
+                'payload': retry_payload,
+                'retry_at': time.time() + backoff,
+                'status': 'queued',
+                'result': None,
+                'error': None,
+                'created_at': time.time(),
+            }
+            queue = _load_queue()
+            queue.append(retry_item)
+            _save_queue(queue)
+            log(f"Session step2 retry {retry_count+1}/3 in {backoff}s: {session_id[:16]}...")
+            return True, {'ok': True, 'message': f'Retry in {backoff}s', 'session_id': session_id}
+        if r.returncode != 0:
+            return False, {'ok': False, 'message': (r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]}
+        log(f"Admin: step2 delivered to {session_id[:16]}...")
+        result = {'ok': True, 'message': 'Message delivered', 'session_id': session_id}
+        if workflow_id:
+            try:
+                wf_ok, wf_res = _handle_workflow_attach({'session_id': session_id, 'workflow_id': workflow_id})
+                if wf_ok:
+                    result['workflow'] = 'attached'
+                else:
+                    result['workflow_error'] = wf_res.get('message', '')
+            except Exception as e:
+                result['workflow_error'] = str(e)[:100]
+        return True, result
+    except subprocess.TimeoutExpired:
+        return False, {'ok': False, 'message': 'Timeout sending message'}
     except Exception as e:
         return False, {'ok': False, 'message': str(e)[:200]}
 

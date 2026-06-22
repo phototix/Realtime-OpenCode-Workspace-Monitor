@@ -11,10 +11,13 @@ import secrets
 from server_config import (
     DATA_DIR, STATIC_DIR, PID_FILE, NOTIFICATIONS_FILE,
     NOTIFICATION_PROVIDERS_FILE,
-    STAFF_FILE, ASSIGNMENTS_FILE,
+    STAFF_FILE, ASSIGNMENTS_FILE, WORKFLOWS_FILE, WORKFLOW_INSTANCES_FILE,
     _get_api_key, log, _error_id,
     _load_notifications, _load_notification_providers,
     _save_notification_providers,
+    _load_workflows, _save_workflows,
+    _load_workflow_instances, _save_workflow_instances,
+    _workflow_lock,
 )
 from cron import _cron_runner, _load_cron_jobs
 from queue import _queue_processor, _load_queue, _save_queue, _register_handler
@@ -265,6 +268,16 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({'ok': True, 'jobs': jobs})
                 return
 
+            if path == '/api/workflows':
+                workflows = _load_workflows()
+                self._json({'ok': True, 'workflows': workflows})
+                return
+
+            if path == '/api/workflow-instances':
+                instances = _load_workflow_instances()
+                self._json({'ok': True, 'instances': instances})
+                return
+
             if path == '/api/api-key':
                 ak = _get_api_key()
                 masked = (ak[:6] + '…' + ak[-4:]) if len(ak) > 10 else '****'
@@ -346,7 +359,8 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
 if __name__ == '__main__':
     from api_handlers import (
         _handle_stop_session, _handle_session_instruct, _handle_session_answer,
-        _handle_new_session, _handle_provider_logout, _handle_provider_login,
+        _handle_new_session, _handle_new_session_step2,
+        _handle_provider_logout, _handle_provider_login,
         _handle_ollama_add, _handle_ollama_remove,
         _handle_super_staff_create, _handle_super_staff_delete,
         _handle_super_staff_update, _handle_super_staff_assign,
@@ -361,6 +375,8 @@ if __name__ == '__main__':
         _handle_notification_providers_send_webhook,
         _handle_cron_jobs_create, _handle_cron_jobs_update,
         _handle_cron_jobs_delete, _handle_cron_jobs_toggle, _handle_cron_jobs_run,
+        _handle_workflow_save, _handle_workflow_delete,
+        _handle_workflow_attach, _handle_workflow_advance, _handle_workflow_pause,
     )
 
     for typ, handler in [
@@ -368,6 +384,7 @@ if __name__ == '__main__':
         ('session-instruct', _handle_session_instruct),
         ('session-answer', _handle_session_answer),
         ('new-session', _handle_new_session),
+        ('new-session/step2', _handle_new_session_step2),
         ('provider-logout', _handle_provider_logout),
         ('provider-login', _handle_provider_login),
         ('ollama-add', _handle_ollama_add),
@@ -395,12 +412,143 @@ if __name__ == '__main__':
         ('cron-jobs/delete', _handle_cron_jobs_delete),
         ('cron-jobs/toggle', _handle_cron_jobs_toggle),
         ('cron-jobs/run', _handle_cron_jobs_run),
+        ('workflow-save', _handle_workflow_save),
+        ('workflow-delete', _handle_workflow_delete),
+        ('workflow-attach', _handle_workflow_attach),
+        ('workflow-advance', _handle_workflow_advance),
+        ('workflow-pause', _handle_workflow_pause),
     ]:
         _register_handler(typ, handler)
+
+    def _workflow_watcher():
+        from api_handlers import _run_workflow_stage
+        log("[WF WATCHER] Started")
+        while True:
+            try:
+                time.sleep(15)
+                instances = _load_workflow_instances()
+                log(f"[WF WATCHER] Tick: {len(instances)} instance(s)")
+                if instances:
+                    for inst in instances:
+                        log(f"[WF WATCHER] Instance: session={inst.get('session_id','?')[:16]}, status={inst.get('status')}, node={inst.get('current_node')}")
+                status_path = os.path.join(DATA_DIR, 'status.json')
+                if not os.path.exists(status_path):
+                    continue
+                with open(status_path) as f:
+                    status = json.load(f)
+                all_sessions = status.get('all_sessions') or status.get('sessions') or []
+                session_map = {s.get('id', ''): s for s in all_sessions}
+                changed = False
+                for inst in instances:
+                    if inst.get('status') != 'running' or inst.get('paused'):
+                        continue
+                    current_id = inst.get('current_node')
+                    if not current_id:
+                        continue
+                    node_states = inst.get('node_states', {})
+                    current_state = node_states.get(current_id, {}).get('status')
+                    # Handle _activate_on_complete: pending branch nodes wait for session to finish
+                    if current_state == 'pending' and inst.get('_activate_on_complete'):
+                        session_check = session_map.get(inst['session_id'])
+                        if session_check and session_check.get('state') in ('complete', 'error'):
+                            node_states[current_id]['status'] = 'running'
+                            inst.pop('_activate_on_complete', None)
+                            _save_workflow_instances(instances)
+                            threading.Thread(target=lambda i=dict(inst): _run_workflow_stage(i), daemon=True).start()
+                            log(f"Workflow watcher: activated branch node '{current_id}' for session {inst['session_id'][:16]}")
+                        continue
+                    if current_state != 'running':
+                        continue
+                    session = session_map.get(inst['session_id'])
+                    if not session:
+                        continue
+                    s_state = session.get('state', '')
+                    # Fallback: if poller hasn't exported yet, do a direct check
+                    if not s_state:
+                        try:
+                            r = subprocess.run(
+                                ['opencode', 'export', inst['session_id']],
+                                capture_output=True, text=True, timeout=15,
+                                cwd=session.get('directory') or None
+                            )
+                            if r.returncode == 0:
+                                finish_match = __import__('re').search(r'"finish"\s*:\s*"([^"]+)"', r.stdout)
+                                if finish_match:
+                                    finish = finish_match.group(1)
+                                    s_state = 'complete' if finish in ('stop', 'length') else 'error' if finish == 'error' else 'running-tools' if finish == 'tool-calls' else 'thinking'
+                        except Exception:
+                            pass
+                    if s_state in ('complete', 'error'):
+                            with _workflow_lock:
+                                # Re-read inside lock to avoid races
+                                instances = _load_workflow_instances()
+                                inst = next((i for i in instances if i.get('session_id') == inst.get('session_id')), None)
+                                if not inst: continue
+                                node_states = inst.get('node_states', {})
+                                current_id = inst.get('current_node')
+                                if node_states.get(current_id, {}).get('status') != 'running': continue
+                                node_states[current_id]['status'] = 'completed' if s_state == 'complete' else 'failed'
+                                node_states[current_id]['completed_at'] = time.time()
+                                workflows = _load_workflows()
+                                wf = next((w for w in workflows if w['id'] == inst['workflow_id']), None)
+                                next_ids = []
+                                if wf:
+                                    for e in wf.get('edges', []):
+                                        if e['from'] == current_id:
+                                            next_ids.append(e['to'])
+                                if next_ids:
+                                    # First edge: advance the original instance
+                                    next_id = next_ids[0]
+                                    inst['current_node'] = next_id
+                                    node_states[next_id] = node_states.get(next_id, {'status': 'running'})
+                                    node_states[next_id]['status'] = 'running'
+                                    _save_workflow_instances(instances)
+                                    threading.Thread(target=lambda i=dict(inst): _run_workflow_stage(i), daemon=True).start()
+                                    log(f"Workflow watcher: auto-advancing session {inst['session_id'][:16]} -> stage '{next_id}'")
+                                    # Remaining edges: queue as pending forks (not started yet)
+                                    for branch_id in next_ids[1:]:
+                                        branch_states = {}
+                                        for n in wf.get('nodes', []):
+                                            branch_states[n['id']] = {'status': 'pending'}
+                                        fork_inst = {
+                                            'session_id': inst['session_id'],
+                                            'workflow_id': inst['workflow_id'],
+                                            'status': 'running',
+                                            'current_node': branch_id,
+                                            'node_states': branch_states,
+                                            'paused': False,
+                                            'started_at': time.time(),
+                                            '_activate_on_complete': True,
+                                        }
+                                        instances.append(fork_inst)
+                                        _save_workflow_instances(instances)
+                                        log(f"Workflow watcher: queued branch {branch_id} for session {inst['session_id'][:16]}")
+                                else:
+                                    inst['status'] = 'completed'
+                                    inst['current_node'] = None
+                                    _save_workflow_instances(instances)
+                                    log(f"Workflow watcher: completed for session {inst['session_id'][:16]}")
+                                    # Activate next pending branch for the same session
+                                    for other in instances:
+                                        if other.get('session_id') == inst.get('session_id') and other.get('status') == 'running':
+                                            ns = other.get('node_states', {})
+                                            cn = other.get('current_node')
+                                            if cn and ns.get(cn, {}).get('status') == 'pending':
+                                                ns[cn]['status'] = 'running'
+                                                _save_workflow_instances(instances)
+                                                threading.Thread(target=lambda i=dict(other): _run_workflow_stage(i), daemon=True).start()
+                                                log(f"Workflow watcher: activating branch {cn} for session {inst['session_id'][:16]}")
+                                                break
+                                    else:
+                                        continue
+                                    break
+            except Exception as e:
+                log(f"Workflow watcher error: {e}")
 
     threading.Thread(target=_cron_runner, daemon=True).start()
     threading.Thread(target=_queue_processor, daemon=True).start()
     threading.Thread(target=_notification_dispatcher, daemon=True).start()
+    threading.Thread(target=_workflow_watcher, daemon=True).start()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 5500
     server = http.server.ThreadingHTTPServer(('127.0.0.1', port), UnifiedHandler)
     print(f"Dashboard server running on http://localhost:{port}")
