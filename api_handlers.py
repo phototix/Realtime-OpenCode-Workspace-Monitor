@@ -217,6 +217,8 @@ def _handle_new_session(body: dict) -> tuple:
             cmd.extend(['-p', password])
         if directory:
             cmd.extend(['--dir', directory])
+        if title:
+            cmd.extend(['--title', title])
         if model:
             cmd.extend(['-m', model])
         if mode_val:
@@ -248,11 +250,9 @@ def _handle_new_session(body: dict) -> tuple:
                     eid = _error_id()
                     log(f"Fresh session: no sessionID in stdout [{eid}]: {r.stdout[:200]}")
             if session_id:
-                # Step 2: Send real message via -s (model/agent already set in Step 1)
+                # Step 2: Send real message via -s (auth/model/agent already set in Step 1)
                 retry_count = body.get('retry_count', 0)
                 msg_cmd = ['opencode', 'run', '-s', session_id, '--attach', attach]
-                if password:
-                    msg_cmd.extend(['-p', password])
                 msg_cmd.append(message)
                 r2 = subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
                 if r2.returncode != 0 and retry_count < 3:
