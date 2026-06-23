@@ -1497,7 +1497,7 @@ function sendQueued(type, payload, onProgress) {
       const timeout = setTimeout(function() {
         clearInterval(poll);
         delete _queuePollTimers[data.queueId];
-        reject(new Error('Queue request timed out'));
+        resolve({ok: true, message: 'Request sent! Wait dashboard to reflect the updates.', timeout: true});
       }, 180000);
       const poll = setInterval(function() {
         fetch('/api/queue/' + data.queueId).then(function(r) { return r.json(); }).then(function(d) {
