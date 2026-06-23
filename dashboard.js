@@ -730,7 +730,7 @@ function renderDashboard(data) {
       ${ss.last_user_prompt ? `<div style="margin-top:4px;padding:4px 6px;background:#58a6ff11;border-left:2px solid var(--blue);border-radius:4px;font-size:10px;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(ss.last_user_prompt).replace(/"/g,'&quot;')}">${escapeHtml(ss.last_user_prompt.slice(0,60))}${ss.last_user_prompt.length > 60 ? '...' : ''}</div>` : ''}
       ${ss.last_text ? `
         <div class="sc-text-preview" onclick="toggleDisplay('${previewId}')">${escapeHtml(ss.last_text.slice(0,80))}${ss.last_text.length > 80 ? '...' : ''}</div>
-        <div class="sc-text-expanded" id="${previewId}">${escapeHtml(ss.last_text)}</div>
+        <div class="sc-text-expanded" id="${previewId}">${renderMarkdown(ss.last_text)}</div>
       ` : ''}
       ${toolInfo}
       <div style="display:flex;gap:6px;margin-top:4px;font-size:10px;color:var(--text-dim)">
@@ -797,7 +797,7 @@ function renderDashboard(data) {
           <span style="font-size:9px;color:${state.color};background:${state.color}22;padding:1px 5px;border-radius:3px;font-weight:500">${state.label}</span>
           <span style="font-size:9px;color:var(--text-dim)">${agoStr} ago${slug}</span>
         </div>
-        ${ss.last_text ? `<div style="font-size:9px;color:var(--text-dim);margin:2px 0 0 12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" onclick="toggleDisplay('${previewId}')">${escapeHtml(ss.last_text.slice(0,60))}${ss.last_text.length > 60 ? '...' : ''}</div><div id="${previewId}" style="display:none;font-size:9px;color:var(--text-dim);margin:2px 0 0 12px;padding:4px;background:var(--surface2);border-radius:4px;white-space:pre-wrap;word-break:break-word">${escapeHtml(ss.last_text)}</div>` : ''}
+        ${ss.last_text ? `<div style="font-size:9px;color:var(--text-dim);margin:2px 0 0 12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" onclick="toggleDisplay('${previewId}')">${escapeHtml(ss.last_text.slice(0,60))}${ss.last_text.length > 60 ? '...' : ''}</div><div id="${previewId}" style="display:none;font-size:9px;color:var(--text-dim);margin:2px 0 0 12px;padding:4px;background:var(--surface2);border-radius:4px">${renderMarkdown(ss.last_text)}</div>` : ''}
         ${ss.tool_name ? `<div style="font-size:8px;color:var(--blue);margin:1px 0 0 12px">\u2699 ${escapeHtml(ss.tool_name)}</div>` : ''}
         ${cost || tokens ? `<div style="font-size:8px;color:var(--text-dim);margin:1px 0 0 12px">${cost}${tokens}</div>` : ''}
       `;
