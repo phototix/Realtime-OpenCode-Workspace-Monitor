@@ -889,7 +889,6 @@ if ('Notification' in window && Notification.permission === 'default') {
   Notification.requestPermission();
 }
 
-fetch('version.txt').then(r => r.text()).then(v => { document.getElementById('appVersion').textContent = ' v' + v.trim(); }).catch(() => {});
 poll();
 schedulePoll();
 
