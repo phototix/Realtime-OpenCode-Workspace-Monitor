@@ -101,6 +101,27 @@ def _handle_session_instruct(body: dict) -> tuple:
                 return True, {'ok': True, 'message': 'This case has ended — a new case was created with your instruction.'}
             fb_err = strip_ansi(r2.stderr.strip() or r2.stdout.strip()[:200] or 'Unknown error')[:200]
             log(f"Admin: fallback continue also failed: {fb_err[:100]}")
+            retry_count = body.get('retry_count', 0)
+            if 'not found' in fb_err.lower() and retry_count < 3:
+                backoff = [10, 30, 60][retry_count]
+                eid = _error_id()
+                retry_payload = dict(body)
+                retry_payload['retry_count'] = retry_count + 1
+                retry_item = {
+                    'id': 'q_' + secrets.token_hex(6),
+                    'type': 'session-instruct',
+                    'payload': retry_payload,
+                    'retry_at': time.time() + backoff,
+                    'status': 'queued',
+                    'result': None,
+                    'error': None,
+                    'created_at': time.time(),
+                }
+                queue = _load_queue()
+                queue.append(retry_item)
+                _save_queue(queue)
+                log(f"Session instruct retry {retry_count+1}/3 in {backoff}s: {sid[:16]}... [{eid}]")
+                return True, {'ok': True, 'message': f'Instruct queued, retry in {backoff}s'}
             return False, {'ok': False, 'message': fb_err}
         if model and ('Model not found' in err_text or 'UnknownError' in err_text):
             log(f"Admin: retrying session {sid} without model")
