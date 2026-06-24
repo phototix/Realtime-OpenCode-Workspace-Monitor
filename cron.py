@@ -111,6 +111,14 @@ def _cron_runner() -> None:
             if not isinstance(jobs, list):
                 continue
             now = time.time()
+            # Reset stale _running flags from crashed runs
+            _stale = False
+            for job in jobs:
+                if job.get('_running') and job.get('last_run', 0) == 0:
+                    job.pop('_running', None)
+                    _stale = True
+            if _stale:
+                _save_cron_jobs(jobs)
             for job in jobs:
                 if not job.get('enabled', True):
                     continue

@@ -1258,7 +1258,6 @@ def _handle_cron_jobs_run(body: dict) -> tuple:
             break
     if not found:
         return False, {'ok': False, 'message': 'Job not found'}
-    found['last_run'] = 0
     found['_running'] = True
     _save_cron_jobs(jobs)
     threading.Thread(target=_run_cron_job, args=(found,), daemon=True).start()
