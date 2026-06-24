@@ -3595,7 +3595,8 @@ const _exports = {
   apiFetch, getModal,
   renderWorkflowsTab, openWorkflowEditor, closeWorkflowEditor, deleteWorkflow,
   viewWorkflow, closeWorkflowViewModal, switchWorkflowViewTab, renderMarkdown,
-  loadWorkflowStaff, WfEditor
+  loadWorkflowStaff, WfEditor,
+  clearTasks, clearQuestions
 };
 for (const key in _exports) {
   global[key] = _exports[key];
