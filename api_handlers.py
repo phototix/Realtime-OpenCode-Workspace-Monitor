@@ -19,6 +19,7 @@ from server_config import (
     _get_api_key, _set_api_key, _safe_agent_name, strip_ansi,
     _get_session_lock, _check_engine, get_engine_restarted,
     get_attach_url, engine_is_reachable, log, _error_id,
+    _load_project_instructions, _save_project_instructions,
     _load_notifications, _save_notifications,
     _load_notification_providers, _save_notification_providers,
     _load_workflows, _save_workflows,
@@ -643,6 +644,31 @@ def _handle_save_project_instruction(body: dict) -> tuple:
                 instructions.pop('__default__', None)
         _save_project_instructions(instructions)
         return True, {'ok': True}
+    except Exception as e:
+        return False, {'ok': False, 'message': str(e)[:200]}
+
+def _handle_permission_reply(body: dict) -> tuple:
+    permission_id = (body.get('permission_id') or '').strip()
+    reply = (body.get('reply') or '').strip()
+    if not permission_id or reply not in ('once', 'always', 'reject'):
+        return False, {'ok': False, 'message': 'Missing permission_id or invalid reply'}
+    try:
+        attach = _check_engine()
+        if not attach:
+            return False, {'ok': False, 'message': 'Engine not reachable'}
+        password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
+        url = attach.rstrip('/') + '/permission/' + permission_id + '/reply'
+        cmd = ['curl', '-s', '-X', 'POST', '--max-time', '5',
+               '-H', 'Content-Type: application/json',
+               '-d', json.dumps({'reply': reply})]
+        if password:
+            cmd.extend(['-u', f'opencode:{password}'])
+        cmd.append(url)
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            log(f"Permission reply: {permission_id} -> {reply}")
+            return True, {'ok': True, 'message': f'Permission {reply} sent'}
+        return False, {'ok': False, 'message': (r.stderr.strip() or r.stdout.strip()[:100] or 'Unknown error')[:200]}
     except Exception as e:
         return False, {'ok': False, 'message': str(e)[:200]}
 

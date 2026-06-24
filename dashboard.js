@@ -746,6 +746,7 @@ function renderDashboard(data) {
         ${loggedIn && ss.state !== 'thinking' && ss.state !== 'running-tools' ? `<button class="comment-btn" onclick="event.stopPropagation();continueSession('${ss.id}')" title="Quick instruction">\u{1F4AC}</button>` : ''}
         <button class="sc-copy-id" onclick="event.stopPropagation();navigator.clipboard.writeText('${ss.id}').then(function(){showToast('Session ID copied','success')}).catch(function(){})" title="Copy Session ID" style="background:none;border:none;cursor:pointer;font-size:11px;padding:0 2px;color:var(--text-dim);line-height:1">📋</button>
         ${(ss.todos || []).filter(function(t){ return t.status !== 'completed'; }).length > 0 ? `<span style="color:var(--yellow);font-size:11px">\uD83D\uDCCB ${(ss.todos || []).filter(function(t){ return t.status !== 'completed'; }).length}</span>` : ''}
+        ${(ss.pending_permissions || []).length > 0 ? `<span style="color:var(--yellow);cursor:pointer;font-size:11px" onclick="showQuestions('${ss.id}')" title="Permission required">\u{1F512} ${(ss.pending_permissions || []).length}</span>` : ''}
         ${(ss.pending_questions || []).length > 0 ? ((ss.pending_questions || []).filter(function(q){ return !q.answered; }).length > 0 ? `<span style="color:var(--yellow);cursor:pointer;font-size:11px" onclick="showQuestions('${ss.id}')">\u2753 ${(ss.pending_questions || []).filter(function(q){ return !q.answered; }).length}</span>` : `<span style="color:var(--green);cursor:pointer;font-size:11px" onclick="showQuestions('${ss.id}')">\u2713</span>`) : ''}
         <div class="sc-status-dot ${ss.state || '\\30'}"></div>
       </div>
@@ -801,6 +802,10 @@ function renderDashboard(data) {
         ${ss.last_text ? `<div style="font-size:9px;color:var(--text-dim);margin:2px 0 0 12px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" onclick="toggleDisplay('${previewId}')">${escapeHtml(ss.last_text.slice(0,60))}${ss.last_text.length > 60 ? '...' : ''}</div><div id="${previewId}" style="display:none;font-size:9px;color:var(--text-dim);margin:2px 0 0 12px;padding:4px;background:var(--surface2);border-radius:4px">${renderMarkdown(ss.last_text)}</div>` : ''}
         ${ss.tool_name ? `<div style="font-size:8px;color:var(--blue);margin:1px 0 0 12px">\u2699 ${escapeHtml(ss.tool_name)}</div>` : ''}
         ${cost || tokens ? `<div style="font-size:8px;color:var(--text-dim);margin:1px 0 0 12px">${cost}${tokens}</div>` : ''}
+        <div style="display:flex;gap:4px;margin:2px 0 0 12px;flex-wrap:wrap;font-size:9px">
+          ${(ss.pending_permissions || []).length > 0 ? `<span style="color:var(--yellow);cursor:pointer" onclick="showQuestions('${ss.id}')">🔒</span>` : ''}
+          ${(ss.pending_questions || []).length > 0 ? ((ss.pending_questions || []).filter(function(q){ return !q.answered; }).length > 0 ? `<span style="color:var(--yellow);cursor:pointer" onclick="showQuestions('${ss.id}')">❓ ${(ss.pending_questions || []).filter(function(q){ return !q.answered; }).length}</span>` : `<span style="color:var(--green);cursor:pointer" onclick="showQuestions('${ss.id}')">✓</span>`) : ''}
+        </div>
       `;
       sl.appendChild(div);
     });

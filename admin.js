@@ -380,6 +380,13 @@ function saveProjectInstruction() {
   }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
 }
 
+function replyPermission(permissionId, reply) {
+  sendQueued('permission-reply', { permission_id: permissionId, reply: reply }).then(function(d) {
+    if (d.ok) showToast('Permission: ' + reply, 'success');
+    else showToast('Error: ' + d.message, 'error');
+  }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
+}
+
 function continueSession(id) {
   let modal = document.getElementById('sessionContinueModal');
   let body = document.getElementById('continueModalBody');
@@ -814,13 +821,34 @@ function showQuestions(id) {
     var s = (data.all_sessions || data.sessions || []).find(function(x){ return x.id === id; });
     var body = document.getElementById('questionModalBody');
     var modal = document.getElementById('questionModal');
-    if (!s || !s.pending_questions || s.pending_questions.length === 0) {
-      body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No questions</div>';
+    if ((!s || !s.pending_questions || s.pending_questions.length === 0) && (!s.pending_permissions || s.pending_permissions.length === 0)) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">Nothing awaiting response</div>';
       modal.style.display = 'flex';
       return;
     }
-    var hasUnanswered = s.pending_questions.some(function(q){ return !q.answered; });
+    var hasUnanswered = s.pending_questions ? s.pending_questions.some(function(q){ return !q.answered; }) : false;
     var html = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:16px">' + (s.title || '?') + '</div>';
+
+    // Permission requests
+    if (s.pending_permissions && s.pending_permissions.length > 0) {
+      s.pending_permissions.forEach(function(p) {
+        var resource = (p.patterns || []).join(', ') || p.metadata.filepath || p.permission;
+        html += '<div class="admin-card" style="margin-bottom:12px;border-left:3px solid var(--yellow)">';
+        html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">';
+        html += '<span style="font-size:14px">🔒</span>';
+        html += '<span style="font-size:12px;font-weight:600;color:var(--yellow)">Permission Required</span>';
+        html += '</div>';
+        html += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">' + escapeHtml(p.permission || '') + '</div>';
+        html += '<div style="font-size:12px;color:var(--text);margin-bottom:10px;word-break:break-all;font-family:monospace;font-size:11px">' + escapeHtml(resource) + '</div>';
+        html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+        html += '<button class="btn btn-sm" style="background:#f8514933;color:#f85149;border:1px solid #f85149" onclick="replyPermission(\'' + p.id + '\',\'reject\');closeQuestionModal()">Reject</button>';
+        html += '<button class="btn btn-sm btn-primary" onclick="replyPermission(\'' + p.id + '\',\'once\');closeQuestionModal()">Allow</button>';
+        html += '<button class="btn btn-sm" style="background:#3fb95033;color:#3fb950;border:1px solid #3fb950" onclick="replyPermission(\'' + p.id + '\',\'always\');closeQuestionModal()">Always Allow</button>';
+        html += '</div></div>';
+      });
+    }
+
+    if (s.pending_questions && s.pending_questions.length > 0) {
     var selected = {};
     s.pending_questions.forEach(function(q, qi) {
       if (q.answered) {
@@ -863,6 +891,7 @@ function showQuestions(id) {
         html += '<button class="stop-btn" onclick="clearQuestions(\'' + id + '\')">Clear Questions</button>';
       }
       html += '</div>';
+    }
     }
     body.innerHTML = html;
     modal.style.display = 'flex';
@@ -3626,7 +3655,7 @@ const _exports = {
   openNotificationSettings, saveNotificationSettings, closeNotificationSettings,
   toggleNotificationProvider,
   sendNotification, dismissNotification, renderLogsTab, refreshLogs, toggleLogAutoRefresh,
-  saveProjectInstruction,
+  saveProjectInstruction, replyPermission,
   escapeHtml, sendQueued, renderProvidersTab, providerLogout,
   providerLogin, ollamaAdd, ollamaRemove, renderSuperStaffTab,
   openStaffModal, closeStaffModal, saveStaff, deleteSuperStaff,

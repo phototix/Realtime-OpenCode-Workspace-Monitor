@@ -12,12 +12,12 @@ from server_config import (
     DATA_DIR, STATIC_DIR, PID_FILE, NOTIFICATIONS_FILE,
     NOTIFICATION_PROVIDERS_FILE,
     STAFF_FILE, ASSIGNMENTS_FILE, WORKFLOWS_FILE, WORKFLOW_INSTANCES_FILE,
-    _get_api_key, log, _error_id,
+    _get_api_key, log, _error_id, get_attach_url,
     _load_notifications, _load_notification_providers,
     _save_notification_providers,
     _load_workflows, _save_workflows,
     _load_workflow_instances, _save_workflow_instances,
-    _workflow_lock,
+    _load_project_instructions, _save_project_instructions,
 )
 from cron import _cron_runner, _load_cron_jobs
 from queue import _queue_processor, _load_queue, _save_queue, _register_handler
@@ -397,6 +397,7 @@ if __name__ == '__main__':
         _handle_rename_session, _handle_restart_daemon, _handle_kill_daemon,
         _handle_upload_photo, _handle_remove_photo, _handle_save_boss_name,
         _handle_save_project_instruction,
+        _handle_permission_reply,
         _handle_api_key_regenerate,
         _handle_notifications_send, _handle_notifications_dismiss,
         _handle_notification_providers_create,
@@ -406,6 +407,7 @@ if __name__ == '__main__':
         _handle_notification_providers_send_webhook,
         _handle_cron_jobs_create, _handle_cron_jobs_update,
         _handle_cron_jobs_delete, _handle_cron_jobs_toggle, _handle_cron_jobs_run,
+        _handle_save_project_instruction, _handle_permission_reply,
         _handle_session_clear_tasks, _handle_session_clear_questions,
         _handle_workflow_save, _handle_workflow_delete,
         _handle_workflow_attach, _handle_workflow_advance, _handle_workflow_pause,
@@ -431,6 +433,7 @@ if __name__ == '__main__':
         ('remove-photo', _handle_remove_photo),
         ('save-boss-name', _handle_save_boss_name),
         ('save-project-instruction', _handle_save_project_instruction),
+        ('permission-reply', _handle_permission_reply),
         ('api-key/regenerate', _handle_api_key_regenerate),
         ('notifications-send', _handle_notifications_send),
         ('notifications-dismiss', _handle_notifications_dismiss),
@@ -602,10 +605,36 @@ if __name__ == '__main__':
             except Exception as e:
                 log(f"Workflow watcher error: {e}")
 
+    def _permission_fetcher():
+        while True:
+            try:
+                time.sleep(3)
+                attach = get_attach_url()
+                if not attach:
+                    continue
+                password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
+                cmd = ['curl', '-s', '--max-time', '3']
+                if password:
+                    cmd.extend(['-u', f'opencode:{password}'])
+                cmd.append(attach.rstrip('/') + '/permission')
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+                if r.returncode == 0 and r.stdout.strip():
+                    perms = json.loads(r.stdout)
+                    perms_path = os.path.join(DATA_DIR, 'pending_permissions.json')
+                    with open(perms_path, 'w') as f:
+                        json.dump(perms, f, indent=2)
+                elif r.returncode == 0 and not r.stdout.strip():
+                    perms_path = os.path.join(DATA_DIR, 'pending_permissions.json')
+                    if os.path.exists(perms_path):
+                        os.remove(perms_path)
+            except Exception:
+                pass
+
     threading.Thread(target=_cron_runner, daemon=True).start()
     threading.Thread(target=_queue_processor, daemon=True).start()
     threading.Thread(target=_notification_dispatcher, daemon=True).start()
     threading.Thread(target=_workflow_watcher, daemon=True).start()
+    threading.Thread(target=_permission_fetcher, daemon=True).start()
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 5500
     server = http.server.ThreadingHTTPServer(('127.0.0.1', port), UnifiedHandler)
     print(f"Dashboard server running on http://localhost:{port}")

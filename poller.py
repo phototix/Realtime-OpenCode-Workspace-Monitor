@@ -74,6 +74,18 @@ if os.path.exists(pi_path):
             project_instructions = json.load(f)
     except Exception:
         pass
+pending_permissions = {}
+pp_path = os.path.join(data_dir, 'pending_permissions.json')
+if os.path.exists(pp_path):
+    try:
+        with open(pp_path) as f:
+            perms_list = json.load(f)
+        for p in perms_list:
+            sid = p.get('sessionID', '')
+            if sid:
+                pending_permissions.setdefault(sid, []).append(p)
+    except Exception:
+        pass
 todos_map = {}
 _db_path = os.path.expanduser('~/.local/share/opencode/opencode.db')
 if os.path.exists(_db_path):
@@ -106,6 +118,9 @@ for s in sessions:
     pi_text = project_instructions.get(sid, '') or project_instructions.get('__default__', '')
     if pi_text:
         s['project_instruction'] = pi_text
+    perms = pending_permissions.get(sid, [])
+    if perms:
+        s['pending_permissions'] = perms
     assigned_name = case_assignments.get(sid, '')
     if assigned_name:
         s['assigned_staff'] = assigned_name
@@ -147,6 +162,9 @@ for s in all_sessions:
     pi_text = project_instructions.get(sid, '') or project_instructions.get('__default__', '')
     if pi_text:
         enriched['project_instruction'] = pi_text
+    perms = pending_permissions.get(sid, [])
+    if perms:
+        enriched['pending_permissions'] = perms
     assigned_name = case_assignments.get(sid, '')
     if assigned_name:
         enriched['assigned_staff'] = assigned_name
