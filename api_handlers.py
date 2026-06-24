@@ -15,6 +15,7 @@ import threading
 from server_config import (
     DATA_DIR, PID_FILE, STATIC_DIR, API_KEY_FILE, CRON_FILE, CONFIG_FILE,
     NOTIFICATION_PROVIDERS_FILE, WORKFLOWS_FILE, WORKFLOW_INSTANCES_FILE,
+    PROJECT_INSTRUCTIONS_FILE,
     _get_api_key, _set_api_key, _safe_agent_name, strip_ansi,
     _get_session_lock, _check_engine, get_engine_restarted,
     get_attach_url, engine_is_reachable, log, _error_id,
@@ -22,6 +23,7 @@ from server_config import (
     _load_notification_providers, _save_notification_providers,
     _load_workflows, _save_workflows,
     _load_workflow_instances, _save_workflow_instances,
+    _load_project_instructions, _save_project_instructions,
     _workflow_lock,
 )
 from queue import _load_queue, _save_queue
@@ -625,15 +627,21 @@ def _handle_save_boss_name(body: dict) -> tuple:
         return False, {'ok': False, 'message': str(e)[:200]}
 
 def _handle_save_project_instruction(body: dict) -> tuple:
+    session_id = (body.get('session_id') or '').strip()
     instruction = (body.get('instruction') or '').strip()
     try:
-        cfg = {}
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE) as f:
-                cfg = json.load(f)
-        cfg['project_instruction'] = instruction
-        with open(CONFIG_FILE, 'w') as f:
-            json.dump(cfg, f, indent=2)
+        instructions = _load_project_instructions()
+        if instruction:
+            if session_id:
+                instructions[session_id] = instruction
+            else:
+                instructions['__default__'] = instruction
+        else:
+            if session_id:
+                instructions.pop(session_id, None)
+            else:
+                instructions.pop('__default__', None)
+        _save_project_instructions(instructions)
         return True, {'ok': True}
     except Exception as e:
         return False, {'ok': False, 'message': str(e)[:200]}
@@ -1023,15 +1031,7 @@ def _run_workflow_stage(wf_instance: dict) -> tuple:
 
     # Build message with previous response context + project instruction + staff scope + instructions
     parts = []
-    proj_inst = ''
-    try:
-        if os.path.exists(CONFIG_FILE):
-            with open(CONFIG_FILE) as f:
-                pi = json.load(f)
-                if pi.get('project_instruction'):
-                    proj_inst = pi['project_instruction']
-    except Exception:
-        pass
+    proj_inst = _load_project_instructions().get(session_id, '') or _load_project_instructions().get('__default__', '')
     if proj_inst:
         parts.append(proj_inst)
     if last_response:

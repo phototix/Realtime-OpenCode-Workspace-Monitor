@@ -66,6 +66,14 @@ if os.path.exists(os.path.join(data_dir, 'super_staff.json')):
                 super_staff_map[s['name']] = s
     except Exception:
         pass
+project_instructions = {}
+pi_path = os.path.join(data_dir, 'project_instructions.json')
+if os.path.exists(pi_path):
+    try:
+        with open(pi_path) as f:
+            project_instructions = json.load(f)
+    except Exception:
+        pass
 todos_map = {}
 _db_path = os.path.expanduser('~/.local/share/opencode/opencode.db')
 if os.path.exists(_db_path):
@@ -95,6 +103,9 @@ for s in sessions:
     s['agent_type'] = cached.get('agent_type', '')
     s['model_id'] = cached.get('model_id', '')
     s['pending_questions'] = cached.get('pending_questions', [])
+    pi_text = project_instructions.get(sid, '') or project_instructions.get('__default__', '')
+    if pi_text:
+        s['project_instruction'] = pi_text
     assigned_name = case_assignments.get(sid, '')
     if assigned_name:
         s['assigned_staff'] = assigned_name
@@ -133,6 +144,9 @@ for s in all_sessions:
         'pending_questions': cached.get('pending_questions', []),
         'active': sid in known_sids,
     }
+    pi_text = project_instructions.get(sid, '') or project_instructions.get('__default__', '')
+    if pi_text:
+        enriched['project_instruction'] = pi_text
     assigned_name = case_assignments.get(sid, '')
     if assigned_name:
         enriched['assigned_staff'] = assigned_name
@@ -353,17 +367,14 @@ try:
 except Exception:
     pass
 
-# Read boss name & project instruction from config.json
+# Read boss name from config.json
 boss_name = 'Brandon'
-project_instruction = ''
 try:
     if os.path.exists(config_file):
         with open(config_file) as f:
             cfg = json.load(f)
             if cfg.get('boss_name'):
                 boss_name = cfg['boss_name']
-            if cfg.get('project_instruction'):
-                project_instruction = cfg['project_instruction']
 except Exception:
     pass
 
@@ -389,7 +400,6 @@ payload = {
         'disk_total': disk_total,
         'mem_total_gb': mem_total_gb,
         'boss_name': boss_name,
-        'project_instruction': project_instruction,
     },
     'agents': agent_list,
     'standalone': standalone,

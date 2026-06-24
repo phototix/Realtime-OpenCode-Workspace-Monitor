@@ -40,7 +40,7 @@ function getAuth() {
 }
 
 global._serverBossName = '';
-global._projectInstruction = '';
+global._viewSessionId = '';
 function getBossName() {
   return global._serverBossName || 'Brandon';
 }
@@ -158,11 +158,6 @@ function openAdminModal() {
 
   // Load super staff cache
   fetch('/api/super-staff').then(r => r.json()).then(d => { if (d.ok) global.superStaffCache = d.staff || []; }).catch(() => {});
-
-  // Load project instruction from status
-  fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(d => {
-    if (d.summary && d.summary.project_instruction !== undefined) global._projectInstruction = d.summary.project_instruction;
-  }).catch(() => {});
 
   modal.style.display = 'flex';
   renderCasesTab();
@@ -340,6 +335,7 @@ async function stopSession(id, dir, event) {
 }
 
 function viewSession(id) {
+  global._viewSessionId = id;
   const modal = document.getElementById('sessionViewModal');
   const body = document.getElementById('sessionViewBody');
   fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
@@ -364,8 +360,8 @@ function viewSession(id) {
       </div>
       <div class="admin-card" style="margin-top:12px">
         <h4 style="margin-bottom:8px">Project Instruction</h4>
-        <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px">Remarks prepended to every instruction for this project (New Case, Continue, Cron, Workflows)</div>
-        <textarea id="projectInstructionInput" style="width:100%;min-height:60px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;outline:none;resize:vertical;font-family:inherit">${escapeHtml(global._projectInstruction || '')}</textarea>
+        <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px">Remarks prepended to every instruction for this session (Continue, Cron, Workflows)</div>
+        <textarea id="projectInstructionInput" style="width:100%;min-height:60px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;outline:none;resize:vertical;font-family:inherit">${escapeHtml(s.project_instruction || '')}</textarea>
         <div style="margin-top:8px"><button class="btn btn-sm btn-primary" onclick="saveProjectInstruction()">Save</button></div>
       </div>
     `;
@@ -378,8 +374,7 @@ function viewSession(id) {
 
 function saveProjectInstruction() {
   const inst = document.getElementById('projectInstructionInput').value.trim();
-  global._projectInstruction = inst;
-  sendQueued('save-project-instruction', { instruction: inst }).then(function(d) {
+  sendQueued('save-project-instruction', { session_id: global._viewSessionId, instruction: inst }).then(function(d) {
     if (d.ok) showToast('Project instruction saved', 'success');
     else showToast('Error: ' + d.message, 'error');
   }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
@@ -533,11 +528,10 @@ async function startNewSession() {
   if (!title) { err.textContent = 'Please enter a title'; err.style.display = 'block'; return; }
   if (!message) { err.textContent = 'Please enter instructions'; err.style.display = 'block'; return; }
 
-  // Prepend Project Instruction then Roles & Scope if a Super Staff agent is selected
+  // Prepend Roles & Scope if a Super Staff agent is selected
   const staff = getStaffForMode(mode);
   const finalMode = staff ? staff.mode : mode;
   let finalMessage = message;
-  if (global._projectInstruction) finalMessage = global._projectInstruction + '\n\n' + finalMessage;
   if (staff) finalMessage = staff.description + '\n\n' + finalMessage;
   const finalModel = staff && staff.model ? staff.model : model;
 
@@ -634,12 +628,19 @@ async function sessionInstructView(id, dir) {
   const modelSel = document.getElementById('model-' + escId);
   const modeSel = document.getElementById('mode-' + escId);
   const mode = modeSel ? modeSel.value : '';
+  // Look up per-session project instruction from enriched session data
+  let sessionInst = '';
+  try {
+    const currentSessions = await (await fetch('data/status.json?_=' + Date.now())).json();
+    const thisSession = (currentSessions.all_sessions || currentSessions.sessions || []).find(function(s) { return s.id === id; });
+    if (thisSession && thisSession.project_instruction) sessionInst = thisSession.project_instruction;
+  } catch(e) {}
   const staff = getStaffForMode(mode);
   const message = input ? input.value.trim() : '';
   if (!message) { showToast('Please enter an instruction', 'error'); return; }
   const finalMode = staff ? staff.mode : mode;
   let finalMessage = message;
-  if (global._projectInstruction) finalMessage = global._projectInstruction + '\n\n' + finalMessage;
+  if (sessionInst) finalMessage = sessionInst + '\n\n' + finalMessage;
   if (staff) finalMessage = staff.description + '\n\n' + finalMessage;
 
   // Close modal immediately

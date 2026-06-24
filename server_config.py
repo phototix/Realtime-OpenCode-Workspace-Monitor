@@ -31,6 +31,7 @@ WORKFLOW_INSTANCES_FILE = os.path.join(DATA_DIR, 'workflow_instances.json')
 STATIC_DIR = os.path.expanduser('~/.opencode-dashboard')
 API_KEY_FILE = os.path.join(DATA_DIR, 'api_key')
 CONFIG_FILE = os.path.join(os.path.dirname(DATA_DIR), 'config.json')
+PROJECT_INSTRUCTIONS_FILE = os.path.join(DATA_DIR, 'project_instructions.json')
 
 _cron_lock = threading.Lock()
 _notifications_lock = threading.Lock()
@@ -234,3 +235,19 @@ def _save_workflow_instances(items: list) -> None:
                 json.dump(items, f, indent=2)
         except Exception:
             pass
+
+def _load_project_instructions() -> dict:
+    if not os.path.exists(PROJECT_INSTRUCTIONS_FILE):
+        return {}
+    try:
+        with open(PROJECT_INSTRUCTIONS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_project_instructions(items: dict) -> None:
+    try:
+        with open(PROJECT_INSTRUCTIONS_FILE, 'w') as f:
+            json.dump(items, f, indent=2)
+    except Exception:
+        pass
