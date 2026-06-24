@@ -1,5 +1,4 @@
 (function (global) {
-(function (global) {
 'use strict';
 
 // ── API KEY FETCH INTERCEPTOR ──
@@ -890,6 +889,7 @@ if ('Notification' in window && Notification.permission === 'default') {
   Notification.requestPermission();
 }
 
+fetch('version.txt').then(r => r.text()).then(v => { document.getElementById('appVersion').textContent = ' v' + v.trim(); }).catch(() => {});
 poll();
 schedulePoll();
 
@@ -905,5 +905,4 @@ global.saveNamesConfig = saveNamesConfig;
 global.DEFAULT_NAMES = DEFAULT_NAMES;
 global.poll = poll;
 global.schedulePoll = schedulePoll;
-})(window);
 })(window);
