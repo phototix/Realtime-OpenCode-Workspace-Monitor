@@ -643,7 +643,11 @@ def _format_event_message(event_type: str, event_data: dict, provider_name: str)
         title = event_data.get('title', '?')
         old_state = event_data.get('old_state', '?')
         new_state = event_data.get('new_state', '?')
-        return f'\U0001f504 Case \'{title}\': {old_state} \u2192 {new_state}'
+        msg = f'\U0001f504 Case \'{title}\': {old_state} \u2192 {new_state}'
+        last = event_data.get('last_text', '')
+        if last:
+            msg += f'\n\n{last}'
+        return msg
     if event_type == 'user_interaction':
         count = event_data.get('count', 1)
         titles = event_data.get('titles', [])

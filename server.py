@@ -62,6 +62,7 @@ def _notification_dispatcher():
                         'title': s.get('title', s.get('slug', sid)),
                         'old_state': prev.get('state', ''),
                         'new_state': state,
+                        'last_text': (s.get('last_text') or '')[:500],
                     }))
             _notif_prev = current_map
 
