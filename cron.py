@@ -7,7 +7,7 @@ import threading
 import time
 
 from server_config import (
-    DATA_DIR, CRON_FILE, ACTIVITY_FILE,
+    DATA_DIR, CRON_FILE, ACTIVITY_FILE, CONFIG_FILE,
     _cron_lock, _safe_agent_name, _safe_path, _safe_shell_arg,
     strip_ansi, get_attach_url, log
 )
@@ -51,6 +51,16 @@ def _run_cron_job(job: dict) -> None:
         if action.get('model'):
             cmd.extend(['-m', action['model']])
         message = action.get('message', '')
+        # Prepend project instruction if set
+        proj_inst = ''
+        try:
+            if os.path.exists(CONFIG_FILE):
+                with open(CONFIG_FILE) as f:
+                    pc = json.load(f)
+                    if pc.get('project_instruction'):
+                        proj_inst = pc['project_instruction']
+        except Exception:
+            pass
         staff_name = action.get('staff', '')
         if staff_name:
             sf_path = os.path.join(DATA_DIR, 'super_staff.json')
@@ -75,6 +85,8 @@ def _run_cron_job(job: dict) -> None:
             cmd.extend(['--agent', action['mode']])
         if action.get('directory'):
             cmd.extend(['--dir', action['directory']])
+        if proj_inst:
+            message = proj_inst + '\n\n' + message
         cmd.append(message)
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=cwd)
         status = 'done' if r.returncode == 0 else 'fail: ' + strip_ansi(r.stderr.strip()[:100] or r.stdout.strip()[:100] or 'unknown')

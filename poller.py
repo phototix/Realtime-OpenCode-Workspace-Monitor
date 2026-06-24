@@ -353,14 +353,17 @@ try:
 except Exception:
     pass
 
-# Read boss name from config.json
+# Read boss name & project instruction from config.json
 boss_name = 'Brandon'
+project_instruction = ''
 try:
     if os.path.exists(config_file):
         with open(config_file) as f:
             cfg = json.load(f)
             if cfg.get('boss_name'):
                 boss_name = cfg['boss_name']
+            if cfg.get('project_instruction'):
+                project_instruction = cfg['project_instruction']
 except Exception:
     pass
 
@@ -386,6 +389,7 @@ payload = {
         'disk_total': disk_total,
         'mem_total_gb': mem_total_gb,
         'boss_name': boss_name,
+        'project_instruction': project_instruction,
     },
     'agents': agent_list,
     'standalone': standalone,

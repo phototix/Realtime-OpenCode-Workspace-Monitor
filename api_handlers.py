@@ -624,6 +624,20 @@ def _handle_save_boss_name(body: dict) -> tuple:
     except Exception as e:
         return False, {'ok': False, 'message': str(e)[:200]}
 
+def _handle_save_project_instruction(body: dict) -> tuple:
+    instruction = (body.get('instruction') or '').strip()
+    try:
+        cfg = {}
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE) as f:
+                cfg = json.load(f)
+        cfg['project_instruction'] = instruction
+        with open(CONFIG_FILE, 'w') as f:
+            json.dump(cfg, f, indent=2)
+        return True, {'ok': True}
+    except Exception as e:
+        return False, {'ok': False, 'message': str(e)[:200]}
+
 def _handle_notifications_send(body: dict) -> tuple:
     message = (body.get('message') or '').strip()
     ntf_type = body.get('type', 'info')
@@ -1007,8 +1021,19 @@ def _run_workflow_stage(wf_instance: dict) -> tuple:
         except Exception:
             pass
 
-    # Build message with previous response context + staff scope + instructions
+    # Build message with previous response context + project instruction + staff scope + instructions
     parts = []
+    proj_inst = ''
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE) as f:
+                pi = json.load(f)
+                if pi.get('project_instruction'):
+                    proj_inst = pi['project_instruction']
+    except Exception:
+        pass
+    if proj_inst:
+        parts.append(proj_inst)
     if last_response:
         parts.append(f"Response to: {last_response}")
     if staff_desc:

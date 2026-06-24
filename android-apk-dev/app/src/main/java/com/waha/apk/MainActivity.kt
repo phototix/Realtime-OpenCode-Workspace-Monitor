@@ -3,6 +3,7 @@ package com.waha.apk
 import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.content.ClipData
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -50,12 +51,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Article
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.QuestionAnswer
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.TaskAlt
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
@@ -101,9 +106,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -120,6 +127,7 @@ import coil.request.ImageRequest
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.Gson
+import com.google.gson.JsonElement
 import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -198,8 +206,11 @@ enum class TabItem(val label: String) {
     Dashboard("Dashboard"),
     Cases("Cases"),
     Staff("Super Staff"),
+    Tasks("Tasks"),
     Cron("Cron"),
     Workflows("Workflows"),
+    Notifications("Notifications"),
+    Logs("Logs"),
     Settings("Settings")
 }
 
@@ -246,7 +257,10 @@ private fun MonitorApp(vm: MonitorViewModel) {
             ModalDrawerSheet {
                 Text("Menu", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(16.dp))
                 Divider()
+                NavigationDrawerItem(icon = { Icon(Icons.Filled.AccountTree, null) }, label = { Text("Workflows") }, selected = tab == TabItem.Workflows, onClick = { tab = TabItem.Workflows; scope.launch { drawerState.close() } })
                 NavigationDrawerItem(icon = { Icon(Icons.Filled.Build, null) }, label = { Text("Cron") }, selected = tab == TabItem.Cron, onClick = { tab = TabItem.Cron; scope.launch { drawerState.close() } })
+                NavigationDrawerItem(icon = { Icon(Icons.Filled.Notifications, null) }, label = { Text("Notifications") }, selected = tab == TabItem.Notifications, onClick = { tab = TabItem.Notifications; scope.launch { drawerState.close() } })
+                NavigationDrawerItem(icon = { Icon(Icons.Filled.Article, null) }, label = { Text("Logs") }, selected = tab == TabItem.Logs, onClick = { tab = TabItem.Logs; scope.launch { drawerState.close() } })
                 NavigationDrawerItem(icon = { Icon(Icons.Filled.Settings, null) }, label = { Text("Settings") }, selected = tab == TabItem.Settings, onClick = { tab = TabItem.Settings; scope.launch { drawerState.close() } })
             }
         }
@@ -258,7 +272,7 @@ private fun MonitorApp(vm: MonitorViewModel) {
                 NavigationBarItem(tab == TabItem.Dashboard, { tab = TabItem.Dashboard }, { Icon(Icons.Filled.Dashboard, null) }, label = { Text("Dashboard") })
                 NavigationBarItem(tab == TabItem.Cases, { tab = TabItem.Cases }, { Icon(Icons.AutoMirrored.Filled.List, null) }, label = { Text("Cases") })
                 NavigationBarItem(tab == TabItem.Staff, { tab = TabItem.Staff }, { Icon(Icons.Filled.SupportAgent, null) }, label = { Text("Staff") })
-                NavigationBarItem(tab == TabItem.Workflows, { tab = TabItem.Workflows }, { Icon(Icons.Filled.AccountTree, null) }, label = { Text("Workflows") })
+                NavigationBarItem(tab == TabItem.Tasks, { tab = TabItem.Tasks }, { Icon(Icons.Filled.TaskAlt, null) }, label = { Text("Tasks") })
             }
         },
         floatingActionButton = {
@@ -340,8 +354,11 @@ private fun MonitorApp(vm: MonitorViewModel) {
                 TabItem.Dashboard -> DashboardScreen(state, vm, vm::refreshAll, caseFormTarget) { caseFormTarget = it }
                 TabItem.Cases -> CasesScreen(state, vm, vm::refreshAll, caseFormTarget) { caseFormTarget = it }
                 TabItem.Staff -> StaffScreen(state, vm, vm::refreshAll)
+                TabItem.Tasks -> TasksScreen(state, vm, vm::refreshAll)
                 TabItem.Cron -> CronScreen(state, vm, vm::refreshAll)
                 TabItem.Workflows -> WorkflowsScreen(state, vm, vm::refreshAll)
+                TabItem.Notifications -> NotificationsScreen(state, vm, vm::refreshAll)
+                TabItem.Logs -> LogsScreen(state, vm, vm::refreshAll)
                 TabItem.Settings -> SettingsScreen(state, vm, vm::refreshAll)
             }
         }
@@ -349,10 +366,10 @@ private fun MonitorApp(vm: MonitorViewModel) {
         if (state.loading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
-            }
-        }
-        }
-    }
+        }  // closes if
+        }  // closes Scaffold
+    }  // closes ModalNavigationDrawer
+}  // closes MonitorApp
 
     if (showNewCaseDialog) {
         NewCaseFormDialog(state, vm) { showNewCaseDialog = false }
@@ -364,6 +381,7 @@ private fun DashboardScreen(state: UiState, vm: MonitorViewModel, onRefresh: () 
     var viewTarget by remember { mutableStateOf<SessionDto?>(null) }
     var renameTarget by remember { mutableStateOf<SessionDto?>(null) }
     var stopTarget by remember { mutableStateOf<SessionDto?>(null) }
+    var questionsTarget by remember { mutableStateOf<SessionDto?>(null) }
 
     PullToRefreshContainer(isRefreshing = state.loading, onRefresh = onRefresh) {
         if (formTarget != null) {
@@ -385,6 +403,7 @@ private fun DashboardScreen(state: UiState, vm: MonitorViewModel, onRefresh: () 
                     SwipeableCaseItem(session, isActive = session.state == "thinking" || session.state == "running-tools",
                         onSelect = { onFormTargetChange(session) },
                         onView = { viewTarget = session },
+                        onQuestions = { questionsTarget = session },
                         onRename = { renameTarget = session },
                         onStop = { stopTarget = session }
                     ) { SessionCard(session) }
@@ -396,6 +415,7 @@ private fun DashboardScreen(state: UiState, vm: MonitorViewModel, onRefresh: () 
     viewTarget?.let { ViewCaseDialog(it) { viewTarget = null } }
     renameTarget?.let { RenameCaseDialog(it, vm) { renameTarget = null } }
     stopTarget?.let { StopConfirmDialog(it, vm) { stopTarget = null } }
+    questionsTarget?.let { QuestionsDialog(it) { questionsTarget = null } }
 }
 
 @Composable
@@ -490,6 +510,7 @@ private fun CasesScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> U
     var viewTarget by remember { mutableStateOf<SessionDto?>(null) }
     var renameTarget by remember { mutableStateOf<SessionDto?>(null) }
     var stopTarget by remember { mutableStateOf<SessionDto?>(null) }
+    var questionsTarget by remember { mutableStateOf<SessionDto?>(null) }
 
     val filteredSessionOptions = remember(sessionOptions, sessionSearch) {
         sessionOptions.filter { it.matchesSessionFilter(sessionSearch) }
@@ -513,6 +534,7 @@ private fun CasesScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> U
                     SwipeableCaseItem(session, isActive = session.state == "thinking" || session.state == "running-tools",
                         onSelect = { onFormTargetChange(session) },
                         onView = { viewTarget = session },
+                        onQuestions = { questionsTarget = session },
                         onRename = { renameTarget = session },
                         onStop = { stopTarget = session }
                     ) { SessionCard(session) }
@@ -524,12 +546,14 @@ private fun CasesScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> U
     viewTarget?.let { ViewCaseDialog(it) { viewTarget = null } }
     renameTarget?.let { RenameCaseDialog(it, vm) { renameTarget = null } }
     stopTarget?.let { StopConfirmDialog(it, vm) { stopTarget = null } }
+    questionsTarget?.let { QuestionsDialog(it) { questionsTarget = null } }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun StaffScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> Unit) {
     var formTarget by remember { mutableStateOf<StaffDto?>(null) }
+    var viewTarget by remember { mutableStateOf<StaffDto?>(null) }
     var deleteTarget by remember { mutableStateOf<StaffDto?>(null) }
 
     PullToRefreshContainer(isRefreshing = state.loading, onRefresh = onRefresh) {
@@ -544,6 +568,7 @@ private fun StaffScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> U
             items(state.staff) { s ->
                 SwipeableStaffItem(
                     staff = s,
+                    onView = { viewTarget = s },
                     onEdit = { formTarget = s },
                     onDelete = { deleteTarget = s }
                 ) {
@@ -562,6 +587,7 @@ private fun StaffScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> U
         }
     }
     formTarget?.let { StaffFormDialog(it, state, vm) { formTarget = null } }
+    viewTarget?.let { AssignCasesDialog(it, state, vm) { viewTarget = null } }
     deleteTarget?.let { s ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
@@ -574,15 +600,18 @@ private fun StaffScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> U
 }
 
 @Composable
-private fun SwipeableStaffItem(staff: StaffDto, onEdit: () -> Unit, onDelete: () -> Unit, content: @Composable () -> Unit) {
+private fun SwipeableStaffItem(staff: StaffDto, onView: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit, content: @Composable () -> Unit) {
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
-    val revealWidthPx = with(density) { 200.dp.toPx() }
+    val revealWidthPx = with(density) { 300.dp.toPx() }
     val offsetX = remember { Animatable(0f) }
 
     Box(modifier = Modifier.fillMaxWidth().clipToBounds().padding(vertical = 6.dp)) {
         Row(modifier = Modifier.align(Alignment.CenterEnd).height(IntrinsicSize.Min).background(Color(0xFF0D1117), RoundedCornerShape(topStart = 10.dp, bottomStart = 10.dp)), horizontalArrangement = Arrangement.End) {
             val btnMod = Modifier.width(100.dp).fillMaxHeight().padding(vertical = 14.dp)
+            SwipeActionButton("View", Icons.Filled.Visibility, Color(0xFF58A6FF), btnMod) {
+                scope.launch { offsetX.animateTo(0f, tween(150)) }; onView()
+            }
             SwipeActionButton("Edit", Icons.Filled.Edit, Color(0xFFD29922), btnMod) {
                 scope.launch { offsetX.animateTo(0f, tween(150)) }; onEdit()
             }
@@ -670,6 +699,42 @@ private fun StaffFormDialog(staff: StaffDto, state: UiState, vm: MonitorViewMode
             }
         }
     }
+}
+
+@Composable
+private fun AssignCasesDialog(staff: StaffDto, state: UiState, vm: MonitorViewModel, onDismiss: () -> Unit) {
+    val allSessions = state.allSessions.takeIf { it.isNotEmpty() } ?: state.sessions
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("${staff.name} — Assigned Cases") },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState())) {
+                if (allSessions.isEmpty()) {
+                    Text("No cases available", color = Color(0xFF8B949E))
+                } else {
+                    allSessions.forEach { session ->
+                        val isAssigned = session.assignedStaff == staff.name
+                        val otherStaff = session.assignedStaff?.takeIf { it != staff.name }
+                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = isAssigned,
+                                onCheckedChange = { checked ->
+                                    if (checked) vm.assignStaff(session.id ?: "", staff.name)
+                                    else vm.assignStaff(session.id ?: "", "")
+                                }
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(session.title.ifBlank { "Untitled" }, fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                                if (otherStaff != null) Text("Assigned: $otherStaff", color = Color(0xFFD29922), fontSize = MaterialTheme.typography.labelSmall.fontSize)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -968,6 +1033,131 @@ private fun SettingsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -
 }
 
 @Composable
+private fun TasksScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> Unit) {
+    val sessionsWithTodos = (state.allSessions.takeIf { it.isNotEmpty() } ?: state.sessions).filter { it.todos?.isNotEmpty() == true }
+    var selectedSession by remember { mutableStateOf<SessionDto?>(null) }
+
+    PullToRefreshContainer(isRefreshing = state.loading, onRefresh = onRefresh) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+            item {
+                Text("Tasks", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+            }
+            if (sessionsWithTodos.isEmpty()) {
+                item {
+                    Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        Text("No tasks found", color = Color(0xFF8B949E))
+                    }
+                }
+            } else {
+                items(sessionsWithTodos) { session ->
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)), onClick = { selectedSession = session }) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(session.title.ifBlank { "Untitled" }, fontWeight = FontWeight.SemiBold)
+                            Spacer(Modifier.height(4.dp))
+                            Text("${session.todos?.size ?: 0} task(s)", color = Color(0xFF8B949E), fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                        }
+                    }
+                }
+            }
+            item { Spacer(Modifier.height(64.dp)) }
+        }
+    }
+    selectedSession?.let { session ->
+        AlertDialog(
+            onDismissRequest = { selectedSession = null },
+            title = { Text(session.title.ifBlank { "Tasks" }) },
+            text = {
+                Column {
+                    session.todos?.forEach { todo ->
+                        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(8.dp).background(if (todo.status == "done") Color(0xFF3FB950) else if (todo.status == "pending") Color(0xFFD29922) else Color(0xFF8B949E), CircleShape))
+                            Spacer(Modifier.width(8.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(todo.content, fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                                Text("${todo.status}${todo.priority?.let { " · $it" } ?: ""}", color = Color(0xFF8B949E), fontSize = MaterialTheme.typography.labelSmall.fontSize)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { selectedSession = null }) { Text("Close") } }
+        )
+    }
+}
+
+@Composable
+private fun NotificationsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> Unit) {
+    PullToRefreshContainer(isRefreshing = state.loading, onRefresh = onRefresh) {
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+            item {
+                Text("Notifications", fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.height(8.dp))
+            }
+            if (state.remoteNotifications.isEmpty()) {
+                item {
+                    Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                        Text("No notifications", color = Color(0xFF8B949E))
+                    }
+                }
+            } else {
+                items(state.remoteNotifications) { ntf ->
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
+                        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            val ntfColor = when (ntf.type) { "error" -> Color(0xFFF85149); "warning" -> Color(0xFFD29922); "success" -> Color(0xFF3FB950); else -> Color(0xFF58A6FF) }
+                            Box(Modifier.size(8.dp).background(ntfColor, CircleShape))
+                            Spacer(Modifier.width(8.dp))
+                            Text(ntf.message, color = Color.White, modifier = Modifier.weight(1f), fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                            IconButton(onClick = { vm.dismissNotification(ntf.id) }, modifier = Modifier.size(24.dp)) {
+                                Icon(Icons.Filled.Clear, contentDescription = "Dismiss", tint = Color(0xFF8B949E), modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+            item { Spacer(Modifier.height(64.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun LogsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> Unit) {
+    var searchQuery by remember { mutableStateOf("") }
+    var logLines by remember { mutableStateOf<List<String>>(vm.cachedLogs) }
+    var loaded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        vm.fetchLogs()
+        delay(1000)
+        logLines = vm.cachedLogs
+        loaded = true
+    }
+
+    PullToRefreshContainer(isRefreshing = state.loading, onRefresh = onRefresh) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text("Logs", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                OutlinedTextField(value = searchQuery, onValueChange = { searchQuery = it }, placeholder = { Text("Search") }, modifier = Modifier.width(200.dp), singleLine = true, textStyle = MaterialTheme.typography.bodySmall)
+            }
+            Spacer(Modifier.height(8.dp))
+            val filtered = if (searchQuery.isBlank()) logLines else logLines.filter { it.contains(searchQuery, ignoreCase = true) }
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                if (filtered.isEmpty()) {
+                    item { Text("No log entries", color = Color(0xFF8B949E), modifier = Modifier.padding(16.dp)) }
+                } else {
+                    items(filtered) { line ->
+                        val match = Regex("""\[(\d{2}:\d{2}:\d{2})\]\s*(.*)""").find(line)
+                        val display = if (match != null) "[${match.groupValues[1]}] ${match.groupValues[2]}" else line
+                        Text(display, fontSize = MaterialTheme.typography.labelSmall.fontSize, fontFamily = FontFamily.Monospace, color = Color(0xFF8B949E), modifier = Modifier.padding(vertical = 1.dp))
+                    }
+                }
+                item { Spacer(Modifier.height(64.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
 private fun WorkflowsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () -> Unit) {
     var editingWf by remember { mutableStateOf<WorkflowDto?>(null) }
@@ -979,121 +1169,125 @@ private fun WorkflowsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () 
     var draggingFrom by remember { mutableStateOf<String?>(null) }
     var dragPointer by remember { mutableStateOf(Offset.Zero) }
     var pendingDeleteEdge by remember { mutableStateOf<WorkflowEdgeDto?>(null) }
+    var connectingFrom by remember { mutableStateOf<String?>(null) }
+    var showEdgeList by remember { mutableStateOf(false) }
+    var zoom by remember { mutableStateOf(1f) }
+    var panX by remember { mutableStateOf(0f) }
+    var panY by remember { mutableStateOf(0f) }
     val staff = state.staff
+
+    fun Float.toCanvas(scale: Float, pan: Float) = (this - pan) / scale
 
     PullToRefreshContainer(isRefreshing = state.loading, onRefresh = onRefresh) {
         if (editingWf != null) {
-            // Editor View
+
+            // Auto-fit on entry
+            LaunchedEffect(editingWf?.id) {
+                if (editingNodes.isNotEmpty()) {
+                    val minX = editingNodes.minOf { it.x }; val minY = editingNodes.minOf { it.y }
+                    val maxX = editingNodes.maxOf { it.x + NODE_W }; val maxY = editingNodes.maxOf { it.y + NODE_H }
+                    zoom = minOf(1f, 300f / (maxX - minX + 100)).coerceIn(0.5f, 1.5f)
+                    panX = 20f; panY = 20f
+                } else { zoom = 1f; panX = 0f; panY = 0f }
+            }
+
             Column(Modifier.fillMaxSize().padding(8.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { editingWf = null }) { Text("← Back") }
-                    OutlinedTextField(
-                        value = wfName,
-                        onValueChange = { wfName = it },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        textStyle = MaterialTheme.typography.bodyMedium,
-                        placeholder = { Text("Workflow name") }
-                    )
-                    Button(onClick = {
-                        if (wfName.isNotBlank()) {
-                            vm.saveWorkflow(WorkflowDto(
-                                id = editingWf?.id ?: "wf_${System.currentTimeMillis()}",
-                                name = wfName,
-                                nodes = editingNodes.toList(),
-                                edges = editingEdges.toList()
-                            ))
-                        }
-                    }) { Text("Save", fontSize = MaterialTheme.typography.labelMedium.fontSize) }
+                // Toolbar
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { editingWf = null }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("←") }
+                    OutlinedTextField(value = wfName, onValueChange = { wfName = it }, modifier = Modifier.weight(1f), singleLine = true, textStyle = MaterialTheme.typography.bodySmall, placeholder = { Text("Name") })
+                    TextButton(onClick = {
+                        if (wfName.isBlank()) vm.showNotice("Enter a workflow name")
+                        else if (editingNodes.none { it.type == "start" }) vm.showNotice("Add at least one Start node")
+                        else if (editingNodes.none { it.type == "end" }) vm.showNotice("Add at least one End node")
+                        else vm.saveWorkflow(WorkflowDto(id = editingWf?.id ?: "wf_${System.currentTimeMillis()}", name = wfName, nodes = editingNodes.toList(), edges = editingEdges.toList()))
+                    }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)) { Text("Save", fontSize = MaterialTheme.typography.labelSmall.fontSize) }
                 }
                 Spacer(Modifier.height(4.dp))
-                Button(onClick = {
-                    val newId = "n${System.currentTimeMillis()}"
-                    editingNodes = editingNodes + WorkflowNodeDto(
-                        id = newId, name = "Stage ${editingNodes.size + 1}",
-                        x = 40f + (editingNodes.size % 3) * 220f, y = 40f + (editingNodes.size / 3) * 120f
-                    )
-                }, modifier = Modifier.align(Alignment.Start)) { Text("+ Add Node", fontSize = MaterialTheme.typography.labelMedium.fontSize) }
-                Spacer(Modifier.height(4.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Button(onClick = {
+                        val nid = "n${System.currentTimeMillis()}"; val cnt = editingNodes.count { it.type == "start" }
+                        editingNodes = editingNodes + WorkflowNodeDto(id = nid, name = "Start${if (cnt > 0) " ${cnt + 1}" else ""}", type = "start", x = 40f + (editingNodes.size % 3) * 220f, y = 40f + (editingNodes.size / 3) * 120f)
+                    }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2EA043))) { Text("+ Start", fontSize = MaterialTheme.typography.labelSmall.fontSize, color = Color.White) }
+                    Button(onClick = {
+                        val nid = "n${System.currentTimeMillis()}"; val cnt = editingNodes.count { it.type == "io" }
+                        editingNodes = editingNodes + WorkflowNodeDto(id = nid, name = "Stage${if (cnt > 0) " ${cnt + 1}" else ""}", type = "io", x = 40f + (editingNodes.size % 3) * 220f, y = 40f + (editingNodes.size / 3) * 120f)
+                    }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F6FEB))) { Text("+ I/O", fontSize = MaterialTheme.typography.labelSmall.fontSize, color = Color.White) }
+                    Button(onClick = {
+                        val nid = "n${System.currentTimeMillis()}"; val cnt = editingNodes.count { it.type == "end" }
+                        editingNodes = editingNodes + WorkflowNodeDto(id = nid, name = "End${if (cnt > 0) " ${cnt + 1}" else ""}", type = "end", x = 40f + (editingNodes.size % 3) * 220f, y = 40f + (editingNodes.size / 3) * 120f)
+                    }, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDA3633))) { Text("+ End", fontSize = MaterialTheme.typography.labelSmall.fontSize, color = Color.White) }
+                    Spacer(Modifier.width(4.dp))
+                    TextButton(onClick = { showEdgeList = !showEdgeList }, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) { Text("📋", fontSize = MaterialTheme.typography.labelSmall.fontSize) }
+                    Spacer(Modifier.weight(1f))
+                    TextButton(onClick = { zoom = (zoom - 0.1f).coerceIn(0.5f, 2f) }, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) { Text("−", fontSize = MaterialTheme.typography.labelMedium.fontSize) }
+                    Text("${(zoom * 100).toInt()}%", fontSize = MaterialTheme.typography.labelSmall.fontSize, color = Color(0xFF8B949E))
+                    TextButton(onClick = { zoom = (zoom + 0.1f).coerceIn(0.5f, 2f) }, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) { Text("+", fontSize = MaterialTheme.typography.labelMedium.fontSize) }
+                    TextButton(onClick = { zoom = 1f; panX = 0f; panY = 0f }, contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) { Text("↺", fontSize = MaterialTheme.typography.labelSmall.fontSize) }
+                }
 
-                // Canvas with overlay nodes
-                val NODE_W = 200f
-                val NODE_H = 70f
-                val PORT_R = 6f
+                // Canvas
+                val NODE_W = 200f; val NODE_H = 80f; val PORT_R = 6f
+                val typeColors = mapOf("start" to Color(0xFF2EA043), "io" to Color(0xFF1F6FEB), "end" to Color(0xFFDA3633))
+                val typeLabels = mapOf("start" to "start", "io" to "io", "end" to "end")
                 Box(
                     modifier = Modifier.weight(1f).fillMaxWidth()
                         .background(Color(0xFF0D1117), RoundedCornerShape(8.dp))
                         .pointerInput(Unit) {
                             detectTapGestures { offset ->
-                                // Check edge hits first
+                                val cx = (offset.x - panX) / zoom; val cy = (offset.y - panY) / zoom
                                 val edgeHit = editingEdges.find { edge ->
-                                    val from = editingNodes.find { it.id == edge.from }
-                                    val to = editingNodes.find { it.id == edge.to }
+                                    val from = editingNodes.find { it.id == edge.from }; val to = editingNodes.find { it.id == edge.to }
                                     if (from != null && to != null) {
-                                        val mx = (from.x + NODE_W / 2 + to.x + NODE_W / 2) / 2
-                                        val my = (from.y + NODE_H + to.y) / 2
-                                        kotlin.math.sqrt((offset.x - mx) * (offset.x - mx) + (offset.y - my) * (offset.y - my)) < 30f
+                                        val mx = ((from.x + NODE_W / 2 + to.x + NODE_W / 2) / 2); val my = ((from.y + NODE_H + to.y) / 2)
+                                        kotlin.math.sqrt((cx - mx) * (cx - mx) + (cy - my) * (cy - my)) < 30f
                                     } else false
                                 }
-                                if (edgeHit != null) {
-                                    pendingDeleteEdge = edgeHit
-                                    return@detectTapGestures
+                                if (edgeHit != null) { pendingDeleteEdge = edgeHit; return@detectTapGestures }
+                                // Check if tap is on an output port (right side connector)
+                                val portTap = editingNodes.findLast { n ->
+                                    val px = n.x + NODE_W; val py = n.y + NODE_H / 2
+                                    kotlin.math.sqrt((cx - px) * (cx - px) + (cy - py) * (cy - py)) < PORT_R + 6f
                                 }
-                                // Check node hits
-                                val tapped = editingNodes.findLast { n ->
-                                    offset.x in n.x..(n.x + NODE_W) && offset.y in n.y..(n.y + NODE_H)
+                                if (portTap != null && editingNodes.any { it.id != portTap.id }) {
+                                    connectingFrom = portTap.id; return@detectTapGestures
                                 }
-                                if (tapped != null) {
-                                    selectedNodeId = tapped.id
-                                } else {
-                                    selectedNodeId = null
-                                }
+                                val tapped = editingNodes.findLast { n -> cx in n.x..(n.x + NODE_W) && cy in n.y..(n.y + NODE_H) }
+                                if (tapped != null) selectedNodeId = tapped.id else selectedNodeId = null
                             }
                         }
                         .pointerInput(Unit) {
                             detectDragGestures(
                                 onDragStart = { offset ->
-                                    val dragged = editingNodes.findLast { n ->
-                                        offset.x in n.x..(n.x + NODE_W) && offset.y in n.y..(n.y + NODE_H)
-                                    }
+                                    val cx = (offset.x - panX) / zoom; val cy = (offset.y - panY) / zoom
+                                    val dragged = editingNodes.findLast { n -> cx in n.x..(n.x + NODE_W) && cy in n.y..(n.y + NODE_H) }
                                     if (dragged != null) {
-                                        // Check if drag started on output port (right side)
-                                        val portX = dragged.x + NODE_W
-                                        val portY = dragged.y + NODE_H / 2
-                                        if (kotlin.math.sqrt((offset.x - portX) * (offset.x - portX) + (offset.y - portY) * (offset.y - portY)) < PORT_R + 4f) {
-                                            draggingFrom = dragged.id
-                                            dragPointer = offset
-                                            return@detectDragGestures
+                                        val portX = dragged.x + NODE_W; val portY = dragged.y + NODE_H / 2
+                                        if (kotlin.math.sqrt((cx - portX) * (cx - portX) + (cy - portY) * (cy - portY)) < PORT_R + 6f) {
+                                            draggingFrom = dragged.id; dragPointer = Offset(cx, cy); return@detectDragGestures
                                         }
                                         selectedNodeId = dragged.id
                                     }
                                 },
                                 onDrag = { change, dragAmount ->
                                     change.consume()
-                                    if (draggingFrom != null) {
-                                        dragPointer = change.position
-                                    } else {
-                                        selectedNodeId?.let { id ->
-                                            val idx = editingNodes.indexOfFirst { it.id == id }
-                                            if (idx >= 0) {
-                                                val n = editingNodes[idx]
-                                                editingNodes = editingNodes.toMutableList().apply {
-                                                    set(idx, n.copy(x = (n.x + dragAmount.x).coerceAtLeast(0f), y = (n.y + dragAmount.y).coerceAtLeast(0f)))
-                                                }
-                                            }
+                                    val scaled = Offset(dragAmount.x / zoom, dragAmount.y / zoom)
+                                    if (draggingFrom != null) { dragPointer = Offset(dragPointer.x + scaled.x, dragPointer.y + scaled.y) }
+                                    else selectedNodeId?.let { id ->
+                                        val idx = editingNodes.indexOfFirst { it.id == id }
+                                        if (idx >= 0) { val n = editingNodes[idx]
+                                            editingNodes = editingNodes.toMutableList().apply { set(idx, n.copy(x = (n.x + scaled.x).coerceAtLeast(0f), y = (n.y + scaled.y).coerceAtLeast(0f))) }
                                         }
                                     }
                                 },
                                 onDragEnd = {
                                     draggingFrom?.let { fromId ->
                                         val target = editingNodes.findLast { n ->
-                                            val px = n.x
-                                            val py = n.y + NODE_H / 2
-                                            kotlin.math.sqrt((dragPointer.x - px) * (dragPointer.x - px) + (dragPointer.y - py) * (dragPointer.y - py)) < PORT_R + 8f
+                                            val px = n.x; val py = n.y + NODE_H / 2
+                                            kotlin.math.sqrt((dragPointer.x - px) * (dragPointer.x - px) + (dragPointer.y - py) * (dragPointer.y - py)) < PORT_R + 10f
                                         }
-                                        if (target != null && target.id != fromId && editingEdges.none { it.from == fromId && it.to == target.id }) {
+                                        if (target != null && target.id != fromId && editingEdges.none { it.from == fromId && it.to == target.id })
                                             editingEdges = editingEdges + WorkflowEdgeDto(from = fromId, to = target.id)
-                                        }
                                     }
                                     draggingFrom = null
                                 }
@@ -1103,77 +1297,109 @@ private fun WorkflowsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () 
                     // Canvas for edges
                     Canvas(Modifier.fillMaxSize()) {
                         for (edge in editingEdges) {
-                            val from = editingNodes.find { it.id == edge.from }
-                            val to = editingNodes.find { it.id == edge.to }
+                            val from = editingNodes.find { it.id == edge.from }; val to = editingNodes.find { it.id == edge.to }
                             if (from != null && to != null) {
-                                val x1 = from.x + NODE_W / 2
-                                val y1 = from.y + NODE_H
-                                val x2 = to.x + NODE_W / 2
-                                val y2 = to.y
+                                val x1 = (from.x + NODE_W / 2) * zoom + panX; val y1 = (from.y + NODE_H) * zoom + panY
+                                val x2 = (to.x + NODE_W / 2) * zoom + panX; val y2 = to.y * zoom + panY
                                 val cy = (y1 + y2) / 2
-                                val path = androidx.compose.ui.graphics.Path().apply {
-                                    moveTo(x1, y1)
-                                    cubicTo(x1, cy, x2, cy, x2, y2)
-                                }
+                                val path = androidx.compose.ui.graphics.Path().apply { moveTo(x1, y1); cubicTo(x1, cy, x2, cy, x2, y2) }
                                 drawPath(path, color = Color(0xFF58A6FF), style = Stroke(width = 2f))
                                 val angle = kotlin.math.atan2(y2 - cy, x2 - x1)
-                                val ax = x2 - 8f * kotlin.math.cos(angle)
-                                val ay = y2 - 8f * kotlin.math.sin(angle)
+                                val ax = x2 - 8f * kotlin.math.cos(angle); val ay = y2 - 8f * kotlin.math.sin(angle)
                                 val arrow = androidx.compose.ui.graphics.Path().apply {
-                                    moveTo(x2, y2)
-                                    lineTo(ax - 4f * kotlin.math.sin(angle), ay + 4f * kotlin.math.cos(angle))
-                                    lineTo(ax + 4f * kotlin.math.sin(angle), ay - 4f * kotlin.math.cos(angle))
-                                    close()
+                                    moveTo(x2, y2); lineTo(ax - 4f * kotlin.math.sin(angle), ay + 4f * kotlin.math.cos(angle))
+                                    lineTo(ax + 4f * kotlin.math.sin(angle), ay - 4f * kotlin.math.cos(angle)); close()
                                 }
                                 drawPath(arrow, color = Color(0xFF58A6FF))
                             }
                         }
-                        // Draw temp edge while dragging
                         draggingFrom?.let { fromId ->
                             val from = editingNodes.find { it.id == fromId }
                             if (from != null) {
-                                val x1 = from.x + NODE_W / 2
-                                val y1 = from.y + NODE_H
-                                val path = androidx.compose.ui.graphics.Path().apply {
-                                    moveTo(x1, y1)
-                                    cubicTo(x1, (y1 + dragPointer.y) / 2, dragPointer.x, (y1 + dragPointer.y) / 2, dragPointer.x, dragPointer.y)
-                                }
+                                val x1 = (from.x + NODE_W / 2) * zoom + panX; val y1 = (from.y + NODE_H) * zoom + panY
+                                val dx = dragPointer.x * zoom + panX; val dy = dragPointer.y * zoom + panY
+                                val path = androidx.compose.ui.graphics.Path().apply { moveTo(x1, y1); cubicTo(x1, (y1 + dy) / 2, dx, (y1 + dy) / 2, dx, dy) }
                                 drawPath(path, color = Color(0xAA58A6FF), style = Stroke(width = 2f, pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(8f, 4f))))
                             }
                         }
                     }
-                    // Nodes as composable overlays
+                    // Nodes
                     editingNodes.forEach { n ->
-                        val isSel = n.id == selectedNodeId
-                        Box(
-                            modifier = Modifier
-                                .offset { IntOffset(n.x.roundToInt(), n.y.roundToInt()) }
-                                .width(NODE_W.dp).height(NODE_H.dp)
-                        ) {
-                            Card(
-                                modifier = Modifier.fillMaxSize().then(if (isSel) Modifier.border(2.dp, Color(0xFF58A6FF), RoundedCornerShape(8.dp)) else Modifier),
-                                colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
+                        val isSel = n.id == selectedNodeId; val borderColor = typeColors[n.type] ?: Color(0xFF58A6FF)
+                        val chipColor = typeColors[n.type] ?: Color(0xFF8B949E)
+                        Box(modifier = Modifier.offset { IntOffset(((n.x * zoom) + panX).roundToInt(), ((n.y * zoom) + panY).roundToInt()) }.width((NODE_W * zoom).dp).height((NODE_H * zoom).dp)) {
+                            // Input port (left exterior)
+                            Box(Modifier.align(Alignment.CenterStart).offset(x = (-PORT_R * zoom).dp).size((PORT_R * 2 * zoom).dp).background(if (editingEdges.any { it.to == n.id }) Color(0xFF58A6FF) else Color(0xFF30363D), CircleShape))
+                            // Output port (right exterior)
+                            Box(Modifier.align(Alignment.CenterEnd).offset(x = (PORT_R * zoom).dp).size((PORT_R * 2 * zoom).dp).background(if (editingEdges.any { it.from == n.id }) Color(0xFF58A6FF) else Color(0xFF30363D), CircleShape))
+                            Card(modifier = Modifier.fillMaxSize().border(if (isSel) 2.dp else 1.dp, if (isSel) borderColor else Color(0xFF30363D), RoundedCornerShape(8.dp)), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22)), shape = RoundedCornerShape(8.dp)) {
                                 Column(Modifier.padding(4.dp)) {
                                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Filled.OpenWith, contentDescription = "Drag", tint = Color(0xFF8B949E), modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Filled.OpenWith, contentDescription = "Drag", tint = Color(0xFF8B949E), modifier = Modifier.size(14.dp))
                                         Spacer(Modifier.width(2.dp))
-                                        Text(n.name.ifBlank { "Untitled" }, fontWeight = FontWeight.SemiBold, fontSize = MaterialTheme.typography.labelSmall.fontSize, color = if (isSel) Color(0xFF58A6FF) else Color.White, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        IconButton(onClick = { selectedNodeId = n.id; showNodeEditor = true }, modifier = Modifier.size(20.dp)) {
-                                            Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Color(0xFF8B949E), modifier = Modifier.size(14.dp))
+                                        Text(n.name.ifBlank { "Untitled" }, fontWeight = FontWeight.SemiBold, fontSize = MaterialTheme.typography.labelSmall.fontSize, color = if (isSel) borderColor else Color.White, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Box(Modifier.padding(horizontal = 4.dp, vertical = 1.dp).background(chipColor.copy(alpha = 0.2f), RoundedCornerShape(4.dp)).padding(horizontal = 4.dp, vertical = 1.dp)) {
+                                            Text(typeLabels[n.type] ?: "io", fontSize = MaterialTheme.typography.labelSmall.fontSize, color = chipColor, maxLines = 1)
+                                        }
+                                        IconButton(onClick = { selectedNodeId = n.id; showNodeEditor = true }, modifier = Modifier.size(18.dp)) {
+                                            Icon(Icons.Filled.Edit, contentDescription = "Edit", tint = Color(0xFF8B949E), modifier = Modifier.size(12.dp))
                                         }
                                     }
-                                    Spacer(Modifier.height(2.dp))
-                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                        // Input port
-                                        Box(Modifier.size(PORT_R.dp * 2).background(if (editingEdges.any { it.to == n.id }) Color(0xFF58A6FF) else Color(0xFF30363D), CircleShape))
-                                        Spacer(Modifier.width(4.dp))
-                                        Text(n.staffIc ?: "No staff", fontSize = MaterialTheme.typography.labelSmall.fontSize, color = Color(0xFF8B949E), modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Spacer(Modifier.width(4.dp))
-                                        // Output port
-                                        Box(Modifier.size(PORT_R.dp * 2).background(if (editingEdges.any { it.from == n.id }) Color(0xFF58A6FF) else Color(0xFF30363D), CircleShape))
-                                    }
+                                    Text(n.staffIc ?: "No staff", fontSize = MaterialTheme.typography.labelSmall.fontSize, color = Color(0xFF8B949E), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Connection modal
+            connectingFrom?.let { fromId ->
+                val fromNode = editingNodes.find { it.id == fromId }
+                AlertDialog(
+                    onDismissRequest = { connectingFrom = null },
+                    title = { Text("Connect from \"${fromNode?.name ?: ""}\"") },
+                    text = {
+                        Column { editingNodes.filter { it.id != fromId }.forEach { n ->
+                            TextButton(onClick = {
+                                if (editingEdges.none { it.from == fromId && it.to == n.id }) editingEdges = editingEdges + WorkflowEdgeDto(from = fromId, to = n.id)
+                                connectingFrom = null
+                            }) { Text("→ ${n.name}  (${n.type})") }
+                        } }
+                    },
+                    confirmButton = { TextButton(onClick = { connectingFrom = null }) { Text("Cancel") } }
+                )
+            }
+
+            // Edge deletion confirmation
+            if (pendingDeleteEdge != null) {
+                AlertDialog(
+                    onDismissRequest = { pendingDeleteEdge = null },
+                    title = { Text("Remove this connection?") },
+                    text = {
+                        val from = editingNodes.find { it.id == pendingDeleteEdge?.from }; val to = editingNodes.find { it.id == pendingDeleteEdge?.to }
+                        Text("\"${from?.name ?: "?"}\" → \"${to?.name ?: "?"}\"")
+                    },
+                    confirmButton = { Button(colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF85149)), onClick = { editingEdges = editingEdges.filter { it != pendingDeleteEdge }; pendingDeleteEdge = null }) { Text("Remove") } },
+                    dismissButton = { TextButton(onClick = { pendingDeleteEdge = null }) { Text("Cancel") } }
+                )
+            }
+
+            // Edge list panel
+            if (showEdgeList) {
+                Box(Modifier.fillMaxSize()) {
+                    Card(modifier = Modifier.align(Alignment.TopStart).padding(4.dp).width(280.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
+                        Column(Modifier.padding(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Edges (${editingEdges.size})", fontWeight = FontWeight.SemiBold)
+                                TextButton(onClick = { showEdgeList = false }, contentPadding = PaddingValues(0.dp)) { Text("Hide", fontSize = MaterialTheme.typography.labelSmall.fontSize) }
+                            }
+                            if (editingEdges.isEmpty()) Text("No edges", color = Color(0xFF8B949E), fontSize = MaterialTheme.typography.labelSmall.fontSize)
+                            else editingEdges.forEach { edge ->
+                                val from = editingNodes.find { it.id == edge.from }; val to = editingNodes.find { it.id == edge.to }
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Text("${from?.name ?: "?"} → ${to?.name ?: "?"}", fontSize = MaterialTheme.typography.labelSmall.fontSize, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color(0xFF8B949E))
+                                    IconButton(onClick = { editingEdges = editingEdges.filter { it != edge } }, modifier = Modifier.size(20.dp)) { Icon(Icons.Filled.Clear, contentDescription = "Remove", tint = Color(0xFFF85149), modifier = Modifier.size(14.dp)) }
                                 }
                             }
                         }
@@ -1186,19 +1412,16 @@ private fun WorkflowsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () 
                 val node = editingNodes.find { it.id == selectedNodeId }
                 if (node != null) {
                     var editName by remember(node.id) { mutableStateOf(node.name) }
+                    var editType by remember(node.id) { mutableStateOf(node.type) }
                     var editInstr by remember(node.id) { mutableStateOf(node.instructions) }
                     var editStaff by remember(node.id) { mutableStateOf(node.staffIc ?: "") }
                     var editMode by remember(node.id) { mutableStateOf(node.mode ?: "") }
                     var editModel by remember(node.id) { mutableStateOf(node.model ?: "") }
-                    var staffExp by remember { mutableStateOf(false) }
-                    var modeExp by remember { mutableStateOf(false) }
-                    var modelExp by remember { mutableStateOf(false) }
+                    var typeExp by remember { mutableStateOf(false) }; var staffExp by remember { mutableStateOf(false) }
+                    var modeExp by remember { mutableStateOf(false) }; var modelExp by remember { mutableStateOf(false) }
                     val selectedStaff = staff.firstOrNull { it.name == editStaff }
 
-                    LaunchedEffect(editStaff) {
-                        val s = staff.firstOrNull { it.name == editStaff }
-                        if (s != null) { editMode = s.mode ?: ""; editModel = s.model ?: "" }
-                    }
+                    LaunchedEffect(editStaff) { val s = staff.firstOrNull { it.name == editStaff }; if (s != null) { editMode = s.mode ?: ""; editModel = s.model ?: "" } }
 
                     AlertDialog(
                         onDismissRequest = { showNodeEditor = false },
@@ -1206,6 +1429,13 @@ private fun WorkflowsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () 
                         text = {
                             Column(Modifier.verticalScroll(rememberScrollState())) {
                                 OutlinedTextField(value = editName, onValueChange = { editName = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                                Spacer(Modifier.height(8.dp))
+                                ExposedDropdownMenuBox(expanded = typeExp, onExpandedChange = { typeExp = it }) {
+                                    OutlinedTextField(value = editType.replaceFirstChar { it.uppercase() }, onValueChange = {}, readOnly = true, label = { Text("Type") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExp) }, modifier = Modifier.menuAnchor().fillMaxWidth())
+                                    ExposedDropdownMenu(expanded = typeExp, onDismissRequest = { typeExp = false }) {
+                                        listOf("start", "io", "end").forEach { t -> DropdownMenuItem(text = { Text(t.replaceFirstChar { it.uppercase() }) }, onClick = { editType = t; typeExp = false }) }
+                                    }
+                                }
                                 Spacer(Modifier.height(8.dp))
                                 OutlinedTextField(value = editInstr, onValueChange = { editInstr = it }, label = { Text("Instructions") }, modifier = Modifier.fillMaxWidth(), minLines = 3)
                                 Spacer(Modifier.height(8.dp))
@@ -1217,23 +1447,17 @@ private fun WorkflowsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () 
                                     }
                                 }
                                 Spacer(Modifier.height(8.dp))
-                                val staffMode = selectedStaff?.mode?.takeIf { it.isNotBlank() }
-                                val staffModel = selectedStaff?.model?.takeIf { it.isNotBlank() }
+                                val staffMode = selectedStaff?.mode?.takeIf { it.isNotBlank() }; val staffModel = selectedStaff?.model?.takeIf { it.isNotBlank() }
                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     ExposedDropdownMenuBox(expanded = modeExp, onExpandedChange = { if (selectedStaff == null) modeExp = it }, modifier = Modifier.weight(1f)) {
                                         OutlinedTextField(value = if (staffMode != null) modeLabel(staffMode) else editMode.ifBlank { "Select mode" }, onValueChange = {}, readOnly = true, enabled = selectedStaff == null, label = { Text(if (selectedStaff == null) "Mode *" else "Mode") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(modeExp) }, modifier = Modifier.menuAnchor().fillMaxWidth())
-                                        ExposedDropdownMenu(expanded = modeExp && selectedStaff == null, onDismissRequest = { modeExp = false }) {
-                                            listOf("build", "plan").forEach { m -> DropdownMenuItem(text = { Text(modeLabel(m)) }, onClick = { editMode = m; modeExp = false }) }
-                                        }
+                                        ExposedDropdownMenu(expanded = modeExp && selectedStaff == null, onDismissRequest = { modeExp = false }) { listOf("build", "plan").forEach { m -> DropdownMenuItem(text = { Text(modeLabel(m)) }, onClick = { editMode = m; modeExp = false }) } }
                                     }
                                     ExposedDropdownMenuBox(expanded = modelExp, onExpandedChange = { if (selectedStaff == null) modelExp = it }, modifier = Modifier.weight(1f)) {
                                         OutlinedTextField(value = if (staffModel != null) staffModel else editModel.ifBlank { "Default model" }, onValueChange = {}, readOnly = true, enabled = selectedStaff == null, label = { Text(if (selectedStaff == null) "Model *" else "Model") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(modelExp) }, modifier = Modifier.menuAnchor().fillMaxWidth())
                                         ExposedDropdownMenu(expanded = modelExp && selectedStaff == null, onDismissRequest = { modelExp = false }) {
-                                            if (state.availableModels.isEmpty()) {
-                                                DropdownMenuItem(text = { Text("Default model") }, onClick = { editModel = ""; modelExp = false })
-                                            } else {
-                                                state.availableModels.forEach { m -> DropdownMenuItem(text = { Text(m.label()) }, onClick = { editModel = m.id.orEmpty(); modelExp = false }) }
-                                            }
+                                            if (state.availableModels.isEmpty()) DropdownMenuItem(text = { Text("Default model") }, onClick = { editModel = ""; modelExp = false })
+                                            else state.availableModels.forEach { m -> DropdownMenuItem(text = { Text(m.label()) }, onClick = { editModel = m.id.orEmpty(); modelExp = false }) }
                                         }
                                     }
                                 }
@@ -1245,11 +1469,9 @@ private fun WorkflowsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () 
                                 if (idx >= 0) {
                                     val s = staff.firstOrNull { it.name == editStaff }
                                     editingNodes = editingNodes.toMutableList().apply {
-                                        set(idx, node.copy(
-                                            name = editName, instructions = editInstr, staffIc = editStaff.ifBlank { null },
+                                        set(idx, node.copy(name = editName, type = editType, instructions = editInstr, staffIc = editStaff.ifBlank { null },
                                             mode = if (s != null) (s.mode?.takeIf { it.isNotBlank() } ?: editMode) else editMode,
-                                            model = if (s != null) (s.model?.takeIf { it.isNotBlank() } ?: editModel) else editModel
-                                        ))
+                                            model = if (s != null) (s.model?.takeIf { it.isNotBlank() } ?: editModel) else editModel))
                                     }
                                 }
                                 showNodeEditor = false
@@ -1258,17 +1480,6 @@ private fun WorkflowsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () 
                         dismissButton = { TextButton(onClick = { showNodeEditor = false }) { Text("Cancel") } }
                     )
                 }
-            }
-
-            // Edge deletion confirmation
-            if (pendingDeleteEdge != null) {
-                AlertDialog(
-                    onDismissRequest = { pendingDeleteEdge = null },
-                    title = { Text("Remove this connection?") },
-                    text = { Text("This will disconnect the two stages.") },
-                    confirmButton = { Button(colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF85149)), onClick = { editingEdges = editingEdges.filter { it != pendingDeleteEdge }; pendingDeleteEdge = null }) { Text("Remove") } },
-                    dismissButton = { TextButton(onClick = { pendingDeleteEdge = null }) { Text("Cancel") } }
-                )
             }
         } else {
             // List View
@@ -1326,7 +1537,7 @@ private fun WorkflowsScreen(state: UiState, vm: MonitorViewModel, onRefresh: () 
 }
 
 private const val NODE_W = 200f
-private const val NODE_H = 70f
+private const val NODE_H = 80f
 
 @Composable
 @OptIn(ExperimentalMaterialApi::class)
@@ -1384,6 +1595,7 @@ private fun SwipeableCaseItem(
     isActive: Boolean,
     onSelect: () -> Unit,
     onView: () -> Unit,
+    onQuestions: () -> Unit,
     onRename: () -> Unit,
     onStop: () -> Unit,
     content: @Composable () -> Unit
@@ -1409,6 +1621,10 @@ private fun SwipeableCaseItem(
             SwipeActionButton("View", Icons.Filled.Visibility, Color(0xFF58A6FF), btnMod) {
                 scope.launch { offsetX.animateTo(0f, tween(150)) }
                 onView()
+            }
+            SwipeActionButton("Questions", Icons.Filled.QuestionAnswer, Color(0xFF8B949E), btnMod) {
+                scope.launch { offsetX.animateTo(0f, tween(150)) }
+                onQuestions()
             }
             SwipeActionButton("Rename", Icons.Filled.Edit, Color(0xFFD29922), btnMod) {
                 scope.launch { offsetX.animateTo(0f, tween(150)) }
@@ -1546,6 +1762,42 @@ private fun StopConfirmDialog(session: SessionDto, vm: MonitorViewModel, onDismi
             ) { Text("Stop") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}
+
+@Composable
+private fun QuestionsDialog(session: SessionDto, onDismiss: () -> Unit) {
+    val questions = session.pendingQuestions ?: emptyList()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Questions — ${session.title.ifBlank { "Case" }}") },
+        text = {
+            if (questions.isEmpty()) {
+                Text("No pending questions", color = Color(0xFF8B949E))
+            } else {
+                Column {
+                    questions.forEach { q ->
+                        Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF161B22))) {
+                            Column(Modifier.padding(8.dp)) {
+                                if (!q.header.isNullOrBlank()) Text(q.header, fontWeight = FontWeight.SemiBold, fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                                Text(q.question, fontSize = MaterialTheme.typography.bodySmall.fontSize, color = Color(0xFF8B949E))
+                                q.options?.forEachIndexed { i, opt ->
+                                    val selected = q.selectedIndices?.contains(i) == true
+                                    val label = if (opt.isJsonObject) opt.asJsonObject.get("label")?.asString ?: opt.asJsonObject.get("value")?.asString ?: opt.toString() else opt.asString ?: opt.toString()
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 2.dp)) {
+                                        Box(Modifier.size(12.dp).background(if (selected) Color(0xFF58A6FF) else Color(0xFF30363D), CircleShape))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(label, color = if (selected) Color(0xFF58A6FF) else Color(0xFF8B949E), fontSize = MaterialTheme.typography.labelSmall.fontSize)
+                                    }
+                                }
+                                if (q.answered) Text("✓ Answered", color = Color(0xFF3FB950), fontSize = MaterialTheme.typography.labelSmall.fontSize)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
     )
 }
 
@@ -1816,7 +2068,23 @@ data class SessionDto(
     @SerializedName("staff_mode") val staffMode: String? = null,
     @SerializedName("staff_model") val staffModel: String? = null,
     @SerializedName("last_user_prompt") val lastUserPrompt: String? = null,
-    val directory: String? = null
+    val directory: String? = null,
+    @SerializedName("pending_questions") val pendingQuestions: List<QuestionDto>? = null,
+    @SerializedName("todos") val todos: List<TodoDto>? = null
+)
+
+data class QuestionDto(
+    val question: String = "",
+    val header: String? = null,
+    val options: List<JsonElement>? = null,
+    @SerializedName("selected_indices") val selectedIndices: List<Int>? = null,
+    val answered: Boolean = false
+)
+
+data class TodoDto(
+    val content: String = "",
+    val status: String = "",
+    val priority: String? = null
 )
 data class StaffDto(
     val name: String = "",
@@ -1856,6 +2124,7 @@ data class CronJobDto(
 data class WorkflowNodeDto(
     val id: String = "",
     val name: String = "",
+    val type: String = "io",
     val instructions: String = "",
     @SerializedName("staff_ic") val staffIc: String? = null,
     val mode: String? = null,
@@ -1897,6 +2166,7 @@ private fun JsonObject.toWorkflowList(): List<WorkflowDto> {
                     WorkflowNodeDto(
                         id = no.get("id")?.asString ?: "",
                         name = no.get("name")?.asString ?: "",
+                        type = no.get("type")?.asString ?: "io",
                         instructions = no.get("instructions")?.asString ?: "",
                         staffIc = no.get("staff_ic")?.asString,
                         mode = no.get("mode")?.asString,
@@ -1989,15 +2259,11 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
             val api = createApi(_uiState.value.apiKey)
             val base = _uiState.value.baseUrl.trimEnd('/')
             val status = runCatching {
-                api.getStatus("$base/api/status", JsonObject())
-            }.recoverCatching {
                 api.getStatusGet("$base/api/status")
-            }.recoverCatching {
-                api.getStatusFile("$base/data/status.json")
-            }.recoverCatching {
-                api.getStatusFile("$base/status.json")
             }.getOrElse {
-                _uiState.value = _uiState.value.copy(loading = false, notice = it.message ?: "Refresh failed")
+                val msg = try { val e = it as? retrofit2.HttpException; if (e != null) "HTTP ${e.code()} ${e.response()?.raw()?.request?.url}" else it.message } catch (_: Exception) { null } ?: it.message ?: "Failed"
+                android.util.Log.e("MyDora", "Status fetch error: $msg")
+                _uiState.value = _uiState.value.copy(loading = false, notice = msg)
                 return@launch
             }
 
@@ -2344,6 +2610,23 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
         }
     }
 
+    fun assignStaff(sessionId: String, staffName: String) {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                sendQueued(api, base, "super-staff-assign", JsonObject().apply {
+                    addProperty("sessionId", sessionId)
+                    addProperty("staffName", staffName)
+                })
+                _uiState.value = _uiState.value.copy(notice = if (staffName.isNotBlank()) "Staff assigned" else "Staff unassigned")
+            }.onFailure {
+                _uiState.value = _uiState.value.copy(notice = it.message ?: "Request failed")
+            }
+            refreshAll()
+        }
+    }
+
     fun restartDaemon() {
         viewModelScope.launch {
             runCatching {
@@ -2412,6 +2695,19 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
             }
             val updated = _uiState.value.remoteNotifications.filter { it.id != id }
             _uiState.value = _uiState.value.copy(remoteNotifications = updated)
+        }
+    }
+
+    var cachedLogs: List<String> = emptyList()
+    fun fetchLogs() {
+        viewModelScope.launch {
+            runCatching {
+                val base = _uiState.value.baseUrl.trimEnd('/')
+                val api = createApi(_uiState.value.apiKey)
+                val resp = api.getJson("$base/api/logs")
+                val arr = resp?.getAsJsonArray("lines") ?: return@launch
+                cachedLogs = arr.mapNotNull { it?.asString }
+            }
         }
     }
 }

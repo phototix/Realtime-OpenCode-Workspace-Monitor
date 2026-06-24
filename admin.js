@@ -40,6 +40,7 @@ function getAuth() {
 }
 
 global._serverBossName = '';
+global._projectInstruction = '';
 function getBossName() {
   return global._serverBossName || 'Brandon';
 }
@@ -157,6 +158,11 @@ function openAdminModal() {
 
   // Load super staff cache
   fetch('/api/super-staff').then(r => r.json()).then(d => { if (d.ok) global.superStaffCache = d.staff || []; }).catch(() => {});
+
+  // Load project instruction from status
+  fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(d => {
+    if (d.summary && d.summary.project_instruction !== undefined) global._projectInstruction = d.summary.project_instruction;
+  }).catch(() => {});
 
   modal.style.display = 'flex';
   renderCasesTab();
@@ -356,12 +362,27 @@ function viewSession(id) {
         <div class="row"><span class="label">Directory</span><span class="value" style="font-size:10px">${escapeHtml(s.directory || '—')}</span></div>
         ${s.last_mode ? `<div class="row"><span class="label">Last Mode</span><span class="value">${escapeHtml(s.last_mode)}</span></div>` : ''}
       </div>
+      <div class="admin-card" style="margin-top:12px">
+        <h4 style="margin-bottom:8px">Project Instruction</h4>
+        <div style="font-size:10px;color:var(--text-dim);margin-bottom:8px">Remarks prepended to every instruction for this project (New Case, Continue, Cron, Workflows)</div>
+        <textarea id="projectInstructionInput" style="width:100%;min-height:60px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;outline:none;resize:vertical;font-family:inherit">${escapeHtml(global._projectInstruction || '')}</textarea>
+        <div style="margin-top:8px"><button class="btn btn-sm btn-primary" onclick="saveProjectInstruction()">Save</button></div>
+      </div>
     `;
     modal.style.display = 'flex';
   }).catch(() => {
     body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load case data</div>';
     modal.style.display = 'flex';
   });
+}
+
+function saveProjectInstruction() {
+  const inst = document.getElementById('projectInstructionInput').value.trim();
+  global._projectInstruction = inst;
+  sendQueued('save-project-instruction', { instruction: inst }).then(function(d) {
+    if (d.ok) showToast('Project instruction saved', 'success');
+    else showToast('Error: ' + d.message, 'error');
+  }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
 }
 
 function continueSession(id) {
@@ -512,10 +533,12 @@ async function startNewSession() {
   if (!title) { err.textContent = 'Please enter a title'; err.style.display = 'block'; return; }
   if (!message) { err.textContent = 'Please enter instructions'; err.style.display = 'block'; return; }
 
-  // Prepend Roles & Scope if a Super Staff agent is selected
+  // Prepend Project Instruction then Roles & Scope if a Super Staff agent is selected
   const staff = getStaffForMode(mode);
   const finalMode = staff ? staff.mode : mode;
-  const finalMessage = staff ? (staff.description + '\n\n' + message) : message;
+  let finalMessage = message;
+  if (global._projectInstruction) finalMessage = global._projectInstruction + '\n\n' + finalMessage;
+  if (staff) finalMessage = staff.description + '\n\n' + finalMessage;
   const finalModel = staff && staff.model ? staff.model : model;
 
   // Close modal immediately
@@ -615,7 +638,9 @@ async function sessionInstructView(id, dir) {
   const message = input ? input.value.trim() : '';
   if (!message) { showToast('Please enter an instruction', 'error'); return; }
   const finalMode = staff ? staff.mode : mode;
-  const finalMessage = staff ? (staff.description + '\n\n' + message) : message;
+  let finalMessage = message;
+  if (global._projectInstruction) finalMessage = global._projectInstruction + '\n\n' + finalMessage;
+  if (staff) finalMessage = staff.description + '\n\n' + finalMessage;
 
   // Close modal immediately
   closeContinueModal();
@@ -3600,6 +3625,7 @@ const _exports = {
   openNotificationSettings, saveNotificationSettings, closeNotificationSettings,
   toggleNotificationProvider,
   sendNotification, dismissNotification, renderLogsTab, refreshLogs, toggleLogAutoRefresh,
+  saveProjectInstruction,
   escapeHtml, sendQueued, renderProvidersTab, providerLogout,
   providerLogin, ollamaAdd, ollamaRemove, renderSuperStaffTab,
   openStaffModal, closeStaffModal, saveStaff, deleteSuperStaff,

@@ -28,7 +28,8 @@
         android:theme="@style/Theme.RealtimeOpenCodeMonitor" >
         <activity
             android:name="com.waha.apk.MainActivity"
-            android:exported="true" >
+            android:exported="true"
+            android:screenOrientation="portrait" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
