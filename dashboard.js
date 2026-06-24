@@ -721,7 +721,6 @@ function renderDashboard(data) {
           <div class="sc-title">${escapeHtml(ss.title || '?')}</div>
           <div class="sc-meta">${ss.slug ? escapeHtml(ss.slug) + ' · ' : ''}${ss.last_mode ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:${ss.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33'};color:${ss.last_mode === 'plan' ? '#bc8cff' : '#58a6ff'}">${ss.last_mode}</span> ` : ''}${staffMap[ss.id] ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:#2ea04322;color:#3fb950">${escapeHtml(staffMap[ss.id])}</span> ` : ''}${escapeHtml(ss.agent_type || '')} ${ss.model_id ? '· ' + escapeHtml(ss.model_id) : ''}</div>
         </div>
-        <div class="sc-state-badge ${ss.state || '\\30'}">${state.label}</div>
       </div>
       ${ss.last_user_prompt ? `<div style="margin-top:4px;padding:4px 6px;background:#58a6ff11;border-left:2px solid var(--blue);border-radius:4px;font-size:10px;color:var(--blue);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(ss.last_user_prompt).replace(/"/g,'&quot;')}">${escapeHtml(ss.last_user_prompt.slice(0,60))}${ss.last_user_prompt.length > 60 ? '...' : ''}</div>` : ''}
       ${ss.last_text ? `
@@ -740,13 +739,14 @@ function renderDashboard(data) {
           ${fileInfo ? `<span>${fileInfo}</span>` : ''}
           ${ss.agent_type ? `<span>${ss.agent_type}</span>` : ''}
           ${ss.model_id ? `<span>${ss.model_id}</span>` : ''}
-          ${(ss.todos || []).filter(function(t){ return t.status !== 'completed'; }).length > 0 ? `<span style="color:var(--yellow)">\uD83D\uDCCB ${(ss.todos || []).filter(function(t){ return t.status !== 'completed'; }).length}</span>` : ''}
-          ${(ss.pending_questions || []).length > 0 ? ((ss.pending_questions || []).filter(function(q){ return !q.answered; }).length > 0 ? `<span style="color:var(--yellow);cursor:pointer" onclick="showQuestions('${ss.id}')">\u2753 ${(ss.pending_questions || []).filter(function(q){ return !q.answered; }).length}</span>` : `<span style="color:var(--green);cursor:pointer" onclick="showQuestions('${ss.id}')">\u2713</span>`) : ''}
         </div>
       </div>
       <div style="display:flex;gap:6px;align-items:center;margin-top:6px;padding-top:4px;border-top:1px solid var(--border)">
+        <div class="sc-state-badge ${ss.state || '\\30'}" style="margin-right:auto">${state.label}</div>
         ${loggedIn && ss.state !== 'thinking' && ss.state !== 'running-tools' ? `<button class="comment-btn" onclick="event.stopPropagation();continueSession('${ss.id}')" title="Quick instruction">\u{1F4AC}</button>` : ''}
         <button class="sc-copy-id" onclick="event.stopPropagation();navigator.clipboard.writeText('${ss.id}').then(function(){showToast('Session ID copied','success')}).catch(function(){})" title="Copy Session ID" style="background:none;border:none;cursor:pointer;font-size:11px;padding:0 2px;color:var(--text-dim);line-height:1">📋</button>
+        ${(ss.todos || []).filter(function(t){ return t.status !== 'completed'; }).length > 0 ? `<span style="color:var(--yellow);font-size:11px">\uD83D\uDCCB ${(ss.todos || []).filter(function(t){ return t.status !== 'completed'; }).length}</span>` : ''}
+        ${(ss.pending_questions || []).length > 0 ? ((ss.pending_questions || []).filter(function(q){ return !q.answered; }).length > 0 ? `<span style="color:var(--yellow);cursor:pointer;font-size:11px" onclick="showQuestions('${ss.id}')">\u2753 ${(ss.pending_questions || []).filter(function(q){ return !q.answered; }).length}</span>` : `<span style="color:var(--green);cursor:pointer;font-size:11px" onclick="showQuestions('${ss.id}')">\u2713</span>`) : ''}
         <div class="sc-status-dot ${ss.state || '\\30'}"></div>
       </div>
     `;
