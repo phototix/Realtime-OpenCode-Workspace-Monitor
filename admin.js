@@ -742,24 +742,44 @@ function closeTasksModal() {
 }
 
 function clearTasks(id) {
-  if (!confirm('Clear all tasks for this case?')) return;
-  sendQueued('session-clear-tasks', { id: id }).then(function(data) {
-    showToast(data.ok ? 'Tasks cleared' : 'Error: ' + data.message, data.ok ? 'success' : 'error');
-    closeTasksModal();
-    renderCasesTab();
-  }).catch(function(e) {
-    showToast('Error: ' + e.message, 'error');
+  Swal.fire({
+    title: 'Clear tasks?',
+    text: 'This will permanently remove all tasks for this case.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Yes, clear it'
+  }).then(function(result) {
+    if (!result.isConfirmed) return;
+    sendQueued('session-clear-tasks', { id: id }).then(function(data) {
+      showToast(data.ok ? 'Tasks cleared' : 'Error: ' + data.message, data.ok ? 'success' : 'error');
+      closeTasksModal();
+      renderCasesTab();
+    }).catch(function(e) {
+      showToast('Error: ' + e.message, 'error');
+    });
   });
 }
 
 function clearQuestions(id) {
-  if (!confirm('Clear all questions for this case?')) return;
-  sendQueued('session-clear-questions', { id: id }).then(function(data) {
-    showToast(data.ok ? 'Questions cleared' : 'Error: ' + data.message, data.ok ? 'success' : 'error');
-    closeQuestionModal();
-    renderCasesTab();
-  }).catch(function(e) {
-    showToast('Error: ' + e.message, 'error');
+  Swal.fire({
+    title: 'Clear questions?',
+    text: 'This will remove all question history for this case.',
+    icon: 'warning',
+    showCancelButton: true,
+    confirmButtonColor: '#d33',
+    cancelButtonColor: '#3085d6',
+    confirmButtonText: 'Yes, clear it'
+  }).then(function(result) {
+    if (!result.isConfirmed) return;
+    sendQueued('session-clear-questions', { id: id }).then(function(data) {
+      showToast(data.ok ? 'Questions cleared' : 'Error: ' + data.message, data.ok ? 'success' : 'error');
+      closeQuestionModal();
+      renderCasesTab();
+    }).catch(function(e) {
+      showToast('Error: ' + e.message, 'error');
+    });
   });
 }
 
