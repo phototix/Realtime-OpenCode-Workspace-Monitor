@@ -146,7 +146,7 @@
   </div>
 </div>
 
-<script src="dashboard.js"></script>
+<script src="dashboard.js?v=2"></script>
 <!-- LOGIN MODAL -->
 <div class="modal-overlay" id="loginModal" style="display:none">
   <div class="login-modal">
@@ -413,9 +413,18 @@
       <div class="tab-content" id="tab-logs">
         <h3>📄 Activity Logs</h3>
         <div class="desc">Full activity log from the dashboard daemon</div>
-        <div class="inline-form" style="margin-bottom:12px">
+        <div class="inline-form" style="margin-bottom:12px;flex-wrap:wrap;gap:6px">
           <input type="text" id="logSearch" placeholder="Search logs..." oninput="renderLogsTab()" style="max-width:300px">
           <button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="refreshLogs()">Refresh</button>
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+            <input type="checkbox" id="logAutoRefresh" onchange="toggleLogAutoRefresh()"> Auto-refresh
+          </label>
+          <select id="logRefreshInterval" style="font-size:11px;padding:2px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text)">
+            <option value="2">2s</option>
+            <option value="5" selected>5s</option>
+            <option value="10">10s</option>
+            <option value="30">30s</option>
+          </select>
         </div>
         <div id="logsTabContent" style="font-size:11px;font-family:monospace;line-height:1.6">
           <div style="color:var(--text-dim)">Loading logs...</div>
@@ -436,7 +445,7 @@
         </div>
         <div id="wfEditorView" style="display:none">
           <div class="wf-toolbar">
-            <button class="btn btn-sm" onclick="closeWorkflowEditor()" style="background:var(--surface2);color:var(--text-dim)">← Back</button>
+            <button class="btn btn-sm" onclick="closeWorkflowEditor()" style="background:var(--surface2);color:var(--text-dim)">✕ Close</button>
             <input type="text" class="wf-title-input" id="wfEditorTitle" placeholder="Workflow name...">
             <div class="wf-node-btn-group">
               <button class="btn btn-sm wf-node-btn starter" onclick="wfEditor.addNode('starter')">+ Starter</button>
@@ -754,6 +763,6 @@
   </div>
 </div>
 
-<script src="admin.js"></script>
+<script src="admin.js?v=2"></script>
 </body>
 </html>
