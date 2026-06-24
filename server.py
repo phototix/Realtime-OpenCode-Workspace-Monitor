@@ -212,6 +212,20 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({'ok': True, 'daemon_alive': daemon_alive, 'timestamp': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
                 return
 
+            if path == '/api/status':
+                status_path = os.path.join(DATA_DIR, 'status.json')
+                if os.path.exists(status_path):
+                    try:
+                        with open(status_path) as f:
+                            data = json.load(f)
+                        data['ok'] = True
+                        self._json(data)
+                    except Exception as e:
+                        self._json({'ok': False, 'message': str(e)[:200]}, 500)
+                else:
+                    self._json({'ok': False, 'message': 'Status file not found'}, 404)
+                return
+
             if path == '/api/notifications':
                 status_path = os.path.join(DATA_DIR, 'status.json')
                 if os.path.exists(status_path):
@@ -225,6 +239,21 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                     self._json(summary)
                 else:
                     self._json({'version': 0, 'sessions': []})
+                return
+
+            if path == '/api/logs':
+                lines_count = 200
+                if os.path.exists(ACTIVITY_FILE):
+                    try:
+                        with open(ACTIVITY_FILE) as f:
+                            all_lines = f.readlines()
+                        log_lines = [l.rstrip('\n') for l in all_lines if l.strip()][-lines_count:]
+                        log_lines.reverse()
+                        self._json({'ok': True, 'lines': log_lines})
+                    except Exception as e:
+                        self._json({'ok': False, 'message': str(e)[:200]}, 500)
+                else:
+                    self._json({'ok': True, 'lines': []})
                 return
 
             if path == '/api/notification-providers':
@@ -375,6 +404,7 @@ if __name__ == '__main__':
         _handle_notification_providers_send_webhook,
         _handle_cron_jobs_create, _handle_cron_jobs_update,
         _handle_cron_jobs_delete, _handle_cron_jobs_toggle, _handle_cron_jobs_run,
+        _handle_session_clear_tasks, _handle_session_clear_questions,
         _handle_workflow_save, _handle_workflow_delete,
         _handle_workflow_attach, _handle_workflow_advance, _handle_workflow_pause,
     )
@@ -411,6 +441,8 @@ if __name__ == '__main__':
         ('cron-jobs/delete', _handle_cron_jobs_delete),
         ('cron-jobs/toggle', _handle_cron_jobs_toggle),
         ('cron-jobs/run', _handle_cron_jobs_run),
+        ('session-clear-tasks', _handle_session_clear_tasks),
+        ('session-clear-questions', _handle_session_clear_questions),
         ('workflow-save', _handle_workflow_save),
         ('workflow-delete', _handle_workflow_delete),
         ('workflow-attach', _handle_workflow_attach),

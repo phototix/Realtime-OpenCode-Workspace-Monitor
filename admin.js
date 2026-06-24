@@ -721,7 +721,14 @@ function showTasks(id) {
         '<span style="font-size:9px;color:var(--text-dim);margin-left:auto">' + pri + '</span>' +
         '</div>';
     });
-    html += '<div style="margin-top:16px"><button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="closeTasksModal()">Close</button></div>';
+    var isComplete = s.state === 'complete';
+    var isLoggedIn = !!getAuth();
+    html += '<div style="display:flex;gap:8px;margin-top:16px">';
+    html += '<button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="closeTasksModal()">Close</button>';
+    if (isComplete && isLoggedIn) {
+      html += '<button class="stop-btn" onclick="clearTasks(\'' + id + '\')">Clear Tasks</button>';
+    }
+    html += '</div>';
     body.innerHTML = html;
     modal.style.display = 'flex';
   }).catch(function() {
@@ -732,6 +739,28 @@ function showTasks(id) {
 
 function closeTasksModal() {
   document.getElementById('tasksModal').style.display = 'none';
+}
+
+function clearTasks(id) {
+  if (!confirm('Clear all tasks for this case?')) return;
+  sendQueued('session-clear-tasks', { id: id }).then(function(data) {
+    showToast(data.ok ? 'Tasks cleared' : 'Error: ' + data.message, data.ok ? 'success' : 'error');
+    closeTasksModal();
+    renderCasesTab();
+  }).catch(function(e) {
+    showToast('Error: ' + e.message, 'error');
+  });
+}
+
+function clearQuestions(id) {
+  if (!confirm('Clear all questions for this case?')) return;
+  sendQueued('session-clear-questions', { id: id }).then(function(data) {
+    showToast(data.ok ? 'Questions cleared' : 'Error: ' + data.message, data.ok ? 'success' : 'error');
+    closeQuestionModal();
+    renderCasesTab();
+  }).catch(function(e) {
+    showToast('Error: ' + e.message, 'error');
+  });
 }
 
 function showQuestions(id) {
@@ -774,6 +803,8 @@ function showQuestions(id) {
       });
       html += '</div>';
     });
+    var isCompleteQ = s.state === 'complete';
+    var isLoggedInQ = !!getAuth();
     if (hasUnanswered) {
       html += '<div style="display:flex;gap:8px;margin-top:8px">' +
         '<button class="btn btn-primary btn-sm" onclick="sendAnswers(\'' + id + '\')" id="sendAnswersBtn">Send Answers</button>' +
@@ -781,8 +812,11 @@ function showQuestions(id) {
       '</div>';
     } else {
       html += '<div style="display:flex;gap:8px;margin-top:8px">' +
-        '<button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="closeQuestionModal()">Close</button>' +
-      '</div>';
+        '<button class="btn btn-sm" style="background:var(--surface2);color:var(--text-dim)" onclick="closeQuestionModal()">Close</button>';
+      if (isCompleteQ && isLoggedInQ) {
+        html += '<button class="stop-btn" onclick="clearQuestions(\'' + id + '\')">Clear Questions</button>';
+      }
+      html += '</div>';
     }
     body.innerHTML = html;
     modal.style.display = 'flex';

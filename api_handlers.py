@@ -1264,3 +1264,38 @@ def _handle_cron_jobs_run(body: dict) -> tuple:
     threading.Thread(target=_run_cron_job, args=(found,), daemon=True).start()
     log(f"Admin: triggered cron job '{found.get('name', '?')}'")
     return True, {'ok': True, 'message': 'Job triggered'}
+
+def _handle_session_clear_tasks(body: dict) -> tuple:
+    session_id = body.get('id', '')
+    if not session_id:
+        return False, {'ok': False, 'message': 'Missing session id'}
+    try:
+        import sqlite3
+        db_path = os.path.expanduser('~/.local/share/opencode/opencode.db')
+        conn = sqlite3.connect(db_path)
+        conn.execute("DELETE FROM todo WHERE session_id = ?", (session_id,))
+        conn.commit()
+        conn.close()
+        log(f"Admin: cleared tasks for {session_id[:16]}")
+        return True, {'ok': True, 'message': 'Tasks cleared'}
+    except Exception as e:
+        return False, {'ok': False, 'message': str(e)[:200]}
+
+def _handle_session_clear_questions(body: dict) -> tuple:
+    session_id = body.get('id', '')
+    if not session_id:
+        return False, {'ok': False, 'message': 'Missing session id'}
+    try:
+        cache_path = os.path.join(DATA_DIR, 'session_details.json')
+        if os.path.exists(cache_path):
+            with open(cache_path) as f:
+                cache = json.load(f)
+            if session_id in cache:
+                cache[session_id]['pending_questions'] = []
+                with open(cache_path, 'w') as f:
+                    json.dump(cache, f, indent=2)
+                log(f"Admin: cleared questions for {session_id[:16]}")
+                return True, {'ok': True, 'message': 'Questions cleared'}
+        return False, {'ok': False, 'message': 'Session not in cache'}
+    except Exception as e:
+        return False, {'ok': False, 'message': str(e)[:200]}
