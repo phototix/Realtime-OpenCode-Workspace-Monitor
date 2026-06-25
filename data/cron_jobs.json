@@ -18,28 +18,11 @@
     "created": 1781800852.716038
   },
   {
-    "id": "cron_518739940c5e",
-    "name": "MyDora Health Checker",
-    "interval_sec": 3600,
-    "last_run": 1782126464.247058,
-    "last_status": "done",
-    "enabled": true,
-    "action": {
-      "type": "session",
-      "message": "Do complete check on website health, functions, consoles monitoring. Report if any issue.",
-      "mode": "plan",
-      "model": "",
-      "session_id": "ses_119ed4840ffe1VsxrXIhv36OKm",
-      "fork": false
-    },
-    "created": 1781988008.0486898
-  },
-  {
     "id": "cron_9c7f90fd90ab",
     "name": "VPS Monitoring",
     "interval_sec": 86400,
-    "last_run": 1782066360.099518,
-    "last_status": "done",
+    "last_run": 1782408080.9497721,
+    "last_status": "fail: timeout (>5m)",
     "enabled": true,
     "action": {
       "type": "session",
@@ -51,5 +34,24 @@
       "fork": false
     },
     "created": 1782065044.570118
+  },
+  {
+    "id": "cron_f36d7ed04663",
+    "name": "MyDora Health Checker",
+    "interval_sec": 3600,
+    "last_run": 1782408657.8422048,
+    "last_status": "done",
+    "enabled": true,
+    "action": {
+      "type": "session",
+      "message": "Do complete check on website health, functions, consoles monitoring. Report if any issue.",
+      "staff": "Ben Treynor Sloss (Google Server Engineer)",
+      "mode": "build",
+      "model": "opencode-go/deepseek-v4-flash",
+      "session_id": "ses_100e69d38ffeItzaI8y76W94Qh",
+      "fork": false
+    },
+    "created": 1782405411.216636,
+    "_running": true
   }
 ]
