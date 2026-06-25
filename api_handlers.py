@@ -665,6 +665,24 @@ def _handle_save_project_instruction(body: dict) -> tuple:
     session_id = (body.get('session_id') or '').strip()
     instruction = (body.get('instruction') or '').strip()
     try:
+        # Save to opencode DB (survives engine restart)
+        if session_id:
+            import sqlite3
+            db_path = os.path.expanduser('~/.local/share/opencode/opencode.db')
+            conn = sqlite3.connect(db_path)
+            if instruction:
+                conn.execute(
+                    "UPDATE session SET metadata = json_set(COALESCE(metadata, '{}'), '$.project_instruction', ?) WHERE id = ?",
+                    (instruction, session_id)
+                )
+            else:
+                conn.execute(
+                    "UPDATE session SET metadata = json_remove(COALESCE(metadata, '{}'), '$.project_instruction') WHERE id = ?",
+                    (session_id,)
+                )
+            conn.commit()
+            conn.close()
+        # Also update file cache for poller fast read
         instructions = _load_project_instructions()
         if instruction:
             if session_id:

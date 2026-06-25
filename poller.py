@@ -116,6 +116,18 @@ for s in sessions:
     s['model_id'] = cached.get('model_id', '')
     s['pending_questions'] = cached.get('pending_questions', [])
     pi_text = project_instructions.get(sid, '') or project_instructions.get('__default__', '')
+    if not pi_text:
+        try:
+            import sqlite3
+            _db = os.path.expanduser('~/.local/share/opencode/opencode.db')
+            _conn = sqlite3.connect(_db)
+            _row = _conn.execute("SELECT json_extract(metadata, '$.project_instruction') FROM session WHERE id = ?", (sid,)).fetchone()
+            _conn.close()
+            if _row and _row[0]:
+                pi_text = _row[0]
+                project_instructions[sid] = pi_text
+        except Exception:
+            pass
     if pi_text:
         s['project_instruction'] = pi_text
     perms = pending_permissions.get(sid, [])
@@ -160,6 +172,18 @@ for s in all_sessions:
         'active': sid in known_sids,
     }
     pi_text = project_instructions.get(sid, '') or project_instructions.get('__default__', '')
+    if not pi_text:
+        try:
+            import sqlite3
+            _db = os.path.expanduser('~/.local/share/opencode/opencode.db')
+            _conn = sqlite3.connect(_db)
+            _row = _conn.execute("SELECT json_extract(metadata, '$.project_instruction') FROM session WHERE id = ?", (sid,)).fetchone()
+            _conn.close()
+            if _row and _row[0]:
+                pi_text = _row[0]
+                project_instructions[sid] = pi_text
+        except Exception:
+            pass
     if pi_text:
         enriched['project_instruction'] = pi_text
     perms = pending_permissions.get(sid, [])
