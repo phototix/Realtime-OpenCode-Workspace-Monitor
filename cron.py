@@ -9,7 +9,7 @@ import time
 from server_config import (
     DATA_DIR, CRON_FILE, ACTIVITY_FILE, CONFIG_FILE,
     _cron_lock, _safe_agent_name, _safe_path, _safe_shell_arg,
-    strip_ansi, get_attach_url, log
+    strip_ansi, log
 )
 
 def _load_cron_jobs() -> list:
@@ -30,7 +30,6 @@ def _save_cron_jobs(jobs: list) -> None:
 def _run_cron_job(job: dict) -> None:
     status = 'unknown'
     try:
-        attach = get_attach_url()
         action = job.get('action', {})
         cwd = action.get('directory') or None
         if cwd and not _safe_path(cwd):
@@ -44,7 +43,6 @@ def _run_cron_job(job: dict) -> None:
                 cmd.extend(['--fork'])
         else:
             cmd.extend(['-c'])
-        cmd.extend(['--attach', attach])
         password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
         if password:
             cmd.extend(['-p', password])

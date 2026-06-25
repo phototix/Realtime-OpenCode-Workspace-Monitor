@@ -75,7 +75,7 @@ def _handle_session_instruct(body: dict) -> tuple:
             c.extend(['-s', sid])
             if fork:
                 c.extend(['--fork'])
-            c.extend(['--attach', attach])
+            c.extend([])
             if password:
                 c.extend(['-p', password])
             if model:
@@ -105,7 +105,7 @@ def _handle_session_instruct(body: dict) -> tuple:
                 log(f"Admin: session {sid} no longer exists in engine")
                 return False, {'ok': False, 'message': 'This case no longer exists — it was deleted from the engine. Refresh the dashboard.', 'code': 'session_deleted'}
             log(f"Admin: session {sid} not found, falling back to continue last")
-            cmd_fallback = ['opencode', 'run', '-c', '--attach', attach]
+            cmd_fallback = ['opencode', 'run', '-c', ]
             if password:
                 cmd_fallback.extend(['-p', password])
             if model:
@@ -146,7 +146,7 @@ def _handle_session_instruct(body: dict) -> tuple:
             cmd_retry = ['opencode', 'run', '-s', sid]
             if fork_val:
                 cmd_retry.append('--fork')
-            cmd_retry.extend(['--attach', attach])
+            cmd_retry.extend([])
             if password:
                 cmd_retry.extend(['-p', password])
             if mode_val:
@@ -188,7 +188,7 @@ def _handle_session_answer(body: dict) -> tuple:
             log(f"Admin: engine restart detected, session {sid} invalid for answer")
             return False, {'ok': False, 'message': 'Session no longer available — the engine was restarted.', 'code': 'engine_restarted'}
         answer_text = 'I choose: ' + '; '.join(str(a) for a in answers)
-        cmd = ['opencode', 'run', '-s', sid, '--attach', attach]
+        cmd = ['opencode', 'run', '-s', sid, ]
         if password:
             cmd.extend(['-p', password])
         cmd.append(answer_text)
@@ -231,9 +231,9 @@ def _handle_new_session(body: dict) -> tuple:
         engine_restarted = get_engine_restarted()
         cmd = ['opencode', 'run']
         if fresh:
-            cmd.extend(['--attach', attach, '--format', 'json'])
+            cmd.extend(['--format', 'json'])
         elif engine_restarted:
-            cmd.extend(['-c', '--attach', attach])
+            cmd.extend(['-c', ])
         else:
             status_file = os.path.join(DATA_DIR, 'status.json')
             last_sid = None
@@ -248,9 +248,9 @@ def _handle_new_session(body: dict) -> tuple:
                 except Exception:
                     pass
             if last_sid:
-                cmd.extend(['-s', last_sid, '--attach', attach])
+                cmd.extend(['-s', last_sid, ])
             else:
-                cmd.extend(['-c', '--attach', attach])
+                cmd.extend(['-c', ])
         if password:
             cmd.extend(['-p', password])
         if directory:
@@ -292,7 +292,7 @@ def _handle_new_session(body: dict) -> tuple:
             if session_id:
                 # Step 2: Send real message via -s with same model/agent
                 retry_count = body.get('retry_count', 0)
-                msg_cmd = ['opencode', 'run', '-s', session_id, '--attach', attach]
+                msg_cmd = ['opencode', 'run', '-s', session_id, ]
                 if model:
                     msg_cmd.extend(['-m', model])
                 if mode_val:

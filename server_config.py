@@ -117,15 +117,14 @@ def engine_is_reachable(url: str, password: str = '') -> bool:
         return False
 
 def _check_engine(attach: str | None = None) -> str | None:
-    password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
-    if attach is None:
-        attach = get_attach_url()
-    if engine_is_reachable(attach, password):
-        return attach
-    attach = get_attach_url(force=True)
-    if engine_is_reachable(attach, password):
-        return attach
-    return None
+    """Check if the opencode CLI is available (no --attach needed after engine update)."""
+    try:
+        r = subprocess.run(['opencode', 'run', '--help'], capture_output=True, text=True, timeout=5)
+        if r.returncode == 0:
+            return 'cli'
+        return None
+    except Exception:
+        return None
 
 def get_engine_restarted() -> str | None:
     status_path = os.path.join(DATA_DIR, 'status.json')
