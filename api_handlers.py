@@ -90,6 +90,20 @@ def _handle_session_instruct(body: dict) -> tuple:
             return True, {'ok': True, 'message': 'Instruction sent'}
         err_text = strip_ansi(r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]
         if 'not found' in err_text.lower():
+            # Check if session actually exists in SQLite
+            import sqlite3
+            _db_path = os.path.expanduser('~/.local/share/opencode/opencode.db')
+            _exists = False
+            try:
+                _conn = sqlite3.connect(_db_path)
+                _row = _conn.execute("SELECT 1 FROM session WHERE id=?", (sid,)).fetchone()
+                _exists = _row is not None
+                _conn.close()
+            except Exception:
+                pass
+            if not _exists:
+                log(f"Admin: session {sid} no longer exists in engine")
+                return False, {'ok': False, 'message': 'This case no longer exists — it was deleted from the engine. Refresh the dashboard.', 'code': 'session_deleted'}
             log(f"Admin: session {sid} not found, falling back to continue last")
             cmd_fallback = ['opencode', 'run', '-c', '--attach', attach]
             if password:
