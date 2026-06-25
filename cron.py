@@ -7,9 +7,9 @@ import threading
 import time
 
 from server_config import (
-    DATA_DIR, CRON_FILE, ACTIVITY_FILE, CONFIG_FILE,
+    DATA_DIR, CRON_FILE, ACTIVITY_FILE,
     _cron_lock, _safe_agent_name, _safe_path, _safe_shell_arg,
-    strip_ansi, log
+    strip_ansi, log, _load_project_instructions, _save_project_instructions
 )
 
 def _load_cron_jobs() -> list:
@@ -49,14 +49,17 @@ def _run_cron_job(job: dict) -> None:
         if action.get('model'):
             cmd.extend(['-m', action['model']])
         message = action.get('message', '')
-        # Prepend project instruction if set
+        # Read project instruction from opencode DB (survives engine restart)
         proj_inst = ''
+        session_id = action.get('session_id', '')
         try:
-            if os.path.exists(CONFIG_FILE):
-                with open(CONFIG_FILE) as f:
-                    pc = json.load(f)
-                    if pc.get('project_instruction'):
-                        proj_inst = pc['project_instruction']
+            import sqlite3
+            _db = os.path.expanduser('~/.local/share/opencode/opencode.db')
+            _conn = sqlite3.connect(_db)
+            _row = _conn.execute("SELECT json_extract(metadata, '$.project_instruction') FROM session WHERE id = ?", (session_id,)).fetchone()
+            _conn.close()
+            if _row and _row[0]:
+                proj_inst = _row[0]
         except Exception:
             pass
         staff_name = action.get('staff', '')
@@ -86,10 +89,61 @@ def _run_cron_job(job: dict) -> None:
         if proj_inst:
             message = proj_inst + '\n\n' + message
         cmd.append(message)
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=cwd)
-        status = 'done' if r.returncode == 0 else 'fail: ' + strip_ansi(r.stderr.strip()[:100] or r.stdout.strip()[:100] or 'unknown')
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=cwd)
+        if r.returncode != 0:
+            err = strip_ansi((r.stderr or '')[:200]).lower()
+            if 'not found' in err and action.get('session_id'):
+                sid = action['session_id']
+                import sqlite3
+                _db = os.path.expanduser('~/.local/share/opencode/opencode.db')
+                _exists = False
+                try:
+                    _c = sqlite3.connect(_db)
+                    _exists = _c.execute("SELECT 1 FROM session WHERE id=?", (sid,)).fetchone() is not None
+                    _c.close()
+                except Exception:
+                    pass
+                if not _exists:
+                    log(f"Cron: session {sid[:16]} not in DB, falling back to -c")
+                    cmd2 = ['opencode', 'run', '-c']
+                    if password:
+                        cmd2.extend(['-p', password])
+                    if action.get('model'):
+                        cmd2.extend(['-m', action['model']])
+                    if staff_name:
+                        cmd2.extend(['--agent', action.get('mode', 'build')])
+                    elif action.get('mode'):
+                        cmd2.extend(['--agent', action['mode']])
+                    cmd2.append(message)
+                    r2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=600, cwd=cwd)
+                    if r2.returncode == 0:
+                        log(f"Cron: fallback -c succeeded for '{job.get('name', '?')}'")
+                        status = 'done'
+                    else:
+                        err2 = strip_ansi(r2.stderr.strip()[:100] or r2.stdout.strip()[:100] or 'unknown')
+                        status = 'fail: ' + err2
+        if status == 'unknown':
+            status = 'done' if r.returncode == 0 else 'fail: ' + strip_ansi(r.stderr.strip()[:100] or r.stdout.strip()[:100] or 'unknown')
+        # Clear project instruction from DB and cache after trigger (sent once, not from history)
+        if proj_inst and session_id:
+            try:
+                import sqlite3
+                _db = os.path.expanduser('~/.local/share/opencode/opencode.db')
+                _cx = sqlite3.connect(_db)
+                _cx.execute("UPDATE session SET metadata = json_remove(COALESCE(metadata, '{}'), '$.project_instruction') WHERE id = ?", (session_id,))
+                _cx.commit()
+                _cx.close()
+            except Exception:
+                pass
+            try:
+                _instructions = _load_project_instructions()
+                _instructions.pop(session_id, None)
+                _save_project_instructions(_instructions)
+            except Exception:
+                pass
+            log(f"Cron: cleared project instruction for session {session_id[:16]} after trigger")
     except subprocess.TimeoutExpired:
-        status = 'fail: timeout (>5m)'
+        status = 'fail: timeout (>10m)'
     except Exception as e:
         status = 'fail: ' + str(e)[:100]
     finally:
