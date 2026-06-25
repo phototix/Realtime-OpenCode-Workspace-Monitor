@@ -75,7 +75,6 @@ def _handle_session_instruct(body: dict) -> tuple:
             c.extend(['-s', sid])
             if fork:
                 c.extend(['--fork'])
-            c.extend([])
             if password:
                 c.extend(['-p', password])
             if model:
@@ -160,6 +159,27 @@ def _handle_session_instruct(body: dict) -> tuple:
         return False, {'ok': False, 'message': err_text}
     except subprocess.TimeoutExpired:
         log("Admin: instruct timeout")
+        retry_count = body.get('retry_count', 0)
+        if retry_count < 3:
+            backoff = [10, 30, 60][retry_count]
+            retry_payload = dict(body)
+            retry_payload['retry_count'] = retry_count + 1
+            retry_item = {
+                'id': 'q_' + secrets.token_hex(6),
+                'type': 'session-instruct',
+                'payload': retry_payload,
+                'retry_at': time.time() + backoff,
+                'status': 'queued',
+                'result': None,
+                'error': None,
+                'created_at': time.time(),
+            }
+            queue = _load_queue()
+            queue.append(retry_item)
+            _save_queue(queue)
+            eid = _error_id()
+            log(f"Session instruct retry {retry_count+1}/3 in {backoff}s: {sid[:16]}... [{eid}]")
+            return True, {'ok': True, 'message': f'Instruct queued, retry in {backoff}s'}
         return False, {'ok': False, 'message': 'Timeout sending instruction'}
     except Exception as e:
         log(f"Admin: instruct unexpected error: {str(e)[:200]}")
