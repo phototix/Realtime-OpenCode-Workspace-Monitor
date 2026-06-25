@@ -375,8 +375,10 @@ function viewSession(id) {
 function saveProjectInstruction() {
   const inst = document.getElementById('projectInstructionInput').value.trim();
   sendQueued('save-project-instruction', { session_id: global._viewSessionId, instruction: inst }).then(function(d) {
-    if (d.ok) showToast('Project instruction saved', 'success');
-    else showToast('Error: ' + d.message, 'error');
+    if (d.ok) {
+      showToast('Project instruction saved', 'success');
+      renderCasesTab();
+    } else showToast('Error: ' + d.message, 'error');
   }).catch(function(e) { showToast('Error: ' + e.message, 'error'); });
 }
 
