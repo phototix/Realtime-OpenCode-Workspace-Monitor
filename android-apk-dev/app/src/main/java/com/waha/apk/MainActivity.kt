@@ -465,6 +465,13 @@ private fun OfficeStrip(sessions: List<SessionDto>, staff: List<StaffDto>) {
                         modifier = Modifier.size(96.dp),
                         contentScale = ContentScale.Crop
                     )
+                } else {
+                    Image(
+                        painter = painterResource(R.drawable.discuss_empty),
+                        contentDescription = "Discussion idle",
+                        modifier = Modifier.size(96.dp),
+                        contentScale = ContentScale.Crop
+                    )
                 }
             }
         }

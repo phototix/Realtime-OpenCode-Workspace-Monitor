@@ -124,24 +124,6 @@ def _run_cron_job(job: dict) -> None:
                         status = 'fail: ' + err2
         if status == 'unknown':
             status = 'done' if r.returncode == 0 else 'fail: ' + strip_ansi(r.stderr.strip()[:100] or r.stdout.strip()[:100] or 'unknown')
-        # Clear project instruction from DB and cache after trigger (sent once, not from history)
-        if proj_inst and session_id:
-            try:
-                import sqlite3
-                _db = os.path.expanduser('~/.local/share/opencode/opencode.db')
-                _cx = sqlite3.connect(_db)
-                _cx.execute("UPDATE session SET metadata = json_remove(COALESCE(metadata, '{}'), '$.project_instruction') WHERE id = ?", (session_id,))
-                _cx.commit()
-                _cx.close()
-            except Exception:
-                pass
-            try:
-                _instructions = _load_project_instructions()
-                _instructions.pop(session_id, None)
-                _save_project_instructions(_instructions)
-            except Exception:
-                pass
-            log(f"Cron: cleared project instruction for session {session_id[:16]} after trigger")
     except subprocess.TimeoutExpired:
         status = 'fail: timeout (>10m)'
     except Exception as e:
