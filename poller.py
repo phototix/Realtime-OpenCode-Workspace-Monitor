@@ -365,7 +365,7 @@ except Exception:
     pass
 
 payload = {
-    'timestamp': timestamp,
+    'timestamp': timestamp(),
     'summary': {
         'total_cost': total_cost,
         'worker_count': worker_count,

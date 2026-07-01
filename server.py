@@ -201,6 +201,7 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
         if path.startswith('/api/'):
             if path == '/api/ping':
                 daemon_alive = False
+                pid = None
                 if os.path.exists(PID_FILE):
                     try:
                         with open(PID_FILE) as f:
@@ -209,7 +210,43 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                         daemon_alive = True
                     except Exception:
                         pass
-                self._json({'ok': True, 'daemon_alive': daemon_alive, 'timestamp': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
+                self._json({'ok': True, 'daemon_alive': daemon_alive, 'pid': pid, 'timestamp': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
+                return
+
+            if path == '/api/health':
+                daemon_alive = False
+                dashboard_alive = True
+                pid = None
+                status_path = os.path.join(DATA_DIR, 'status.json')
+                status_ready = os.path.exists(status_path)
+                try:
+                    if os.path.exists(PID_FILE):
+                        with open(PID_FILE) as f:
+                            pid = int(f.read().strip())
+                        os.kill(pid, 0)
+                        daemon_alive = True
+                except Exception:
+                    daemon_alive = False
+                health = {
+                    'ok': True,
+                    'dashboard_alive': dashboard_alive,
+                    'daemon_alive': daemon_alive,
+                    'pid': pid,
+                    'status_ready': status_ready,
+                    'timestamp': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                }
+                if status_ready:
+                    try:
+                        with open(status_path) as f:
+                            data = json.load(f)
+                        summary = data.get('summary') or {}
+                        health['engine_restarted_at'] = summary.get('engine_restarted_at')
+                        health['session_count'] = len(data.get('sessions') or [])
+                        health['agent_count'] = summary.get('agent_count', 0)
+                    except Exception as e:
+                        health['ok'] = False
+                        health['error'] = str(e)[:200]
+                self._json(health)
                 return
 
             if path == '/api/notifications':

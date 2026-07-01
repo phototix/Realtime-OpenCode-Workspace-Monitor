@@ -2146,6 +2146,7 @@ global.schedulePoll = schedulePoll;
       <div class="admin-tab" data-tab="providers" onclick="switchTab('providers')">🔌 Provider</div>
       <div class="admin-tab" data-tab="super-staff" onclick="switchTab('super-staff')">🧑‍💼 Super Staff</div>
       <div class="admin-tab" data-tab="cron" onclick="switchTab('cron')">⏰ Cron</div>
+      <div class="admin-tab admin-only" data-tab="workflows" onclick="switchTab('workflows')">🔄 Workflows</div>
       <div class="admin-tab" data-tab="security" onclick="switchTab('security')">🔒 Security</div>
       <div class="admin-tab" data-tab="inapp-alerts" onclick="switchTab('inapp-alerts')">🔔 In-app alerts</div>
       <div class="admin-tab" data-tab="notifications" onclick="switchTab('notifications')">🔔 Notifications</div>
@@ -2278,6 +2279,16 @@ global.schedulePoll = schedulePoll;
           <button class="btn btn-sm btn-primary" onclick="openCronModal()" style="margin-left:auto">+ New Cron Job</button>
         </div>
         <div id="cronTabContent"><div style="font-size:12px;color:var(--text-dim)">Loading cron jobs...</div></div>
+      </div>
+
+      <!-- Workflows Tab -->
+      <div class="tab-content" id="tab-workflows">
+        <h3>🔄 Workflows</h3>
+        <div class="desc">Design multi-stage case workflows</div>
+        <div class="inline-form" style="margin-bottom:12px">
+          <button class="btn btn-sm btn-primary" onclick="openWorkflowModal()" style="margin-left:auto">+ New Workflow</button>
+        </div>
+        <div id="workflowsTabContent"><div style="font-size:12px;color:var(--text-dim)">Loading workflows...</div></div>
       </div>
 
       <!-- Security Tab -->
@@ -2413,6 +2424,26 @@ global.schedulePoll = schedulePoll;
   </div>
 </div>
 
+<div class="modal-overlay" id="tasksModal" style="display:none">
+  <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:18px">📋 Tasks</h2>
+      <button class="admin-close" onclick="closeTasksModal()">&times;</button>
+    </div>
+    <div id="tasksModalBody"></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="wfViewModal" style="display:none">
+  <div class="login-modal" style="width:700px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 id="wfViewTitle" style="font-size:18px">Workflow Details</h2>
+      <button class="admin-close" onclick="closeWorkflowViewModal()">&times;</button>
+    </div>
+    <div id="wfViewBody"></div>
+  </div>
+</div>
+
 <!-- New Session Modal -->
 <div class="modal-overlay" id="newSessionModal" style="display:none">
   <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
@@ -2440,6 +2471,12 @@ global.schedulePoll = schedulePoll;
             <option value="">Loading models...</option>
           </select>
         </div>
+      </div>
+      <div class="form-group">
+        <label>Workflow (optional)</label>
+        <select id="newSessionWorkflow" style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:12px;outline:none">
+          <option value="">— None —</option>
+        </select>
       </div>
       <div class="form-group">
         <label>Workspace</label>
@@ -2779,6 +2816,7 @@ function switchTab(tabId) {
   if (tabId === 'providers') renderProvidersTab();
   if (tabId === 'super-staff') renderSuperStaffTab();
   if (tabId === 'cron') { renderCronTab(); _cronRefreshTimer = setInterval(updateCronCountdowns, 1000); }
+  if (tabId === 'workflows') openWorkflowModal();
 }
 
 // ── SESSIONS TAB ──
@@ -3351,6 +3389,100 @@ function closeQuestionModal() {
   document.getElementById('questionModal').style.display = 'none';
 }
 
+function closeTasksModal() {
+  const el = document.getElementById('tasksModal');
+  if (el) el.style.display = 'none';
+}
+
+function closeWorkflowViewModal() {
+  const el = document.getElementById('wfViewModal');
+  if (el) el.style.display = 'none';
+}
+
+async function renderTasksModal() {
+  const body = document.getElementById('tasksModalBody');
+  body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">Loading tasks...</div>';
+  try {
+    const data = await apiFetch('data/status.json?_=' + Date.now());
+    const sessions = (data && (data.all_sessions || data.sessions)) || [];
+    const rows = [];
+    sessions.forEach(function(s) {
+      (s.todos || []).forEach(function(t) {
+        rows.push({ session: s, task: t });
+      });
+    });
+    if (!rows.length) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No tasks</div>';
+      return;
+    }
+    let html = '<div style="display:flex;flex-direction:column;gap:8px">';
+    rows.forEach(function(r) {
+      const done = r.task.status === 'completed';
+      html += '<div class="admin-card" style="margin:0">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">' +
+          '<div><div style="font-size:12px;font-weight:600">' + escapeHtml(r.task.content || '') + '</div>' +
+          '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">' + escapeHtml(r.session.title || r.session.id || '?') + '</div></div>' +
+          '<div style="font-size:10px;color:' + (done ? 'var(--green)' : 'var(--yellow)') + '">' + escapeHtml(r.task.status || 'queued') + '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+    body.innerHTML = html;
+  } catch (e) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load tasks</div>';
+  }
+}
+
+async function openWorkflowModal() {
+  const modal = document.getElementById('wfViewModal');
+  const body = document.getElementById('wfViewBody');
+  const title = document.getElementById('wfViewTitle');
+  title.textContent = 'Workflows';
+  body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">Loading workflows...</div>';
+  modal.style.display = 'flex';
+  try {
+    const data = await apiFetch('/api/workflows');
+    const workflows = (data && data.workflows) || [];
+    if (!workflows.length) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No workflows defined</div>';
+      return;
+    }
+    body.innerHTML = workflows.map(function(wf) {
+      return '<div class="admin-card" style="margin-bottom:12px">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center">' +
+          '<div><div style="font-size:13px;font-weight:600">' + escapeHtml(wf.name || wf.id || 'Workflow') + '</div>' +
+          '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">' + escapeHtml((wf.nodes || []).length + ' nodes · ' + (wf.edges || []).length + ' links') + '</div></div>' +
+          '<div style="display:flex;gap:6px">' +
+            '<button class="btn btn-sm" onclick="viewWorkflow(\'' + escapeHtml(wf.id || '') + '\')">Open</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load workflows</div>';
+  }
+}
+
+async function viewWorkflow(id) {
+  const modal = document.getElementById('wfViewModal');
+  const body = document.getElementById('wfViewBody');
+  const title = document.getElementById('wfViewTitle');
+  modal.style.display = 'flex';
+  title.textContent = 'Workflow Details';
+  try {
+    const data = await apiFetch('/api/workflows');
+    const wf = ((data && data.workflows) || []).find(function(w) { return w.id === id; });
+    if (!wf) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--red)">Workflow not found</div>';
+      return;
+    }
+    title.textContent = wf.name || 'Workflow Details';
+    body.innerHTML = '<div class="admin-card"><div style="font-size:12px">Nodes: ' + (wf.nodes || []).length + '</div><div style="font-size:12px;margin-top:8px">Edges: ' + (wf.edges || []).length + '</div></div>';
+  } catch (e) {
+    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load workflow</div>';
+  }
+}
+
 // ── SYSTEM TAB ──
 async function renderSystemTab() {
   try {
@@ -3364,13 +3496,19 @@ async function renderSystemTab() {
   } catch {}
 
   try {
-    const resp = await fetch('/api/ping');
+    const resp = await fetch('/api/health');
     const data = await resp.json();
     document.getElementById('sysDaemonStatus').innerHTML = data.daemon_alive
       ? '<span style="color:var(--green)">● Running</span>'
       : '<span style="color:var(--red)">● Stopped</span>';
+    const healthEl = document.getElementById('sysMsg');
+    if (healthEl && data.ok) {
+      healthEl.textContent = 'Health OK: ' + (data.session_count || 0) + ' sessions, ' + (data.agent_count || 0) + ' agents';
+      healthEl.style.display = 'block';
+    }
   } catch {
     document.getElementById('sysDaemonStatus').innerHTML = '<span style="color:var(--yellow)">● Unknown</span>';
+    showToast('Health check failed', 'error');
   }
 }
 
@@ -4835,6 +4973,7 @@ const _exports = {
   getBossName,
   renderModeOptions, showToast, copyToastMessage, dismissToast,
   closeViewModal, closeContinueModal, closeNewSessionModal,
+  closeTasksModal, closeWorkflowViewModal, openWorkflowModal, viewWorkflow,
   renameSession, closeRenameModal, saveRename,
   formatDuration, formatExactTime, getCronCountdown, updateCronCountdowns,
   renderCronTab, openCronModal, onCronModeChange, closeCronModal,
