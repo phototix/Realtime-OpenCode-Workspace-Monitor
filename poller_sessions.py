@@ -12,12 +12,24 @@ from poller_config import (
     generate_codename
 )
 
+def _opencode_bin():
+    for candidate in (
+        os.path.expanduser('~/.opencode/bin/opencode'),
+        '/home/webbypage/.opencode/bin/opencode',
+        '/root/.opencode/bin/opencode',
+    ):
+        if candidate and os.path.exists(candidate):
+            return candidate
+    r = subprocess.run(['bash', '-lc', 'command -v opencode'], capture_output=True, text=True, timeout=5)
+    path = (r.stdout or '').strip()
+    return path or 'opencode'
+
 def fetch_all_sessions() -> list:
     """Fetch session list from opencode CLI, including project-scoped sessions."""
     sessions = []
     try:
         r = subprocess.run(
-            ['opencode', 'session', 'list', '--format', 'json'],
+            [_opencode_bin(), 'session', 'list', '--format', 'json'],
             capture_output=True, text=True, timeout=10
         )
         all_sessions = json.loads(r.stdout)
@@ -40,7 +52,7 @@ def fetch_all_sessions() -> list:
                     if worktree and os.path.isdir(worktree):
                         try:
                             r = subprocess.run(
-                                ['opencode', 'session', 'list', '--format', 'json'],
+                                [_opencode_bin(), 'session', 'list', '--format', 'json'],
                                 capture_output=True, text=True, timeout=10,
                                 cwd=worktree
                             )
@@ -209,7 +221,7 @@ def enrich_session_details(sessions: list, detail_cache: dict) -> tuple:
         try:
             with open(export_tmp, 'w') as f:
                 subprocess.run(
-                    ['opencode', 'export', sid],
+                    [_opencode_bin(), 'export', sid],
                     stdout=f, stderr=subprocess.DEVNULL, timeout=30,
                     cwd=session_dir
                 )

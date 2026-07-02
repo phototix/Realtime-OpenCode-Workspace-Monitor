@@ -60,6 +60,21 @@ def _load_or_generate_api_key() -> str:
 
 _API_KEY: str = _load_or_generate_api_key()
 
+def get_opencode_bin() -> str:
+    preferred = '/home/webbypage/.opencode/bin/opencode'
+    if os.path.exists(preferred):
+        return preferred
+    for candidate in (
+        '/root/.opencode/bin/opencode',
+    ):
+        if candidate and os.path.exists(candidate):
+            return candidate
+    resolved = subprocess.run(['bash', '-lc', 'HOME=/home/webbypage command -v opencode'], capture_output=True, text=True, timeout=5)
+    path = (resolved.stdout or '').strip()
+    if path:
+        return path
+    return 'opencode'
+
 _ANSI_RE = re.compile('\x1b\\[[0-9;]*[a-zA-Z]')
 
 def _safe_agent_name(name: str) -> str:
@@ -84,6 +99,18 @@ def get_attach_url(force: bool = False) -> str:
     try:
         r = subprocess.run(['lsof', '-iTCP', '-sTCP:LISTEN', '-P', '-n'], capture_output=True, text=True, timeout=3)
         for line in r.stdout.split('\n'):
+            parts = line.split()
+            for p in parts:
+                if ':' in p:
+                    try:
+                        port = int(p.split(':')[1])
+                        if port == 4096:
+                            _attach_cache['url'] = f'http://127.0.0.1:{port}'
+                            _attach_cache['time'] = now
+                            return _attach_cache['url']
+                    except Exception:
+                        pass
+        for line in r.stdout.split('\n'):
             if 'OpenCode' in line:
                 parts = line.split()
                 for p in parts:
@@ -105,12 +132,13 @@ def engine_is_reachable(url: str, password: str = '') -> bool:
     if not url:
         return False
     try:
-        cmd = ['curl', '-s', '--max-time', '3', '-o', '/dev/null', '-w', '%{http_code}']
+        cmd = ['curl', '-sS', '--max-time', '3', '-o', '/dev/null', '-w', '%{http_code}']
         if password:
             cmd.extend(['-u', f'opencode:{password}'])
         cmd.append(url.rstrip('/') + '/api/ping')
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        return r.returncode == 0
+        http_code = (r.stdout or '').strip()
+        return r.returncode == 0 and http_code in ('200', '401')
     except Exception:
         return False
 

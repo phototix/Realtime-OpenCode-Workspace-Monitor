@@ -12,6 +12,18 @@ PID_FILE = os.path.join(DATA_DIR, 'daemon.pid')
 ACTIVITY_FILE = os.path.join(DATA_DIR, 'activity.log')
 API_KEY_FILE = os.path.join(DATA_DIR, 'api_key')
 
+def _opencode_bin():
+    for candidate in (
+        os.path.expanduser('~/.opencode/bin/opencode'),
+        '/home/webbypage/.opencode/bin/opencode',
+        '/root/.opencode/bin/opencode',
+    ):
+        if candidate and os.path.exists(candidate):
+            return candidate
+    r = subprocess.run(['bash', '-lc', 'command -v opencode'], capture_output=True, text=True, timeout=5)
+    path = (r.stdout or '').strip()
+    return path or 'opencode'
+
 def _load_api_key():
     """Load API key from env var or the shared key file."""
     key = os.environ.get('DASHBOARD_API_KEY', '').strip()
@@ -94,7 +106,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 return
             try:
                 cwd = body.get('directory') or None
-                r = subprocess.run(['opencode', 'session', 'stop', sid], capture_output=True, text=True, timeout=15, cwd=cwd)
+                r = subprocess.run([_opencode_bin(), 'session', 'stop', sid], capture_output=True, text=True, timeout=15, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: stopped session {sid}")
                     self._json({'ok': True, 'message': 'Session stopped'})
@@ -273,7 +285,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
 
                 def _build_cmd(with_session=True):
-                    c = ['opencode', 'run']
+                    c = [_opencode_bin(), 'run']
                     if with_session:
                         c.extend(['-s', sid])
                     else:
@@ -348,7 +360,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                     except:
                         pass
                 password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
-                cmd = ['opencode', 'run']
+                cmd = [_opencode_bin(), 'run']
                 if last_sid:
                     cmd.extend(['-s', last_sid, '--attach', attach])
                 else:
@@ -366,10 +378,29 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 cmd.append(message)
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=30, cwd=cwd)
                 if r.returncode == 0:
+                    session_id = ''
+                    try:
+                        status_file = os.path.join(DATA_DIR, 'status.json')
+                        if os.path.exists(status_file):
+                            with open(status_file) as f:
+                                sd = json.load(f)
+                            sessions = sd.get('all_sessions') or sd.get('sessions') or []
+                            chosen = None
+                            if title:
+                                chosen = next((s for s in sessions if (s.get('title') or '') == title), None)
+                            if not chosen:
+                                chosen = max(sessions, key=lambda s: int(s.get('created', s.get('updated', 0)) or 0), default=None)
+                            if chosen:
+                                session_id = chosen.get('id', '')
+                    except Exception:
+                        pass
                     log(f"Admin: new session started \"{title or message[:40]}\"")
-                    self._json({'ok': True, 'message': 'Session started'})
+                    payload = {'ok': True, 'message': 'Session started'}
+                    if session_id:
+                        payload['session_id'] = session_id
+                    self._json(payload)
                 else:
-                    self._json({'ok': False, 'message': (r.stderr.strip()[:200] or r.stdout.strip()[:200] or 'Unknown error')[:200]}, 500)
+                    self._json({'ok': False, 'message': (r.stderr.strip()[:200] or r.stdout.strip()[:200] or 'Unknown error')[:200], 'stdout': (r.stdout or '')[:200], 'stderr': (r.stderr or '')[:200]}, 500)
             except subprocess.TimeoutExpired:
                 self._json({'ok': False, 'message': 'Timeout starting session'}, 500)
             except Exception as e:
@@ -397,7 +428,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 cwd = body.get('directory') or None
                 attach = get_attach_url()
                 answer_text = 'I choose: ' + '; '.join(str(a) for a in answers)
-                cmd = ['opencode', 'run', '-s', sid, '--attach', attach, answer_text]
+                cmd = [_opencode_bin(), 'run', '-s', sid, '--attach', attach, answer_text]
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=60, cwd=cwd)
                 if r.returncode == 0:
                     log(f"Admin: answered session {sid}")
@@ -484,7 +515,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
                 self._json({'ok': False, 'message': 'Missing provider name'}, 400)
                 return
             try:
-                r = subprocess.run(['opencode', 'providers', 'logout', name], capture_output=True, text=True, timeout=15)
+                r = subprocess.run([_opencode_bin(), 'providers', 'logout', name], capture_output=True, text=True, timeout=15)
                 log(f"Admin: logged out from {name}")
                 self._json({'ok': True, 'message': 'Logged out'})
             except Exception as e:
@@ -493,7 +524,7 @@ class AdminHandler(http.server.BaseHTTPRequestHandler):
         elif path == '/api/provider-login':
             url = body.get('url', '')
             try:
-                cmd = ['opencode', 'providers', 'login']
+                cmd = [_opencode_bin(), 'providers', 'login']
                 if url:
                     cmd.append(url)
                 r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)

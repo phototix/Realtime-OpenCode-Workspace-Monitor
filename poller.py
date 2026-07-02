@@ -5,6 +5,7 @@ import os
 import subprocess
 import time
 import multiprocessing
+import shutil
 from datetime import datetime, timezone
 
 from poller_config import (
@@ -20,6 +21,32 @@ from poller_sessions import (
     build_active_sessions, manage_virtual_agents,
     enrich_session_details
 )
+
+
+def _collect_available_models():
+    models = []
+    seen = set()
+    candidates = [
+        os.path.expanduser('~/.opencode/bin/opencode'),
+        os.path.expanduser('/root/.opencode/bin/opencode'),
+        shutil.which('opencode') or '',
+    ]
+    for cmd in [c for c in candidates if c]:
+        try:
+            r = subprocess.run([cmd, 'models'], capture_output=True, text=True, timeout=15)
+            if r.returncode != 0:
+                continue
+            for line in r.stdout.splitlines():
+                line = line.strip()
+                if not line or '/' not in line:
+                    continue
+                if line in seen:
+                    continue
+                seen.add(line)
+                models.append({'id': line, 'provider': 'opencode'})
+        except Exception:
+            continue
+    return models
 
 # ── STEP 1: Collect system process data ──
 cpu_core_count = multiprocessing.cpu_count()
@@ -340,18 +367,7 @@ for rf in recent_finished[-5:]:
         agent_list.append(rf)
 
 # Fetch available models
-available_models = []
-try:
-    r = subprocess.run(
-        ['opencode', 'models'], capture_output=True, text=True, timeout=15
-    )
-    if r.returncode == 0:
-        for line in r.stdout.strip().split('\n'):
-            line = line.strip()
-            if line and '/' in line:
-                available_models.append({'id': line, 'provider': 'opencode'})
-except Exception:
-    pass
+available_models = _collect_available_models()
 
 # Read boss name from config.json
 boss_name = 'Brandon'

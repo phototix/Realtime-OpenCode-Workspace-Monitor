@@ -670,6 +670,16 @@
   }
   .empty-state .icon { font-size: 32px; line-height: 1; opacity: 0.7; }
   .empty-state .text { font-size: 13px; }
+  .ui-icon, .tab-icon, .section-icon, .inline-icon, .empty-icon {
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+    vertical-align: middle;
+  }
+  .section-icon { margin-right: 6px; }
+  .tab-icon { margin-right: 6px; }
+  .inline-icon { margin-right: 4px; }
+  .empty-icon { width: 32px; height: 32px; }
 
   .timestamp-tooltip {
     font-size: 11px;
@@ -1133,7 +1143,7 @@
 
     <div class="sidebar-section" id="adminLoginBtn" onclick="openLoginModal()" style="border-top:1px solid var(--border);cursor:pointer">
       <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--blue)">
-        <span style="font-size:16px">🔑</span>
+        <img src="assets/icons/setting-white.png" alt="key" class="ui-icon">
         <span>Admin Panel</span>
         <span id="loginIndicator" style="margin-left:auto;font-size:10px;background:var(--surface2);padding:1px 6px;border-radius:4px;color:var(--text-dim);display:none">logged in</span>
       </div>
@@ -1176,10 +1186,10 @@
         <div class="section-label" style="margin-bottom:8px">Staff <span class="count" id="staffLabel"></span></div>
         <div class="office-floor" id="officeFloor"></div>
 
-        <div class="section-label" id="discussionLabel" style="margin-top:20px">💬 Discussion Room <span class="count" id="discussionCount"></span></div>
+        <div class="section-label" id="discussionLabel" style="margin-top:20px"><img src="assets/icons/live-chat-white.png" alt="Discussion Room" class="section-icon"> Discussion Room <span class="count" id="discussionCount"></span></div>
         <div class="discussion-desk" id="discussionDesk"></div>
 
-        <div class="section-label" id="restRoomLabel" style="display:none;margin-top:20px">☕ Rest Room <span class="count" id="restRoomCount"></span></div>
+        <div class="section-label" id="restRoomLabel" style="display:none;margin-top:20px"><img src="assets/icons/cloud-white.png" alt="Rest Room" class="section-icon"> Rest Room <span class="count" id="restRoomCount"></span></div>
         <div class="rest-room-grid" id="restRoomGrid"></div>
       </div>
 
@@ -1188,7 +1198,7 @@
         <div class="section-label" style="margin-bottom:8px">Standalone Processes <span class="count" id="standaloneCount"></span></div>
         <div id="standaloneGrid" class="nodes-grid"></div>
         <div class="empty-state" id="emptyState">
-          <div class="icon">⚙</div>
+          <div class="icon"><img src="assets/icons/setting-white.png" alt="Settings" class="empty-icon"></div>
           <div class="text">No Other processes running at the moment</div>
         </div>
       </div>
@@ -1291,6 +1301,33 @@ function formatUptime(raw) {
   if (s > 0 && days === 0 && h === 0) segs.push(s + 's');
   return segs.join(' ') || raw;
 }
+
+function iconImg(src, alt, cls) {
+  return '<img src="' + src + '" alt="' + escapeHtml(alt || '') + '" class="' + (cls || 'ui-icon') + '">';
+}
+
+const UI_ICONS = {
+  key: 'assets/icons/setting-white.png',
+  admin: 'assets/icons/setting-white.png',
+  cases: 'assets/icons/clipboard-white.png',
+  system: 'assets/icons/cloud-white.png',
+  users: 'assets/icons/user-white.png',
+  names: 'assets/icons/user-white.png',
+  settings: 'assets/icons/setting-white.png',
+  provider: 'assets/icons/cloud-white.png',
+  staff: 'assets/icons/user-white.png',
+  cron: 'assets/icons/alarm-white.png',
+  workflows: 'assets/icons/refresh-white.png',
+  security: 'assets/icons/padlock-white.png',
+  notifications: 'assets/icons/notification-white.png',
+  logs: 'assets/icons/report-white.png',
+  questions: 'assets/icons/report-white.png',
+  tasks: 'assets/icons/clipboard-white.png',
+  office: 'assets/icons/user-white.png',
+  discuss: 'assets/icons/live-chat-white.png',
+  rest: 'assets/icons/cloud-white.png',
+  empty: 'assets/icons/clipboard-white.png'
+};
 
 // ── A-Z NAMES ──
 const DEFAULT_NAMES = {
@@ -1681,8 +1718,8 @@ function renderDashboard(data) {
   discussionDesk.innerHTML = '';
 
   discussionLabel.innerHTML = discussFilled > 0
-    ? '💬 Discussion Room <span class="count">(' + discussFilled + ' staff)</span>'
-    : '💬 Discussion Room <span class="count">(vacant)</span>';
+    ? '<img src="assets/icons/chat-white.png" alt="Discussion Room" class="section-icon"> Discussion Room <span class="count">(' + discussFilled + ' staff)</span>'
+    : '<img src="assets/icons/chat-white.png" alt="Discussion Room" class="section-icon"> Discussion Room <span class="count">(vacant)</span>';
 
   discussSlots.forEach((worker, idx) => {
     const slotNum = idx + 1;
@@ -1792,18 +1829,18 @@ function renderDashboard(data) {
     },
   };
   const restRoomLayout = [
-    { emoji: '🛌', label: 'power nap', states: ['power nap', 'snoring softly', 'dreaming big', 'waking up'] },
-    { emoji: '🎮', label: 'gaming', states: ['gaming', 'winning!', 'rage quitting', 'leveling up'] },
-    { emoji: '☕', label: 'sipping coffee', states: ['sipping coffee', 'stirring sugar', 'refilling cup', 'blowing on steam'] },
-    { emoji: '📱', label: 'scrolling phone', states: ['scrolling', 'laughing at memes', 'typing reply', 'double-tapping'] },
-    { emoji: '📰', label: 'reading news', states: ['reading news', 'shocking headline!', 'scrolling feed', 'saving article'] },
-    { emoji: '🍿', label: 'snacking', states: ['snacking', 'grabbing more', 'crunching loudly', 'sharing snacks'] },
-    { emoji: '🎵', label: 'listening to music', states: ['listening', 'humming along', 'air drumming', 'changing song'] },
-    { emoji: '🧘', label: 'meditating', states: ['meditating', 'deep breaths', 'finding zen', 'stretching'] },
-    { emoji: '🎯', label: 'playing darts', states: ['playing darts', 'bullseye!', 'close miss', 'retrieving darts'] },
-    { emoji: '🌿', label: 'watering plants', states: ['watering plants', 'pruning leaves', 'repotting', 'admiring growth'] },
-    { emoji: '🧩', label: 'puzzling', states: ['solving', 'almost there', 'finding a piece', 'completing the picture'] },
-    { emoji: '📖', label: 'reading a book', states: ['reading', 'page turner!', 'dog-earing page', 'checking chapter count'] },
+    { icon: 'assets/rest-room/sleeping-power-nap.png', label: 'power nap', states: ['power nap', 'snoring softly', 'dreaming big', 'waking up'] },
+    { icon: 'assets/rest-room/gaming-gaming.png', label: 'gaming', states: ['gaming', 'winning!', 'rage quitting', 'leveling up'] },
+    { icon: 'assets/rest-room/coffee-sipping.png', label: 'sipping coffee', states: ['sipping coffee', 'stirring sugar', 'refilling cup', 'blowing on steam'] },
+    { icon: 'assets/rest-room/phone-scrolling.png', label: 'scrolling phone', states: ['scrolling', 'laughing at memes', 'typing reply', 'double-tapping'] },
+    { icon: 'assets/rest-room/news-reading.png', label: 'reading news', states: ['reading news', 'shocking headline!', 'scrolling feed', 'saving article'] },
+    { icon: 'assets/rest-room/snacking-idle.png', label: 'snacking', states: ['snacking', 'grabbing more', 'crunching loudly', 'sharing snacks'] },
+    { icon: 'assets/rest-room/listening-music.png', label: 'listening to music', states: ['listening', 'humming along', 'air drumming', 'changing song'] },
+    { icon: 'assets/rest-room/meditating-idle.png', label: 'meditating', states: ['meditating', 'deep breaths', 'finding zen', 'stretching'] },
+    { icon: 'assets/rest-room/darts-playing.png', label: 'playing darts', states: ['playing darts', 'bullseye!', 'close miss', 'retrieving darts'] },
+    { icon: 'assets/rest-room/plants-watering.png', label: 'watering plants', states: ['watering plants', 'pruning leaves', 'repotting', 'admiring growth'] },
+    { icon: 'assets/rest-room/puzzle-solving.png', label: 'puzzling', states: ['solving', 'almost there', 'finding a piece', 'completing the picture'] },
+    { icon: 'assets/rest-room/reading-idle.png', label: 'reading a book', states: ['reading', 'page turner!', 'dog-earing page', 'checking chapter count'] },
   ];
 
   const restGrid = document.getElementById('restRoomGrid');
@@ -1839,7 +1876,7 @@ function renderDashboard(data) {
 
   const occupiedRestCount = Object.keys(assigned).length;
   restLabel.style.display = 'block';
-  restLabel.innerHTML = '☕ Rest Room <span class="count">(' + occupiedRestCount + ' resting)</span>';
+  restLabel.innerHTML = '<img src="assets/icons/cloud-white.png" alt="Rest Room" class="section-icon"> Rest Room <span class="count">(' + occupiedRestCount + ' resting)</span>';
 
   const stateCycleMs = 2000;
   restRoomLayout.forEach((layout, idx) => {
@@ -1859,14 +1896,14 @@ function renderDashboard(data) {
         if (!window._restSlotNames[idx]) window._restSlotNames[idx] = _claimName();
       }
       card.innerHTML = `
-        ${imgFile ? `<img src="assets/rest-room/${imgFile}" class="rc-img" alt="${currentLabel}">` : `<div class="rc-emoji">${layout.emoji}</div>`}
+        ${imgFile ? `<img src="assets/rest-room/${imgFile}" class="rc-img" alt="${currentLabel}">` : `<img src="${layout.icon}" class="rc-img" alt="${currentLabel}">`}
         <div class="rc-desk">${window._restSlotNames[idx]}</div>
         <div class="rc-label">${currentLabel}${worker.virtual ? ' (virtual)' : ''}</div>
       `;
     } else {
       card.style.opacity = '0.4';
       card.innerHTML = `
-        ${imgFile ? `<img src="assets/rest-room/${imgFile}" class="rc-img" alt="${currentLabel}" style="opacity:0.4">` : `<div class="rc-emoji">${layout.emoji}</div>`}
+        ${imgFile ? `<img src="assets/rest-room/${imgFile}" class="rc-img" alt="${currentLabel}" style="opacity:0.4">` : `<img src="${layout.icon}" class="rc-img" alt="${currentLabel}" style="opacity:0.4">`}
         <div class="rc-label" style="color:var(--text-dim)">${currentLabel}</div>
       `;
     }
@@ -1882,7 +1919,7 @@ function renderDashboard(data) {
   document.getElementById('sessionsCount').textContent = sessions.length > 0 ? '(' + sessions.length + ')' : '';
 
   if (sessions.length === 0) {
-    grid.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div class="text">No Cases working on at the moment</div></div>';
+    grid.innerHTML = '<div class="empty-state"><div class="icon"><img src="assets/icons/clipboard-white.png" alt="Cases" class="empty-icon"></div><div class="text">No Cases working on at the moment</div></div>';
   }
 
   // Build staff assignment lookup from all_sessions
@@ -2128,7 +2165,7 @@ global.schedulePoll = schedulePoll;
 <div class="modal-overlay" id="adminModal" style="display:none">
   <div class="admin-modal">
     <div class="admin-header">
-      <h2>⚙ Admin Panel</h2>
+      <h2><img src="assets/icons/setting-white.png" alt="Settings" class="section-icon"> Admin Panel</h2>
       <div class="user-info">
         <span id="adminUserName"></span>
         <span class="role-badge" id="adminUserRole"></span>
@@ -2138,25 +2175,25 @@ global.schedulePoll = schedulePoll;
     </div>
 
     <div class="admin-tabs" id="adminTabs">
-      <div class="admin-tab active" data-tab="sessions" onclick="switchTab('sessions')">📋 Cases</div>
-      <div class="admin-tab" data-tab="system" onclick="switchTab('system')">🖥 System</div>
-      <div class="admin-tab admin-only" data-tab="users" onclick="switchTab('users')">👥 Users</div>
-      <div class="admin-tab" data-tab="names" onclick="switchTab('names')">👤 Names</div>
-      <div class="admin-tab" data-tab="settings" onclick="switchTab('settings')">⚙ Settings</div>
-      <div class="admin-tab" data-tab="providers" onclick="switchTab('providers')">🔌 Provider</div>
-      <div class="admin-tab" data-tab="super-staff" onclick="switchTab('super-staff')">🧑‍💼 Super Staff</div>
-      <div class="admin-tab" data-tab="cron" onclick="switchTab('cron')">⏰ Cron</div>
-      <div class="admin-tab admin-only" data-tab="workflows" onclick="switchTab('workflows')">🔄 Workflows</div>
-      <div class="admin-tab" data-tab="security" onclick="switchTab('security')">🔒 Security</div>
-      <div class="admin-tab" data-tab="inapp-alerts" onclick="switchTab('inapp-alerts')">🔔 In-app alerts</div>
-      <div class="admin-tab" data-tab="notifications" onclick="switchTab('notifications')">🔔 Notifications</div>
-      <div class="admin-tab" data-tab="logs" onclick="switchTab('logs')">📄 Logs</div>
+      <div class="admin-tab active" data-tab="sessions" onclick="switchTab('sessions')"><img src="assets/icons/clipboard-white.png" alt="Cases" class="tab-icon"> Cases</div>
+      <div class="admin-tab" data-tab="system" onclick="switchTab('system')"><img src="assets/icons/cloud-white.png" alt="System" class="tab-icon"> System</div>
+      <div class="admin-tab admin-only" data-tab="users" onclick="switchTab('users')"><img src="assets/icons/user-white.png" alt="Users" class="tab-icon"> Users</div>
+      <div class="admin-tab" data-tab="names" onclick="switchTab('names')"><img src="assets/icons/user-white.png" alt="Names" class="tab-icon"> Names</div>
+      <div class="admin-tab" data-tab="settings" onclick="switchTab('settings')"><img src="assets/icons/setting-white.png" alt="Settings" class="tab-icon"> Settings</div>
+      <div class="admin-tab" data-tab="providers" onclick="switchTab('providers')"><img src="assets/icons/cloud-white.png" alt="Provider" class="tab-icon"> Provider</div>
+      <div class="admin-tab" data-tab="super-staff" onclick="switchTab('super-staff')"><img src="assets/icons/user-white.png" alt="Super Staff" class="tab-icon"> Super Staff</div>
+      <div class="admin-tab" data-tab="cron" onclick="switchTab('cron')"><img src="assets/icons/alarm-white.png" alt="Cron" class="tab-icon"> Cron</div>
+      <div class="admin-tab admin-only" data-tab="workflows" onclick="switchTab('workflows')"><img src="assets/icons/refresh-white.png" alt="Workflows" class="tab-icon"> Workflows</div>
+      <div class="admin-tab" data-tab="security" onclick="switchTab('security')"><img src="assets/icons/padlock-white.png" alt="Security" class="tab-icon"> Security</div>
+      <div class="admin-tab" data-tab="inapp-alerts" onclick="switchTab('inapp-alerts')"><img src="assets/icons/notification-white.png" alt="Alerts" class="tab-icon"> In-app alerts</div>
+      <div class="admin-tab" data-tab="notifications" onclick="switchTab('notifications')"><img src="assets/icons/notification-white.png" alt="Notifications" class="tab-icon"> Notifications</div>
+      <div class="admin-tab" data-tab="logs" onclick="switchTab('logs')"><img src="assets/icons/report-white.png" alt="Logs" class="tab-icon"> Logs</div>
     </div>
 
     <div class="admin-body" id="adminBody">
       <!-- Cases Tab -->
       <div class="tab-content active" id="tab-sessions">
-        <h3>📋 Cases</h3>
+        <h3><img src="assets/icons/clipboard-white.png" alt="Cases" class="section-icon"> Cases</h3>
         <div class="desc">Manage active and recent cases. <span id="sessionsTabCount" style="color:var(--text-dim)"></span></div>
         <div class="inline-form" style="margin-bottom:12px;flex-wrap:wrap">
           <input type="text" id="sessionSearch" placeholder="Search cases..." oninput="renderCasesTab()" style="max-width:250px">
@@ -2170,7 +2207,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- System Tab -->
       <div class="tab-content" id="tab-system">
-        <h3>🖥 System</h3>
+        <h3><img src="assets/icons/cloud-white.png" alt="System" class="section-icon"> System</h3>
         <div class="desc">Dashboard system status and controls</div>
         <div class="admin-card" id="systemStatusCard">
           <h4>Daemon Status</h4>
@@ -2190,7 +2227,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- Users Tab (admin only) -->
       <div class="tab-content" id="tab-users">
-        <h3>👥 Users</h3>
+        <h3><img src="assets/icons/user-white.png" alt="Users" class="section-icon"> Users</h3>
         <div class="desc">Manage dashboard users. Admin role required.</div>
         <div id="usersTabContent">
           <div style="font-size:12px;color:var(--text-dim)">Loading users...</div>
@@ -2199,7 +2236,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- Names Tab -->
       <div class="tab-content" id="tab-names">
-        <h3>👤 Names</h3>
+        <h3><img src="assets/icons/user-white.png" alt="Names" class="section-icon"> Names</h3>
         <div class="desc">Customize A-Z staff names displayed in the dashboard. <span id="namesTabCount" style="color:var(--text-dim)"></span></div>
         <div id="namesTabContent">
           <div style="font-size:12px;color:var(--text-dim)">Loading names...</div>
@@ -2208,7 +2245,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- Settings Tab -->
       <div class="tab-content" id="tab-settings">
-        <h3>⚙ Settings</h3>
+        <h3><img src="assets/icons/setting-white.png" alt="Settings" class="section-icon"> Settings</h3>
         <div class="desc">Dashboard preferences (stored in browser)</div>
         <div class="admin-card">
           <div class="settings-group">
@@ -2255,7 +2292,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- Provider Tab -->
       <div class="tab-content" id="tab-providers">
-        <h3>🔌 Provider</h3>
+        <h3><img src="assets/icons/cloud-white.png" alt="Provider" class="section-icon"> Provider</h3>
         <div class="desc">Manage AI providers and Ollama connections</div>
         <div id="providersTabContent">
           <div style="font-size:12px;color:var(--text-dim)">Loading providers...</div>
@@ -2264,7 +2301,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- Super Staff Tab -->
       <div class="tab-content" id="tab-super-staff">
-        <h3>🧑‍💼 Super Staff</h3>
+        <h3><img src="assets/icons/user-white.png" alt="Super Staff" class="section-icon"> Super Staff</h3>
         <div class="desc">Create and manage dedicated AI agents as staff members</div>
         <div id="superStaffTabContent">
           <div style="font-size:12px;color:var(--text-dim)">Loading staff...</div>
@@ -2273,7 +2310,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- Cron Tab -->
       <div class="tab-content" id="tab-cron">
-        <h3>⏰ Cron Jobs</h3>
+        <h3><img src="assets/icons/alarm-white.png" alt="Cron" class="section-icon"> Cron Jobs</h3>
         <div class="desc">Schedule automated instructions to run on a timer</div>
         <div class="inline-form" style="margin-bottom:12px">
           <button class="btn btn-sm btn-primary" onclick="openCronModal()" style="margin-left:auto">+ New Cron Job</button>
@@ -2283,7 +2320,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- Workflows Tab -->
       <div class="tab-content" id="tab-workflows">
-        <h3>🔄 Workflows</h3>
+        <h3><img src="assets/icons/refresh-white.png" alt="Workflows" class="section-icon"> Workflows</h3>
         <div class="desc">Design multi-stage case workflows</div>
         <div class="inline-form" style="margin-bottom:12px">
           <button class="btn btn-sm btn-primary" onclick="openWorkflowModal()" style="margin-left:auto">+ New Workflow</button>
@@ -2293,7 +2330,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- Security Tab -->
       <div class="tab-content" id="tab-security">
-        <h3>🔒 Security</h3>
+        <h3><img src="assets/icons/padlock-white.png" alt="Security" class="section-icon"> Security</h3>
         <div class="desc">Change your password and manage login sessions</div>
         <div class="admin-card">
           <h4>Change Password</h4>
@@ -2316,7 +2353,7 @@ global.schedulePoll = schedulePoll;
 
         <!-- API Key Management -->
         <div class="admin-card">
-          <h4>🔑 API Key</h4>
+          <h4><img src="assets/icons/setting-white.png" alt="API Key" class="section-icon"> API Key</h4>
           <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">Used by the Android app and other remote clients to authenticate API requests.</div>
           <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
             <input type="text" id="apiKeyDisplay" readonly placeholder="Loading…"
@@ -2327,7 +2364,7 @@ global.schedulePoll = schedulePoll;
             <button class="btn btn-sm" onclick="loadApiKey()" style="background:var(--surface2);color:var(--text-dim)">Reveal Key</button>
             <button class="btn btn-sm btn-primary" onclick="regenerateApiKey()">Regenerate Key</button>
           </div>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:8px">⚠ Regenerating invalidates the current key — update it in the Android app Settings afterwards.</div>
+          <div style="font-size:11px;color:var(--text-dim);margin-top:8px"><img src="assets/icons/report-white.png" alt="Warning" class="inline-icon"> Regenerating invalidates the current key — update it in the Android app Settings afterwards.</div>
           <div class="form-success" id="apiKeyMsg" style="margin-top:8px"></div>
           <div class="form-error" id="apiKeyErr" style="margin-top:8px"></div>
         </div>
@@ -2340,7 +2377,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- In-app Alerts Tab -->
       <div class="tab-content" id="tab-inapp-alerts">
-        <h3>🔔 In-app Alerts</h3>
+        <h3><img src="assets/icons/notification-white.png" alt="In-app Alerts" class="section-icon"> In-app Alerts</h3>
         <div class="desc">Compose and send broadcast notifications to all APK clients</div>
         <div class="inline-form" style="margin-bottom:12px">
           <select id="ntfType" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
@@ -2358,7 +2395,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- External Notifications Tab -->
       <div class="tab-content" id="tab-notifications">
-        <h3>🔔 Notifications</h3>
+        <h3><img src="assets/icons/notification-white.png" alt="Notifications" class="section-icon"> Notifications</h3>
         <div class="desc">Configure external notification providers (Slack, Discord, Custom Webhook)</div>
         <div id="notificationProvidersList"></div>
         <h4 style="font-size:13px;color:var(--text-dim);margin:16px 0 8px">Add Provider</h4>
@@ -2377,7 +2414,7 @@ global.schedulePoll = schedulePoll;
 
       <!-- Logs Tab -->
       <div class="tab-content" id="tab-logs">
-        <h3>📄 Activity Logs</h3>
+        <h3><img src="assets/icons/report-white.png" alt="Logs" class="section-icon"> Activity Logs</h3>
         <div class="desc">Full activity log from the dashboard daemon</div>
         <div class="inline-form" style="margin-bottom:12px">
           <input type="text" id="logSearch" placeholder="Search logs..." oninput="renderLogsTab()" style="max-width:300px">
@@ -2417,7 +2454,7 @@ global.schedulePoll = schedulePoll;
 <div class="modal-overlay" id="questionModal" style="display:none">
   <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-      <h2 style="font-size:18px">❓ Pending Questions</h2>
+      <h2 style="font-size:18px"><img src="assets/icons/report-white.png" alt="Pending Questions" class="section-icon"> Pending Questions</h2>
       <button class="admin-close" onclick="closeQuestionModal()">&times;</button>
     </div>
     <div id="questionModalBody"></div>
@@ -2427,7 +2464,7 @@ global.schedulePoll = schedulePoll;
 <div class="modal-overlay" id="tasksModal" style="display:none">
   <div class="login-modal" style="width:600px;max-height:85vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-      <h2 style="font-size:18px">📋 Tasks</h2>
+      <h2 style="font-size:18px"><img src="assets/icons/clipboard-white.png" alt="Tasks" class="section-icon"> Tasks</h2>
       <button class="admin-close" onclick="closeTasksModal()">&times;</button>
     </div>
     <div id="tasksModalBody"></div>
@@ -2591,7 +2628,7 @@ global.schedulePoll = schedulePoll;
 <div class="modal-overlay" id="notificationSettingsModal" style="display:none">
   <div class="login-modal" style="width:420px;max-height:85vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-      <h2 style="font-size:16px" id="nsTitle">🔔 Notification Settings</h2>
+      <h2 style="font-size:16px" id="nsTitle"><img src="assets/icons/notification-white.png" alt="Notification Settings" class="section-icon"> Notification Settings</h2>
       <button class="admin-close" onclick="closeNotificationSettings()">&times;</button>
     </div>
     <div id="nsBody">
@@ -2842,7 +2879,7 @@ async function renderCasesTab() {
     if (curVal) filterEl.value = curVal;
 
     if (sessions.length === 0) {
-      el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div class="text">No Cases working on at the moment</div></div>';
+      el.innerHTML = '<div class="empty-state"><div class="icon"><img src="assets/icons/clipboard-white.png" alt="Cases" class="empty-icon"></div><div class="text">No Cases working on at the moment</div></div>';
       return;
     }
 
@@ -2862,7 +2899,7 @@ async function renderCasesTab() {
     });
 
     if (Object.keys(grouped).length === 0) {
-      el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div class="text">No Cases working on at the moment</div></div>';
+      el.innerHTML = '<div class="empty-state"><div class="icon"><img src="assets/icons/clipboard-white.png" alt="Cases" class="empty-icon"></div><div class="text">No Cases working on at the moment</div></div>';
       return;
     }
 
@@ -2871,7 +2908,7 @@ async function renderCasesTab() {
       const shortDir = dir === '(default)' ? 'Default' : dir.split('/').pop() || dir;
       html += '<div style="margin-bottom:16px">';
       html += '<div style="font-size:11px;color:var(--yellow);margin-bottom:6px;display:flex;align-items:center;gap:6px">' +
-        '<span>📁</span><span>' + shortDir + '</span>' +
+        '<span><img src="assets/icons/cloud-white.png" alt="Workspace" class="inline-icon"></span><span>' + shortDir + '</span>' +
         '<span style="font-size:10px;color:var(--text-dim)">(' + group.length + ' cases)</span>' +
         '<span style="font-size:9px;color:var(--text-dim);margin-left:4px;opacity:0.6">' + dir + '</span>' +
       '</div>';
@@ -2983,7 +3020,7 @@ function viewSession(id) {
         <div class="row"><span class="label">Directory</span><span class="value" style="font-size:10px">${escapeHtml(s.directory || '—')}</span></div>
         ${s.last_mode ? `<div class="row"><span class="label">Last Mode</span><span class="value">${escapeHtml(s.last_mode)}</span></div>` : ''}
       </div>
-      ${(s.todos || []).length > 0 ? (function(){ var thtml = '<div class="admin-card" style="margin-top:12px"><h4>Tasks (' + s.todos.filter(function(t){ return t.status === 'completed'; }).length + '/' + s.todos.length + ')</h4>'; s.todos.forEach(function(t){ var done = t.status === 'completed'; var pri = t.priority === 'high' ? ' 🔥' : ''; thtml += '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px"><span style="color:' + (done ? 'var(--green)' : 'var(--text-dim)') + '">' + (done ? '✓' : '○') + '</span><span style="' + (done ? 'text-decoration:line-through;color:var(--text-dim)' : '') + '">' + escapeHtml(t.content) + '</span><span style="font-size:9px;color:var(--text-dim)">' + pri + '</span></div>'; }); thtml += '</div>'; return thtml; })() : ''}
+      ${(s.todos || []).length > 0 ? (function(){ var thtml = '<div class="admin-card" style="margin-top:12px"><h4><img src="assets/icons/clipboard-white.png" alt="Tasks" class="section-icon"> Tasks (' + s.todos.filter(function(t){ return t.status === 'completed'; }).length + '/' + s.todos.length + ')</h4>'; s.todos.forEach(function(t){ var done = t.status === 'completed'; var pri = t.priority === 'high' ? ' <img src="assets/icons/report-white.png" alt="High priority" class="inline-icon">' : ''; thtml += '<div style="display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px"><span style="color:' + (done ? 'var(--green)' : 'var(--text-dim)') + '">' + (done ? '<img src="assets/icons/report-white.png" alt="Done" class="inline-icon">' : '<img src="assets/icons/report-white.png" alt="Pending" class="inline-icon">') + '</span><span style="' + (done ? 'text-decoration:line-through;color:var(--text-dim)' : '') + '">' + escapeHtml(t.content) + '</span><span style="font-size:9px;color:var(--text-dim)">' + pri + '</span></div>'; }); thtml += '</div>'; return thtml; })() : ''}
     `;
     modal.style.display = 'flex';
   }).catch(() => {
@@ -3635,7 +3672,7 @@ function renderNamesTab() {
     html += '<tr>' +
       '<td style="font-weight:700;font-size:14px">' + l + '</td>' +
       '<td><input type="text" id="name-input-' + l + '" value="' + entry.name.replace(/"/g,'&quot;') + '" style="width:160px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;outline:none" onchange="saveName(\'' + l + '\')"></td>' +
-      '<td><span style="color:' + genderColor + '">' + (entry.gender === 'F' ? '♀ Female' : '♂ Male') + '</span></td>' +
+      '<td><span style="color:' + genderColor + '">' + (entry.gender === 'F' ? '<img src="assets/icons/user-white.png" alt="Female" class="inline-icon"> Female' : '<img src="assets/icons/user-white.png" alt="Male" class="inline-icon"> Male') + '</span></td>' +
       '<td><button class="view-btn" onclick="resetName(\'' + l + '\')" style="font-size:9px">Reset</button></td>' +
     '</tr>';
   });
@@ -3862,7 +3899,7 @@ async function regenerateApiKey() {
       _apiKeyFull = d.key;
       input.value = _apiKeyFull;
       localStorage.setItem('dashboard_api_key', _apiKeyFull);
-      msg.textContent = '✓ New key generated — copy it to your Android app Settings now.';
+      msg.textContent = 'New key generated — copy it to your Android app Settings now.';
       msg.style.display = 'block';
     } else {
       err.textContent = d.message || 'Regeneration failed'; err.style.display = 'block';
@@ -3976,7 +4013,7 @@ async function renderNotificationsTab() {
     }
     let html = '';
     data.providers.forEach(function(p) {
-      const typeIcon = p.type === 'slack' ? '💬' : p.type === 'discord' ? '🎮' : '🔗';
+      const typeIcon = p.type === 'slack' ? '<img src="assets/icons/chat-white.png" alt="slack" class="inline-icon">' : p.type === 'discord' ? '<img src="assets/icons/report-white.png" alt="discord" class="inline-icon">' : '<img src="assets/icons/link-white.png" alt="link" class="inline-icon">';
       const statusColor = p.enabled ? 'var(--green)' : 'var(--text-dim)';
       html +=       '<div class="admin-card" style="display:flex;align-items:center;gap:12px;margin-bottom:8px">' +
         '<span>' + typeIcon + '</span>' +
@@ -4656,7 +4693,7 @@ async function renderCronTab() {
     return;
   }
   if (!_cronJobsCache.length) {
-    el.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-dim)"><div style="font-size:40px;margin-bottom:12px">⏰</div><div>No cron jobs scheduled</div></div>';
+    el.innerHTML = '<div style="text-align:center;padding:40px 20px;color:var(--text-dim)"><div style="font-size:40px;margin-bottom:12px"><img src="assets/icons/alarm-white.png" alt="Cron" class="empty-icon"></div><div>No cron jobs scheduled</div></div>';
     return;
   }
   let html = '';

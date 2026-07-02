@@ -15,7 +15,7 @@ import threading
 from server_config import (
     DATA_DIR, PID_FILE, STATIC_DIR, API_KEY_FILE, CRON_FILE, CONFIG_FILE,
     NOTIFICATION_PROVIDERS_FILE, WORKFLOWS_FILE, WORKFLOW_INSTANCES_FILE,
-    _get_api_key, _set_api_key, _safe_agent_name, strip_ansi,
+    _get_api_key, _set_api_key, _safe_agent_name, strip_ansi, get_opencode_bin,
     _get_session_lock, _check_engine, get_engine_restarted,
     get_attach_url, engine_is_reachable, log, _error_id,
     _load_notifications, _save_notifications,
@@ -32,7 +32,7 @@ def _handle_stop_session(body: dict) -> tuple:
         return False, {'ok': False, 'message': 'Missing session id'}
     try:
         cwd = body.get('directory') or None
-        r = subprocess.run(['opencode', 'session', 'delete', sid], capture_output=True, text=True, timeout=15, cwd=cwd)
+        r = subprocess.run([get_opencode_bin(), 'session', 'delete', sid], capture_output=True, text=True, timeout=15, cwd=cwd)
         err = r.stderr.strip()
         if r.returncode == 0 or 'not found' in err.lower():
             log(f"Admin: deleted session {sid}" if r.returncode == 0 else f"Admin: session {sid} already removed")
@@ -68,7 +68,7 @@ def _handle_session_instruct(body: dict) -> tuple:
             log(f"Admin: engine restart detected, session {sid} invalid")
             return False, {'ok': False, 'message': 'OpenCode engine was restarted — all prior sessions are invalid. Create a new case.', 'code': 'engine_restarted'}
         def _build_cmd(fork=False):
-            c = ['opencode', 'run']
+            c = [get_opencode_bin(), 'run']
             c.extend(['-s', sid])
             if fork:
                 c.extend(['--fork'])
@@ -88,7 +88,7 @@ def _handle_session_instruct(body: dict) -> tuple:
         err_text = strip_ansi(r.stderr.strip() or r.stdout.strip()[:200] or 'Unknown error')[:200]
         if 'not found' in err_text.lower():
             log(f"Admin: session {sid} not found, falling back to continue last")
-            cmd_fallback = ['opencode', 'run', '-c', '--attach', attach]
+            cmd_fallback = [get_opencode_bin(), 'run', '-c', '--attach', attach]
             if password:
                 cmd_fallback.extend(['-p', password])
             if model:
@@ -105,7 +105,7 @@ def _handle_session_instruct(body: dict) -> tuple:
         if model and ('Model not found' in err_text or 'UnknownError' in err_text):
             log(f"Admin: retrying session {sid} without model")
             model = ''
-            cmd_retry = ['opencode', 'run', '-s', sid]
+            cmd_retry = [get_opencode_bin(), 'run', '-s', sid]
             if fork_val:
                 cmd_retry.append('--fork')
             cmd_retry.extend(['--attach', attach])
@@ -150,7 +150,7 @@ def _handle_session_answer(body: dict) -> tuple:
             log(f"Admin: engine restart detected, session {sid} invalid for answer")
             return False, {'ok': False, 'message': 'Session no longer available — the engine was restarted.', 'code': 'engine_restarted'}
         answer_text = 'I choose: ' + '; '.join(str(a) for a in answers)
-        cmd = ['opencode', 'run', '-s', sid, '--attach', attach]
+        cmd = [get_opencode_bin(), 'run', '-s', sid, '--attach', attach]
         if password:
             cmd.extend(['-p', password])
         cmd.append(answer_text)
@@ -191,7 +191,7 @@ def _handle_new_session(body: dict) -> tuple:
             log(f"Admin: new session failed — engine not reachable")
             return False, {'ok': False, 'message': msg, 'code': 'engine_unreachable', 'error_id': _error_id()}
         engine_restarted = get_engine_restarted()
-        cmd = ['opencode', 'run']
+        cmd = [get_opencode_bin(), 'run']
         if fresh:
             cmd.extend(['--attach', attach, '--format', 'json'])
         elif engine_restarted:
@@ -237,67 +237,94 @@ def _handle_new_session(body: dict) -> tuple:
                 return False, {'ok': False, 'message': 'Timeout starting session'}
         session_id = None
         workflow_id = body.get('workflow_id', '')
+        retry_count = body.get('retry_count', 0)
+
+        def _deliver_fresh_message(sid: str) -> tuple:
+            msg_cmd = [get_opencode_bin(), 'run', '-s', sid, '--attach', attach]
+            if model:
+                msg_cmd.extend(['-m', model])
+            if mode_val:
+                msg_cmd.extend(['--agent', mode_val])
+            msg_cmd.append(message)
+            r2 = subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
+            if r2.returncode != 0 and retry_count < 3:
+                eid = _error_id()
+                backoff = [10, 30, 60][retry_count]
+                retry_payload = dict(body)
+                retry_payload['retry_count'] = retry_count + 1
+                retry_payload['existing_session_id'] = sid
+                retry_item = {
+                    'id': 'q_' + secrets.token_hex(6),
+                    'type': 'new-session/step2',
+                    'payload': retry_payload,
+                    'retry_at': time.time() + backoff,
+                    'status': 'queued',
+                    'result': None,
+                    'error': None,
+                    'created_at': time.time(),
+                }
+                queue = _load_queue()
+                queue.append(retry_item)
+                _save_queue(queue)
+                log(f"Session step2 retry {retry_count+1}/3 in {backoff}s: {sid[:16]}... [{eid}]")
+                return True, {'ok': True, 'message': f'Message queued, retry in {backoff}s', 'session_id': sid}
+            if r2.returncode != 0:
+                log(f"Admin: session created but message delivery failed: {sid[:16]}... [{_error_id()}]")
+            log(f"Admin: fresh session started \"{title or message[:40]}\" ({sid[:16]}...)")
+            result = {'ok': True, 'message': 'Session started', 'session_id': sid}
+            if workflow_id:
+                try:
+                    wf_ok, wf_res = _handle_workflow_attach({'session_id': sid, 'workflow_id': workflow_id})
+                    if wf_ok:
+                        result['workflow'] = 'attached'
+                    else:
+                        result['workflow_error'] = wf_res.get('message', '')
+                except Exception as e:
+                    result['workflow_error'] = str(e)[:100]
+            return True, result
         if fresh:
             # Parse session ID: try JSON first, then regex fallback
             try:
                 import json as _j2
-                _d = _j2.loads(r.stdout)
-                session_id = _d.get('sessionID', '')
+                _raw = (r.stdout or '').strip()
+                _d = _j2.loads(_raw)
+                if isinstance(_d, dict):
+                    session_id = _d.get('sessionID') or _d.get('session_id') or _d.get('id') or _d.get('sessionId') or ''
+                elif isinstance(_d, str):
+                    session_id = _d.strip()
             except Exception:
                 import re as _r2
-                _m2 = _r2.search(r'(?:sessionID|Session\s*ID|session\s*id)[:"\s]+"?([a-z0-9_]{10,})"?', r.stdout, re.IGNORECASE)
-                if _m2:
-                    session_id = _m2.group(1)
+                _out = r.stdout or ''
+                _ids = _r2.findall(r'"sessionID"\s*:\s*"([^"]+)"', _out, re.IGNORECASE)
+                if not _ids:
+                    _ids = _r2.findall(r'(?:sessionID|session_id|sessionId|Session\s*ID|session\s*id|id)[:"\s]+"?([a-zA-Z0-9_-]{6,})"?', _out, re.IGNORECASE)
+                if _ids:
+                    session_id = _ids[-1]
                 else:
                     eid = _error_id()
-                    log(f"Fresh session: no sessionID in stdout [{eid}]: {r.stdout[:200]}")
+                    log(f"Fresh session: no sessionID in stdout [{eid}]: {_out[:200]}")
             if session_id:
-                # Step 2: Send real message via -s with same model/agent
-                retry_count = body.get('retry_count', 0)
-                msg_cmd = ['opencode', 'run', '-s', session_id, '--attach', attach]
-                if model:
-                    msg_cmd.extend(['-m', model])
-                if mode_val:
-                    msg_cmd.extend(['--agent', mode_val])
-                msg_cmd.append(message)
-                r2 = subprocess.run(msg_cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
-                if r2.returncode != 0 and retry_count < 3:
-                    eid = _error_id()
-                    backoff = [10, 30, 60][retry_count]
-                    # Retry Step 2 only — reuse the same session_id, don't create a new session
-                    retry_payload = dict(body)
-                    retry_payload['retry_count'] = retry_count + 1
-                    retry_payload['existing_session_id'] = session_id
-                    retry_item = {
-                        'id': 'q_' + secrets.token_hex(6),
-                        'type': 'new-session/step2',
-                        'payload': retry_payload,
-                        'retry_at': time.time() + backoff,
-                        'status': 'queued',
-                        'result': None,
-                        'error': None,
-                        'created_at': time.time(),
-                    }
-                    queue = _load_queue()
-                    queue.append(retry_item)
-                    _save_queue(queue)
-                    log(f"Session step2 retry {retry_count+1}/3 in {backoff}s: {session_id[:16]}... [{eid}]")
-                    return True, {'ok': True, 'message': f'Message queued, retry in {backoff}s', 'session_id': session_id}
-                if r2.returncode != 0:
-                    log(f"Admin: session created but message delivery failed: {session_id[:16]}... [{_error_id()}]")
-                log(f"Admin: fresh session started \"{title or message[:40]}\" ({session_id[:16]}...)")
-                result = {'ok': True, 'message': 'Session started', 'session_id': session_id}
-                if workflow_id:
-                    try:
-                        wf_ok, wf_res = _handle_workflow_attach({'session_id': session_id, 'workflow_id': workflow_id})
-                        if wf_ok:
-                            result['workflow'] = 'attached'
-                        else:
-                            result['workflow_error'] = wf_res.get('message', '')
-                    except Exception as e:
-                        result['workflow_error'] = str(e)[:100]
-                return True, result
-            return False, {'ok': False, 'message': 'Failed to parse session ID'}
+                return _deliver_fresh_message(session_id)
+            # Fallback: the CLI created the session but did not return a parsable id.
+            try:
+                status_file = os.path.join(DATA_DIR, 'status.json')
+                if os.path.exists(status_file):
+                    with open(status_file) as f:
+                        sd = json.load(f)
+                    sessions = sd.get('all_sessions') or sd.get('sessions') or []
+                    chosen = None
+                    if title:
+                        chosen = next((s for s in sessions if (s.get('title') or '') == title), None)
+                    if not chosen and sessions:
+                        chosen = max(sessions, key=lambda s: int(s.get('created', s.get('updated', 0)) or 0))
+                    if chosen:
+                        session_id = chosen.get('id', '')
+            except Exception:
+                pass
+            if session_id:
+                log(f"Fresh session: parsed id missing, fallback used [{_error_id()}]")
+                return _deliver_fresh_message(session_id)
+            return False, {'ok': False, 'message': 'Failed to resolve session after creation', 'stdout': (r.stdout or '')[:200], 'stderr': (r.stderr or '')[:200]}
         if r.returncode == 0:
             try:
                 import re as _re3
@@ -339,7 +366,7 @@ def _handle_new_session_step2(body: dict) -> tuple:
     try:
         cwd = directory or None
         password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
-        msg_cmd = ['opencode', 'run', '-s', session_id, '--attach', attach]
+        msg_cmd = [get_opencode_bin(), 'run', '-s', session_id, '--attach', attach]
         if password:
             msg_cmd.extend(['-p', password])
         if model:
@@ -391,7 +418,7 @@ def _handle_provider_logout(body: dict) -> tuple:
     if not name:
         return False, {'ok': False, 'message': 'Missing provider name'}
     try:
-        r = subprocess.run(['opencode', 'providers', 'logout', name], capture_output=True, text=True, timeout=15)
+        r = subprocess.run([get_opencode_bin(), 'providers', 'logout', name], capture_output=True, text=True, timeout=15)
         log(f"Admin: logged out from {name}")
         return True, {'ok': True, 'message': 'Logged out'}
     except Exception as e:
@@ -400,7 +427,7 @@ def _handle_provider_logout(body: dict) -> tuple:
 def _handle_provider_login(body: dict) -> tuple:
     url = body.get('url', '')
     try:
-        cmd = ['opencode', 'providers', 'login']
+        cmd = [get_opencode_bin(), 'providers', 'login']
         if url:
             cmd.append(url)
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
@@ -1047,7 +1074,7 @@ def _run_workflow_stage(wf_instance: dict) -> tuple:
         parts.append(node['instructions'])
     message = '\n\n'.join(parts) if parts else node.get('instructions', '')
 
-    cmd = ['opencode', 'run', '-s', session_id]
+    cmd = [get_opencode_bin(), 'run', '-s', session_id]
     if staff_model:
         cmd.extend(['-m', staff_model])
     if staff_mode:

@@ -4,6 +4,7 @@ import json
 import subprocess
 import time
 import multiprocessing
+import re
 
 from poller_config import data_dir, prev_pids_file, log_activity_py
 
@@ -32,6 +33,14 @@ def parse_ps_output(cpu_core_count: int):
         r = subprocess.run([
             'ps', '-eo', 'pid,ppid,pcpu,rss,etime,comm,args', '--no-headers'
         ], capture_output=True, text=True, timeout=10)
+        rows = []
+        pid_map = {}
+        opencode_roots = set()
+
+        def _is_opencode_cmd(args: str, comm: str) -> bool:
+            text = f'{comm} {args}'.strip().lower()
+            return bool(re.search(r'(^|\s)opencode(\s|$)', text))
+
         for line in r.stdout.splitlines():
             parts = line.split(None, 6)
             if len(parts) < 7:
@@ -43,27 +52,47 @@ def parse_ps_output(cpu_core_count: int):
             etime = parts[4]
             comm = parts[5]
             args = parts[6]
-            cpu = pcpu
-            mem_mb = round(rss_kb / 1024, 1)
-            total_cpu += cpu
-            total_mem_mb += mem_mb
             item = {
                 'pid': pid,
                 'ppid': ppid,
-                'cpu': round(cpu, 1),
-                'mem_mb': mem_mb,
+                'cpu': round(pcpu, 1),
+                'mem_mb': round(rss_kb / 1024, 1),
                 'elapsed': etime,
                 'command': args,
                 'name': comm,
-                'type': 'engine' if 'server.py' in args or 'poller.py' in args or 'daemon.sh' in args else 'agent',
+                'type': 'engine' if _is_opencode_cmd(args, comm) else 'agent',
                 'status': 'running',
                 'virtual': False,
             }
-            proc_list.append(item)
-            agent_list.append(item.copy())
-            if 'server.py' in args and main_pid == 0:
-                main_pid = pid
-                main_elapsed = etime
+            rows.append(item)
+            pid_map[pid] = item
+            if item['type'] == 'engine':
+                opencode_roots.add(pid)
+
+        def _has_opencode_ancestor(pid: int) -> bool:
+            seen = set()
+            cur = pid
+            while cur and cur not in seen:
+                seen.add(cur)
+                node = pid_map.get(cur)
+                if not node:
+                    break
+                if node['pid'] in opencode_roots:
+                    return True
+                cur = node.get('ppid', 0)
+            return False
+
+        proc_list = [row for row in rows if _has_opencode_ancestor(row['pid'])]
+        agent_list = [row.copy() for row in proc_list]
+
+        for row in proc_list:
+            total_cpu += row['cpu']
+            total_mem_mb += row['mem_mb']
+
+        root_row = next((row for row in proc_list if row['type'] == 'engine'), None)
+        if root_row:
+            main_pid = root_row['pid']
+            main_elapsed = root_row['elapsed']
     except Exception as e:
         log_activity_py(f'poller_system parse_ps_output failed: {e}')
     cpu_load_pct = min(100, int(round(total_cpu)))
