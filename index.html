@@ -85,7 +85,7 @@
 
     <div class="sidebar-section" id="adminLoginBtn" onclick="openLoginModal()" style="border-top:1px solid var(--border);cursor:pointer">
       <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--blue)">
-        <img src="assets/icons/padlock-white.png" class="ic" height="14" alt="" style="margin-right:4px">
+        <span style="font-size:16px">🔑</span>
         <span>Admin Panel</span>
         <span id="loginIndicator" style="margin-left:auto;font-size:10px;background:var(--surface2);padding:1px 6px;border-radius:4px;color:var(--text-dim);display:none">logged in</span>
       </div>
@@ -148,7 +148,7 @@
   </div>
 </div>
 
-<script src="dashboard.js?v=11"></script>
+<script src="dashboard.js?v=10"></script>
 <!-- LOGIN MODAL -->
 <div class="modal-overlay" id="loginModal" style="display:none">
   <div class="login-modal">
@@ -184,25 +184,25 @@
     </div>
 
     <div class="admin-tabs" id="adminTabs">
-      <div class="admin-tab active" data-tab="sessions" onclick="switchTab('sessions')"><img src="assets/icons/clipboard-white.png" class="ic" height="14" alt=""> Cases</div>
-      <div class="admin-tab" data-tab="system" onclick="switchTab('system')"><img src="assets/icons/setting-white.png" class="ic" height="14" alt=""> System</div>
-      <div class="admin-tab admin-only" data-tab="users" onclick="switchTab('users')"><img src="assets/icons/user-white.png" class="ic" height="14" alt=""> Users</div>
-      <div class="admin-tab" data-tab="names" onclick="switchTab('names')"><img src="assets/icons/user-white.png" class="ic" height="14" alt=""> Names</div>
-      <div class="admin-tab" data-tab="settings" onclick="switchTab('settings')"><img src="assets/icons/setting-white.png" class="ic" height="14" alt=""> Settings</div>
-      <div class="admin-tab" data-tab="providers" onclick="switchTab('providers')"><img src="assets/icons/cloud-white.png" class="ic" height="14" alt=""> Provider</div>
-      <div class="admin-tab" data-tab="super-staff" onclick="switchTab('super-staff')"><img src="assets/icons/user-white.png" class="ic" height="14" alt=""> Super Staff</div>
-      <div class="admin-tab" data-tab="cron" onclick="switchTab('cron')"><img src="assets/icons/alarm-white.png" class="ic" height="14" alt=""> Cron</div>
-      <div class="admin-tab admin-only" data-tab="workflows" onclick="switchTab('workflows')"><img src="assets/icons/refresh-white.png" class="ic" height="14" alt=""> Workflows</div>
-      <div class="admin-tab" data-tab="security" onclick="switchTab('security')"><img src="assets/icons/shield-white.png" class="ic" height="14" alt=""> Security</div>
-      <div class="admin-tab" data-tab="inapp-alerts" onclick="switchTab('inapp-alerts')"><img src="assets/icons/notification-white.png" class="ic" height="14" alt=""> In-app alerts</div>
-      <div class="admin-tab" data-tab="notifications" onclick="switchTab('notifications')"><img src="assets/icons/notification-white.png" class="ic" height="14" alt=""> Notifications</div>
-      <div class="admin-tab" data-tab="logs" onclick="switchTab('logs')"><img src="assets/icons/file-white.png" class="ic" height="14" alt=""> Logs</div>
+      <div class="admin-tab active" data-tab="sessions" onclick="switchTab('sessions')">📋 Cases</div>
+      <div class="admin-tab" data-tab="system" onclick="switchTab('system')">🖥 System</div>
+      <div class="admin-tab admin-only" data-tab="users" onclick="switchTab('users')">👥 Users</div>
+      <div class="admin-tab" data-tab="names" onclick="switchTab('names')">👤 Names</div>
+      <div class="admin-tab" data-tab="settings" onclick="switchTab('settings')">⚙ Settings</div>
+      <div class="admin-tab" data-tab="providers" onclick="switchTab('providers')">🔌 Provider</div>
+      <div class="admin-tab" data-tab="super-staff" onclick="switchTab('super-staff')">🧑‍💼 Super Staff</div>
+      <div class="admin-tab" data-tab="cron" onclick="switchTab('cron')">⏰ Cron</div>
+      <div class="admin-tab admin-only" data-tab="workflows" onclick="switchTab('workflows')">🔁 Workflows</div>
+      <div class="admin-tab" data-tab="security" onclick="switchTab('security')">🔒 Security</div>
+      <div class="admin-tab" data-tab="inapp-alerts" onclick="switchTab('inapp-alerts')">🔔 In-app alerts</div>
+      <div class="admin-tab" data-tab="notifications" onclick="switchTab('notifications')">🔔 Notifications</div>
+      <div class="admin-tab" data-tab="logs" onclick="switchTab('logs')">📄 Logs</div>
     </div>
 
     <div class="admin-body" id="adminBody">
       <!-- Cases Tab -->
       <div class="tab-content active" id="tab-sessions">
-        <h3><img src="assets/icons/clipboard-white.png" class="ic" height="14" alt=""> Cases</h3>
+        <h3>📋 Cases</h3>
         <div class="desc">Manage active and recent cases. <span id="sessionsTabCount" style="color:var(--text-dim)"></span></div>
         <div class="inline-form" style="margin-bottom:12px;flex-wrap:wrap">
           <input type="text" id="sessionSearch" placeholder="Search cases..." oninput="renderCasesTab()" style="max-width:250px">
@@ -216,7 +216,7 @@
 
       <!-- System Tab -->
       <div class="tab-content" id="tab-system">
-        <h3><img src="assets/icons/setting-white.png" class="ic" height="14" alt=""> System</h3>
+        <h3>🖥 System</h3>
         <div class="desc">Dashboard system status and controls</div>
         <div class="admin-card" id="systemStatusCard">
           <h4>Daemon Status</h4>
@@ -236,7 +236,7 @@
 
       <!-- Users Tab (admin only) -->
       <div class="tab-content" id="tab-users">
-        <h3><img src="assets/icons/user-white.png" class="ic" height="14" alt=""> Users</h3>
+        <h3>👥 Users</h3>
         <div class="desc">Manage dashboard users. Admin role required.</div>
         <div id="usersTabContent">
           <div style="font-size:12px;color:var(--text-dim)">Loading users...</div>
@@ -245,7 +245,7 @@
 
       <!-- Names Tab -->
       <div class="tab-content" id="tab-names">
-        <h3><img src="assets/icons/user-white.png" class="ic" height="14" alt=""> Names</h3>
+        <h3>👤 Names</h3>
         <div class="desc">Customize A-Z staff names displayed in the dashboard. <span id="namesTabCount" style="color:var(--text-dim)"></span></div>
         <div id="namesTabContent">
           <div style="font-size:12px;color:var(--text-dim)">Loading names...</div>
@@ -254,7 +254,7 @@
 
       <!-- Settings Tab -->
       <div class="tab-content" id="tab-settings">
-        <h3><img src="assets/icons/setting-white.png" class="ic" height="14" alt=""> Settings</h3>
+        <h3>⚙ Settings</h3>
         <div class="desc">Dashboard preferences (stored in browser)</div>
         <div class="admin-card">
           <div class="settings-group">
@@ -301,7 +301,7 @@
 
       <!-- Provider Tab -->
       <div class="tab-content" id="tab-providers">
-        <h3><img src="assets/icons/cloud-white.png" class="ic" height="14" alt=""> Provider</h3>
+        <h3>🔌 Provider</h3>
         <div class="desc">Manage AI providers and Ollama connections</div>
         <div id="providersTabContent">
           <div style="font-size:12px;color:var(--text-dim)">Loading providers...</div>
@@ -310,7 +310,7 @@
 
       <!-- Super Staff Tab -->
       <div class="tab-content" id="tab-super-staff">
-        <h3><img src="assets/icons/user-white.png" class="ic" height="14" alt=""> Super Staff</h3>
+        <h3>🧑‍💼 Super Staff</h3>
         <div class="desc">Create and manage dedicated AI agents as staff members</div>
         <div id="superStaffTabContent">
           <div style="font-size:12px;color:var(--text-dim)">Loading staff...</div>
@@ -319,7 +319,7 @@
 
       <!-- Cron Tab -->
       <div class="tab-content" id="tab-cron">
-        <h3><img src="assets/icons/alarm-white.png" class="ic" height="14" alt=""> Cron Jobs</h3>
+        <h3>⏰ Cron Jobs</h3>
         <div class="desc">Schedule automated instructions to run on a timer</div>
         <div class="inline-form" style="margin-bottom:12px">
           <button class="btn btn-sm btn-primary" onclick="openCronModal()" style="margin-left:auto">+ New Cron Job</button>
@@ -329,7 +329,7 @@
 
       <!-- Security Tab -->
       <div class="tab-content" id="tab-security">
-        <h3><img src="assets/icons/shield-white.png" class="ic" height="14" alt=""> Security</h3>
+        <h3>🔒 Security</h3>
         <div class="desc">Change your password and manage login sessions</div>
         <div class="admin-card">
           <h4>Change Password</h4>
@@ -376,7 +376,7 @@
 
       <!-- In-app Alerts Tab -->
       <div class="tab-content" id="tab-inapp-alerts">
-        <h3><img src="assets/icons/notification-white.png" class="ic" height="14" alt=""> In-app Alerts</h3>
+        <h3>🔔 In-app Alerts</h3>
         <div class="desc">Compose and send broadcast notifications to all APK clients</div>
         <div class="inline-form" style="margin-bottom:12px">
           <select id="ntfType" style="padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
@@ -394,7 +394,7 @@
 
       <!-- External Notifications Tab -->
       <div class="tab-content" id="tab-notifications">
-        <h3><img src="assets/icons/notification-white.png" class="ic" height="14" alt=""> Notifications</h3>
+        <h3>🔔 Notifications</h3>
         <div class="desc">Configure external notification providers (Slack, Discord, Custom Webhook)</div>
         <div id="notificationProvidersList"></div>
         <h4 style="font-size:13px;color:var(--text-dim);margin:16px 0 8px">Add Provider</h4>
@@ -413,7 +413,7 @@
 
       <!-- Logs Tab -->
       <div class="tab-content" id="tab-logs">
-        <h3><img src="assets/icons/file-white.png" class="ic" height="14" alt=""> Activity Logs</h3>
+        <h3>📄 Activity Logs</h3>
         <div class="desc">Full activity log from the dashboard daemon</div>
         <div class="inline-form" style="margin-bottom:12px;flex-wrap:wrap;gap:6px">
           <input type="text" id="logSearch" placeholder="Search logs..." oninput="renderLogsTab()" style="max-width:300px">
@@ -438,7 +438,7 @@
         <div id="wfListView">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <div>
-              <h3 style="display:inline"><img src="assets/icons/refresh-white.png" class="ic" height="14" alt=""> Workflows</h3>
+              <h3 style="display:inline">🔁 Workflows</h3>
               <span style="font-size:12px;color:var(--text-dim);margin-left:8px">Design multi-stage case workflows</span>
             </div>
             <button class="btn btn-sm btn-primary" onclick="openWorkflowEditor(null)">+ New Workflow</button>
@@ -720,7 +720,7 @@
 <div class="modal-overlay" id="notificationSettingsModal" style="display:none">
   <div class="login-modal" style="width:420px;max-height:85vh;overflow-y:auto">
     <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
-      <h2 style="font-size:16px" id="nsTitle"><img src="assets/icons/notification-white.png" class="ic" height="14" alt=""> Notification Settings</h2>
+      <h2 style="font-size:16px" id="nsTitle">🔔 Notification Settings</h2>
       <button class="admin-close" onclick="closeNotificationSettings()">&times;</button>
     </div>
     <div id="nsBody">
@@ -765,6 +765,6 @@
   </div>
 </div>
 
-<script src="admin.js?v=11"></script>
+<script src="admin.js?v=10"></script>
 </body>
 </html>

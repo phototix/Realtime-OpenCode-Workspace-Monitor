@@ -215,7 +215,7 @@ async function renderCasesTab() {
     if (curVal) filterEl.value = curVal;
 
     if (sessions.length === 0) {
-      el.innerHTML = '<div class="empty-state"><div class="icon"><img src="assets/icons/clipboard-white.png" class="ic" height="14" alt=""></div><div class="text">No Cases working on at the moment</div></div>';
+      el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div class="text">No Cases working on at the moment</div></div>';
       return;
     }
 
@@ -235,7 +235,7 @@ async function renderCasesTab() {
     });
 
     if (Object.keys(grouped).length === 0) {
-      el.innerHTML = '<div class="empty-state"><div class="icon"><img src="assets/icons/clipboard-white.png" class="ic" height="14" alt=""></div><div class="text">No Cases working on at the moment</div></div>';
+      el.innerHTML = '<div class="empty-state"><div class="icon">📋</div><div class="text">No Cases working on at the moment</div></div>';
       return;
     }
 
@@ -837,7 +837,7 @@ function showQuestions(id) {
         var resource = (p.patterns || []).join(', ') || p.metadata.filepath || p.permission;
         html += '<div class="admin-card" style="margin-bottom:12px;border-left:3px solid var(--yellow)">';
         html += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">';
-        html += '<img src="assets/icons/shield-white.png" class="ic" height="14" alt="" style="margin-bottom:3px">';
+        html += '<span style="font-size:14px">🔒</span>';
         html += '<span style="font-size:12px;font-weight:600;color:var(--yellow)">Permission Required</span>';
         html += '</div>';
         html += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:4px">' + escapeHtml(p.permission || '') + '</div>';
