@@ -7,6 +7,9 @@ import stat
 import threading
 import time
 import re
+from typing import cast
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 _SESSION_LOCKS: dict[str, threading.Lock] = {}
 _SESSION_LOCKS_GUARD = threading.Lock()
@@ -17,7 +20,7 @@ def _get_session_lock(sid: str) -> threading.Lock:
             _SESSION_LOCKS[sid] = threading.Lock()
         return _SESSION_LOCKS[sid]
 
-DATA_DIR = os.path.expanduser('~/.opencode-dashboard/data')
+DATA_DIR = os.path.join(BASE_DIR, 'data')
 PID_FILE = os.path.join(DATA_DIR, 'daemon.pid')
 ACTIVITY_FILE = os.path.join(DATA_DIR, 'activity.log')
 CRON_FILE = os.path.join(DATA_DIR, 'cron_jobs.json')
@@ -29,14 +32,16 @@ STAFF_FILE = os.path.join(DATA_DIR, 'super_staff.json')
 ASSIGNMENTS_FILE = os.path.join(DATA_DIR, 'case_assignments.json')
 WORKFLOWS_FILE = os.path.join(DATA_DIR, 'workflows.json')
 WORKFLOW_INSTANCES_FILE = os.path.join(DATA_DIR, 'workflow_instances.json')
-STATIC_DIR = os.path.expanduser('~/.opencode-dashboard')
+PROJECT_INSTRUCTIONS_FILE = os.path.join(DATA_DIR, 'project_instructions.json')
+STATIC_DIR = BASE_DIR
 API_KEY_FILE = os.path.join(DATA_DIR, 'api_key')
+LEGACY_DATA_DIR = os.path.expanduser('~/.opencode-dashboard/data')
 
 _cron_lock = threading.Lock()
 _notifications_lock = threading.Lock()
 _staff_lock = threading.Lock()
 _assignments_lock = threading.Lock()
-_workflow_lock = threading.Lock()
+_workflow_lock = threading.RLock()
 
 def _load_or_generate_api_key() -> str:
     key = os.environ.get('DASHBOARD_API_KEY', '').strip()
@@ -77,6 +82,18 @@ def get_opencode_bin() -> str:
 
 _ANSI_RE = re.compile('\x1b\\[[0-9;]*[a-zA-Z]')
 
+# Load engine password from file if not in environment
+if not os.environ.get('OPENCODE_SERVER_PASSWORD', ''):
+    _pw_file = os.path.join(DATA_DIR, 'engine_password')
+    if os.path.exists(_pw_file):
+        try:
+            with open(_pw_file) as f:
+                _pw = f.read().strip()
+            if _pw:
+                os.environ['OPENCODE_SERVER_PASSWORD'] = _pw
+        except Exception:
+            pass
+
 def _safe_agent_name(name: str) -> str:
     return re.sub(r'[^a-z0-9_\-]', '', name.replace(' ', '_').lower())
 
@@ -91,11 +108,13 @@ def log(msg: str) -> None:
     except Exception:
         pass
 
-_attach_cache: dict[str, object] = {'url': '', 'time': 0}
+_attach_cache: dict[str, float | str] = {'url': '', 'time': 0.0}
 def get_attach_url(force: bool = False) -> str:
     now = time.time()
-    if not force and now - _attach_cache.get('time', 0) < 30 and _attach_cache.get('url'):
-        return _attach_cache['url']
+    cached_time = float(cast(float, _attach_cache.get('time', 0.0)))
+    cached_url = cast(str, _attach_cache.get('url', ''))
+    if not force and now - cached_time < 30 and cached_url:
+        return cached_url
     try:
         r = subprocess.run(['lsof', '-iTCP', '-sTCP:LISTEN', '-P', '-n'], capture_output=True, text=True, timeout=3)
         for line in r.stdout.split('\n'):
@@ -245,17 +264,54 @@ def _save_workflows(items: list) -> None:
         pass
 
 def _load_workflow_instances() -> list:
-    if not os.path.exists(WORKFLOW_INSTANCES_FILE):
-        return []
-    try:
-        with open(WORKFLOW_INSTANCES_FILE) as f:
-            return json.load(f)
-    except Exception:
-        return []
+    with _workflow_lock:
+        if not os.path.exists(WORKFLOW_INSTANCES_FILE):
+            return []
+        try:
+            with open(WORKFLOW_INSTANCES_FILE) as f:
+                return json.load(f)
+        except Exception:
+            return []
 
 def _save_workflow_instances(items: list) -> None:
+    with _workflow_lock:
+        try:
+            with open(WORKFLOW_INSTANCES_FILE, 'w') as f:
+                json.dump(items, f, indent=2)
+        except Exception:
+            pass
+
+def _workflow_seed_missing(path: str) -> bool:
+    return not os.path.exists(path) or os.path.getsize(path) == 0
+
+def _migrate_legacy_workflow_files() -> None:
+    os.makedirs(DATA_DIR, exist_ok=True)
+    legacy_workflows = os.path.join(LEGACY_DATA_DIR, 'workflows.json')
+    legacy_instances = os.path.join(LEGACY_DATA_DIR, 'workflow_instances.json')
+    for src, dst in ((legacy_workflows, WORKFLOWS_FILE), (legacy_instances, WORKFLOW_INSTANCES_FILE)):
+        if _workflow_seed_missing(dst) and os.path.exists(src):
+            try:
+                with open(src) as f:
+                    data = json.load(f)
+                with open(dst, 'w') as f:
+                    json.dump(data, f, indent=2)
+            except Exception:
+                pass
+
+_migrate_legacy_workflow_files()
+
+def _load_project_instructions() -> dict:
+    if not os.path.exists(PROJECT_INSTRUCTIONS_FILE):
+        return {}
     try:
-        with open(WORKFLOW_INSTANCES_FILE, 'w') as f:
+        with open(PROJECT_INSTRUCTIONS_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_project_instructions(items: dict) -> None:
+    try:
+        with open(PROJECT_INSTRUCTIONS_FILE, 'w') as f:
             json.dump(items, f, indent=2)
     except Exception:
         pass

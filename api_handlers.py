@@ -22,6 +22,7 @@ from server_config import (
     _load_notification_providers, _save_notification_providers,
     _load_workflows, _save_workflows,
     _load_workflow_instances, _save_workflow_instances,
+    _load_project_instructions, _save_project_instructions,
     _workflow_lock,
 )
 from queue import _load_queue, _save_queue
@@ -183,7 +184,8 @@ def _handle_new_session(body: dict) -> tuple:
     if not message:
         return False, {'ok': False, 'message': 'Missing message'}
     try:
-        cwd = directory or None
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        cwd = script_dir if directory else (directory or None)
         password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
         attach = _check_engine()
         if not attach:
@@ -241,6 +243,8 @@ def _handle_new_session(body: dict) -> tuple:
 
         def _deliver_fresh_message(sid: str) -> tuple:
             msg_cmd = [get_opencode_bin(), 'run', '-s', sid, '--attach', attach]
+            if directory:
+                msg_cmd.extend(['--dir', directory])
             if model:
                 msg_cmd.extend(['-m', model])
             if mode_val:
@@ -283,30 +287,50 @@ def _handle_new_session(body: dict) -> tuple:
                     result['workflow_error'] = str(e)[:100]
             return True, result
         if fresh:
-            # Parse session ID: try JSON first, then regex fallback
-            try:
-                import json as _j2
-                _raw = (r.stdout or '').strip()
-                _d = _j2.loads(_raw)
-                if isinstance(_d, dict):
-                    session_id = _d.get('sessionID') or _d.get('session_id') or _d.get('id') or _d.get('sessionId') or ''
-                elif isinstance(_d, str):
-                    session_id = _d.strip()
-            except Exception:
-                import re as _r2
-                _out = r.stdout or ''
-                _ids = _r2.findall(r'"sessionID"\s*:\s*"([^"]+)"', _out, re.IGNORECASE)
+            # Parse session ID from JSONL output (multiple JSON lines)
+            _raw = (r.stdout or '').strip()
+            # Retry with backoff if stdout is empty (engine may be busy)
+            for attempt in range(5):
+                if _raw:
+                    break
+                backoff = [0, 1, 2, 3, 5][attempt]
+                if backoff > 0:
+                    log(f"Fresh session: empty stdout, retrying in {backoff}s (attempt {attempt+1}/5)...")
+                    time.sleep(backoff)
+                    try:
+                        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=cwd)
+                        _raw = (r.stdout or '').strip()
+                    except subprocess.TimeoutExpired:
+                        pass
+            if _raw:
+                # Try each line for JSON/JSONL format
+                for line in _raw.split('\n'):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        _d = json.loads(line)
+                        if isinstance(_d, dict):
+                            _sid = _d.get('sessionID') or _d.get('session_id') or _d.get('id') or _d.get('sessionId') or ''
+                            if _sid:
+                                session_id = _sid
+                                break
+                    except Exception:
+                        continue
+            if not session_id:
+                _ids = re.findall(r'"sessionID"\s*:\s*"([^"]+)"', r.stdout or '', re.IGNORECASE)
                 if not _ids:
-                    _ids = _r2.findall(r'(?:sessionID|session_id|sessionId|Session\s*ID|session\s*id|id)[:"\s]+"?([a-zA-Z0-9_-]{6,})"?', _out, re.IGNORECASE)
+                    _ids = re.findall(r'(?:sessionID|session_id|sessionId|Session\s*ID|session\s*id|id)[:"\s]+"?([a-zA-Z0-9_-]{6,})"?', r.stdout or '', re.IGNORECASE)
                 if _ids:
                     session_id = _ids[-1]
                 else:
                     eid = _error_id()
-                    log(f"Fresh session: no sessionID in stdout [{eid}]: {_out[:200]}")
+                    log(f"Fresh session: no sessionID in stdout [{eid}]: {(r.stdout or '')[:200]}")
             if session_id:
                 return _deliver_fresh_message(session_id)
-            # Fallback: the CLI created the session but did not return a parsable id.
+            # Fallback: wait for poller to detect new session, then match by title
             try:
+                time.sleep(3)
                 status_file = os.path.join(DATA_DIR, 'status.json')
                 if os.path.exists(status_file):
                     with open(status_file) as f:
@@ -315,14 +339,19 @@ def _handle_new_session(body: dict) -> tuple:
                     chosen = None
                     if title:
                         chosen = next((s for s in sessions if (s.get('title') or '') == title), None)
+                        if not chosen:
+                            chosen = next((s for s in sessions if title.lower() in (s.get('title') or '').lower()), None)
                     if not chosen and sessions:
-                        chosen = max(sessions, key=lambda s: int(s.get('created', s.get('updated', 0)) or 0))
+                        now_ms = time.time() * 1000
+                        recent = [s for s in sessions if isinstance(s, dict) and now_ms - int(s.get('created', s.get('updated', 0)) or 0) < 10000]
+                        if recent:
+                            chosen = max(recent, key=lambda s: int(s.get('created', s.get('updated', 0)) or 0))
                     if chosen:
                         session_id = chosen.get('id', '')
             except Exception:
                 pass
             if session_id:
-                log(f"Fresh session: parsed id missing, fallback used [{_error_id()}]")
+                log(f"Fresh session: fallback resolved id [{_error_id()}]")
                 return _deliver_fresh_message(session_id)
             return False, {'ok': False, 'message': 'Failed to resolve session after creation', 'stdout': (r.stdout or '')[:200], 'stderr': (r.stderr or '')[:200]}
         if r.returncode == 0:
@@ -364,7 +393,8 @@ def _handle_new_session_step2(body: dict) -> tuple:
         return False, {'ok': False, 'message': 'Missing session_id, message, or engine unreachable'}
     retry_count = body.get('retry_count', 0)
     try:
-        cwd = directory or None
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        cwd = script_dir if directory else (directory or None)
         password = os.environ.get('OPENCODE_SERVER_PASSWORD', '')
         msg_cmd = [get_opencode_bin(), 'run', '-s', session_id, '--attach', attach]
         if password:
@@ -1013,6 +1043,82 @@ def _handle_cron_jobs_toggle(body: dict) -> tuple:
     _save_cron_jobs(jobs)
     return True, {'ok': True, 'message': 'Toggled'}
 
+def _normalize_node_type(node: dict) -> str:
+    t = str(node.get('node_type') or node.get('type') or '').lower()
+    if t in ('starter', 'start'):
+        return 'starter'
+    if t in ('end', 'finish'):
+        return 'end'
+    return 'io'
+
+def _validate_workflow_structure(wf: dict, require_explicit_types: bool = False) -> tuple:
+    nodes = wf.get('nodes', []) or []
+    edges = wf.get('edges', []) or []
+    if not nodes:
+        return False, 'Workflow has no nodes'
+
+    node_ids = {n.get('id') for n in nodes if n.get('id')}
+    if len(node_ids) != len(nodes):
+        return False, 'Workflow nodes must have unique ids'
+
+    for e in edges:
+        if e.get('from') not in node_ids or e.get('to') not in node_ids:
+            return False, 'Workflow has invalid edge references'
+
+    starters = [n for n in nodes if _normalize_node_type(n) == 'starter']
+    ends = [n for n in nodes if _normalize_node_type(n) == 'end']
+    if not starters or not ends:
+        has_incoming = {e.get('to') for e in edges}
+        has_outgoing = {e.get('from') for e in edges}
+        inferred_starter = next((n for n in nodes if n.get('id') not in has_incoming), None)
+        inferred_end = next((n for n in nodes if n.get('id') not in has_outgoing), None)
+        if not starters and inferred_starter and not require_explicit_types:
+            starters = [inferred_starter]
+        if not ends and inferred_end and not require_explicit_types:
+            ends = [inferred_end]
+
+    if not starters:
+        return False, 'Workflow must include a Starter node'
+    if not ends:
+        return False, 'Workflow must include an End node'
+
+    incoming = {nid: [] for nid in node_ids}
+    outgoing = {nid: [] for nid in node_ids}
+    for e in edges:
+        outgoing[e['from']].append(e['to'])
+        incoming[e['to']].append(e['from'])
+
+    if not any(outgoing.get(n['id']) for n in starters):
+        return False, 'Starter node must connect to at least one next node'
+    if not any(incoming.get(n['id']) for n in ends):
+        return False, 'End node must have at least one incoming connection'
+
+    target_end_ids = {n['id'] for n in ends}
+    queue = [n['id'] for n in starters]
+    visited = set(queue)
+    while queue:
+        cur = queue.pop(0)
+        if cur in target_end_ids:
+            return True, ''
+        for nxt in outgoing.get(cur, []):
+            if nxt not in visited:
+                visited.add(nxt)
+                queue.append(nxt)
+    return False, 'No valid path from Starter node to End node'
+
+def _handle_project_instruction_save(body: dict) -> tuple:
+    session_id = body.get('session_id', '')
+    instruction = body.get('instruction', '').strip()
+    if not session_id:
+        return False, {'ok': False, 'message': 'Missing session_id'}
+    instructions = _load_project_instructions()
+    if instruction:
+        instructions[session_id] = instruction
+    else:
+        instructions.pop(session_id, None)
+    _save_project_instructions(instructions)
+    return True, {'ok': True, 'message': 'Project instruction saved'}
+
 def _run_workflow_stage(wf_instance: dict) -> tuple:
     """Execute the current pending stage for a workflow instance."""
     session_id = wf_instance['session_id']
@@ -1064,8 +1170,12 @@ def _run_workflow_stage(wf_instance: dict) -> tuple:
         except Exception:
             pass
 
-    # Build message with previous response context + staff scope + instructions
+    # Build message with previous response context + project instruction + staff scope + instructions
     parts = []
+    proj_inst_map = _load_project_instructions()
+    proj_inst = proj_inst_map.get(session_id, '') or proj_inst_map.get('__default__', '')
+    if proj_inst:
+        parts.append(proj_inst)
     if last_response:
         parts.append(f"Response to: {last_response}")
     if staff_desc:
@@ -1106,6 +1216,10 @@ def _handle_workflow_save(body: dict) -> tuple:
     wf = body.get('workflow', {})
     if not wf.get('id') or not wf.get('name') or not wf.get('nodes'):
         return False, {'ok': False, 'message': 'Missing id, name, or nodes'}
+    wf['nodes'] = [{**n, 'node_type': _normalize_node_type(n)} for n in (wf.get('nodes') or [])]
+    valid, message = _validate_workflow_structure(wf, require_explicit_types=True)
+    if not valid:
+        return False, {'ok': False, 'message': message}
     workflows = _load_workflows()
     existing = next((w for w in workflows if w['id'] == wf['id']), None)
     now = time.time()
@@ -1145,6 +1259,9 @@ def _handle_workflow_attach(body: dict) -> tuple:
     nodes = wf.get('nodes', [])
     if not nodes:
         return False, {'ok': False, 'message': 'Workflow has no nodes'}
+    valid, message = _validate_workflow_structure(wf, require_explicit_types=False)
+    if not valid:
+        return False, {'ok': False, 'message': message}
     edges = wf.get('edges', [])
     has_incoming = {e['to'] for e in edges}
     first = next((n for n in nodes if n['id'] not in has_incoming), nodes[0])

@@ -9,7 +9,7 @@ import time
 from server_config import (
     DATA_DIR, CRON_FILE, ACTIVITY_FILE,
     _cron_lock, _safe_agent_name, _safe_path, _safe_shell_arg,
-    strip_ansi, get_attach_url, log
+    strip_ansi, get_attach_url, get_opencode_bin, log
 )
 
 def _load_cron_jobs() -> list:
@@ -37,7 +37,7 @@ def _run_cron_job(job: dict) -> None:
             status = 'fail: invalid directory path'
             log(f"Cron job '{job.get('name', '?')}': {status}")
             return
-        cmd = ['opencode', 'run']
+        cmd = [get_opencode_bin(), 'run']
         if action.get('type') == 'session' and action.get('session_id'):
             cmd.extend(['-s', action['session_id']])
             if action.get('fork', False):

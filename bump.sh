@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+VERSION_FILE="$(dirname "$0")/version.txt"
+INDEX_FILE="$(dirname "$0")/index.html"
+
+OLD_VER=$(cat "$VERSION_FILE")
+NEW_VER=$((OLD_VER + 1))
+
+if grep -q "?v=${OLD_VER}" "$INDEX_FILE"; then
+  sed -i "s/?v=${OLD_VER}/?v=${NEW_VER}/g" "$INDEX_FILE"
+fi
+
+echo "$NEW_VER" > "$VERSION_FILE"
+
+echo "Bumped v${OLD_VER} -> v${NEW_VER} (index.html + version.txt)"

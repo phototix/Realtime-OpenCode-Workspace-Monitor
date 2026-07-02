@@ -2,6 +2,7 @@
 import http.server
 import json
 import os
+import subprocess
 import sys
 import urllib.parse
 import threading
@@ -12,7 +13,7 @@ from server_config import (
     DATA_DIR, STATIC_DIR, PID_FILE, NOTIFICATIONS_FILE,
     NOTIFICATION_PROVIDERS_FILE,
     STAFF_FILE, ASSIGNMENTS_FILE, WORKFLOWS_FILE, WORKFLOW_INSTANCES_FILE,
-    _get_api_key, log, _error_id,
+    _get_api_key, log, _error_id, get_opencode_bin,
     _load_notifications, _load_notification_providers,
     _save_notification_providers,
     _load_workflows, _save_workflows,
@@ -504,7 +505,7 @@ if __name__ == '__main__':
                     if not s_state:
                         try:
                             r = subprocess.run(
-                                ['opencode', 'export', inst['session_id']],
+                                [get_opencode_bin(), 'export', inst['session_id']],
                                 capture_output=True, text=True, timeout=15,
                                 cwd=session.get('directory') or None
                             )

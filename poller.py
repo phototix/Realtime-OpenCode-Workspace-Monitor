@@ -17,7 +17,7 @@ from poller_system import (
     detect_engine_restart, load_prev_agents, save_prev_pids
 )
 from poller_sessions import (
-    fetch_all_sessions, match_agents_to_sessions,
+    fetch_all_sessions, fetch_all_workspaces, match_agents_to_sessions,
     build_active_sessions, manage_virtual_agents,
     enrich_session_details
 )
@@ -57,6 +57,7 @@ engine_restarted_at = detect_engine_restart(main_pid)
 
 # ── STEP 2: Fetch session list ──
 all_sessions = fetch_all_sessions()
+workspaces = fetch_all_workspaces()
 
 # ── STEP 3: Match agents to sessions ──
 agent_list, agent_to_session = match_agents_to_sessions(agent_list, all_sessions)
@@ -410,6 +411,7 @@ payload = {
     'boss_name': boss_name,
     'sessions': sessions,
     'all_sessions': all_sessions_enriched,
+    'workspaces': workspaces,
     'available_models': available_models,
     'activity_log': activities
 }

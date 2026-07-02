@@ -4,6 +4,7 @@ import subprocess
 import json
 import os
 import time
+import sqlite3
 from datetime import datetime, timezone
 
 from poller_config import (
@@ -23,6 +24,59 @@ def _opencode_bin():
     r = subprocess.run(['bash', '-lc', 'command -v opencode'], capture_output=True, text=True, timeout=5)
     path = (r.stdout or '').strip()
     return path or 'opencode'
+
+def fetch_all_workspaces() -> list:
+    """Fetch all registered OpenCode workspaces from the local SQLite DB."""
+    db_path = os.path.expanduser('~/.local/share/opencode/opencode.db')
+    workspaces = []
+    seen = set()
+    if not os.path.exists(db_path):
+        return workspaces
+    try:
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        rows = cur.execute(
+            "SELECT id, worktree, vcs, name, icon_url, icon_color, time_updated, time_created FROM project ORDER BY COALESCE(time_updated, time_created) DESC"
+        ).fetchall()
+        for row in rows:
+            pid, worktree, vcs, name, icon_url, icon_color, time_updated, time_created = row
+            directory = worktree or ''
+            if not directory or directory in seen:
+                continue
+            seen.add(directory)
+            workspaces.append({
+                'id': pid,
+                'directory': directory,
+                'worktree': directory,
+                'name': name or os.path.basename(directory.rstrip('/')) or directory,
+                'vcs': vcs or '',
+                'icon_url': icon_url or '',
+                'icon_color': icon_color or '',
+                'time_updated': time_updated or time_created or 0,
+            })
+        conn.close()
+    except Exception:
+        pass
+
+    # Merge in any directories seen from live sessions so the UI never loses them.
+    try:
+        for s in fetch_all_sessions():
+            directory = s.get('directory', '')
+            if directory and directory not in seen:
+                seen.add(directory)
+                workspaces.append({
+                    'id': s.get('project_id', '') or s.get('id', ''),
+                    'directory': directory,
+                    'worktree': directory,
+                    'name': os.path.basename(directory.rstrip('/')) or directory,
+                    'vcs': '',
+                    'icon_url': '',
+                    'icon_color': '',
+                    'time_updated': s.get('updated', 0),
+                })
+    except Exception:
+        pass
+    return workspaces
 
 def fetch_all_sessions() -> list:
     """Fetch session list from opencode CLI, including project-scoped sessions."""
@@ -231,12 +285,22 @@ def enrich_session_details(sessions: list, detail_cache: dict) -> tuple:
             if json_start < 0:
                 raise ValueError('No JSON in export output')
             export_data = json.loads(raw[json_start:])
+            if not isinstance(export_data, dict):
+                raise ValueError('Export data is not an object')
             info = export_data.get('info', {})
             msgs = export_data.get('messages', [])
+            if not isinstance(info, dict):
+                info = {}
+            if not isinstance(msgs, list):
+                msgs = []
+            # Guard against non-dict messages
+            msgs = [m for m in msgs if isinstance(m, dict)]
 
             slug = info.get('slug', '')
             last_msg = msgs[-1] if msgs else {}
             last_info = last_msg.get('info', {})
+            if not isinstance(last_info, dict):
+                last_info = {}
             finish = last_info.get('finish')
             last_role = last_info.get('role', '')
             last_mode = last_info.get('mode', '')
@@ -255,55 +319,97 @@ def enrich_session_details(sessions: list, detail_cache: dict) -> tuple:
 
             last_text = ''
             tool_name = ''
-            for p in reversed(last_parts):
-                if p.get('type') == 'text' and p.get('text', '').strip():
-                    last_text = p.get('text', '').strip()
-                    break
-                elif p.get('type') == 'tool' and not tool_name:
-                    tool_name = p.get('name') or p.get('tool') or ''
+            if isinstance(last_parts, list):
+                for p in reversed(last_parts):
+                    if not isinstance(p, dict):
+                        continue
+                    if p.get('type') == 'text' and p.get('text', '').strip():
+                        last_text = p.get('text', '').strip()
+                        break
+                    elif p.get('type') == 'tool' and not tool_name:
+                        tool_name = p.get('name') or p.get('tool') or ''
 
             pending_questions = []
-            for m in reversed(msgs):
-                for p in reversed(m.get('parts', [])):
-                    if p.get('type') == 'tool' and (p.get('name') or p.get('tool')) == 'question':
-                        inp = p.get('state', {}).get('input', {})
-                        questions = inp.get('questions', [])
-                        metadata = p.get('state', {}).get('metadata', {})
-                        answers_data = metadata.get('answers', [])
-                        already_answered = bool(answers_data)
-                        for qi, q in enumerate(questions):
-                            q_entry = {
-                                'header': q.get('header', ''),
-                                'question': q.get('question', ''),
-                                'options': [{'label': o.get('label', ''), 'description': o.get('description', '')} for o in q.get('options', [])],
-                                'answered': already_answered,
-                            }
-                            if already_answered:
-                                matched = [a for a in answers_data if a.get('questionIndex') == qi]
-                                if matched:
-                                    q_entry['selected_indices'] = matched[0].get('optionIndices', [])
-                            pending_questions.append(q_entry)
+            if isinstance(msgs, list):
+                for m in reversed(msgs):
+                    if not isinstance(m, dict):
+                        continue
+                    parts = m.get('parts', [])
+                    if not isinstance(parts, list):
+                        continue
+                    for p in reversed(parts):
+                        if not isinstance(p, dict):
+                            continue
+                        if p.get('type') == 'tool' and (p.get('name') or p.get('tool')) == 'question':
+                            state_val = p.get('state', {})
+                            if not isinstance(state_val, dict):
+                                state_val = {}
+                            inp = state_val.get('input', {})
+                            if not isinstance(inp, dict):
+                                inp = {}
+                            questions = inp.get('questions', [])
+                            if not isinstance(questions, list):
+                                questions = []
+                            metadata = state_val.get('metadata', {})
+                            if not isinstance(metadata, dict):
+                                metadata = {}
+                            answers_data = metadata.get('answers', [])
+                            if not isinstance(answers_data, list):
+                                answers_data = []
+                            already_answered = bool(answers_data)
+                            for qi, q in enumerate(questions):
+                                if not isinstance(q, dict):
+                                    continue
+                                q_entry = {
+                                    'header': q.get('header', ''),
+                                    'question': q.get('question', ''),
+                                    'options': [],
+                                    'answered': already_answered,
+                                }
+                                options = q.get('options', [])
+                                if isinstance(options, list):
+                                    q_entry['options'] = [{'label': o.get('label', ''), 'description': o.get('description', '')} for o in options if isinstance(o, dict)]
+                                if already_answered:
+                                    matched = [a for a in answers_data if isinstance(a, dict) and a.get('questionIndex') == qi]
+                                    if matched:
+                                        q_entry['selected_indices'] = matched[0].get('optionIndices', [])
+                                pending_questions.append(q_entry)
+                            break
+                    if pending_questions:
                         break
-                if pending_questions:
-                    break
 
             last_user_prompt = ''
-            for m in reversed(msgs):
-                if m.get('info', {}).get('role') == 'user':
-                    for p in m.get('parts', []):
-                        if p.get('type') == 'text' and p.get('text', '').strip():
-                            last_user_prompt = p.get('text', '').strip()
+            if isinstance(msgs, list):
+                for m in reversed(msgs):
+                    if not isinstance(m, dict):
+                        continue
+                    m_info = m.get('info', {})
+                    if isinstance(m_info, dict) and m_info.get('role') == 'user':
+                        parts = m.get('parts', [])
+                        if isinstance(parts, list):
+                            for p in parts:
+                                if not isinstance(p, dict):
+                                    continue
+                                if p.get('type') == 'text' and p.get('text', '').strip():
+                                    last_user_prompt = p.get('text', '').strip()
+                                    break
+                        if last_user_prompt:
                             break
-                    if last_user_prompt:
-                        break
 
             tokens = info.get('tokens', {}) or {}
+            if not isinstance(tokens, dict):
+                tokens = {}
             total_tokens = tokens.get('input', 0) + tokens.get('output', 0)
             cost = info.get('cost', 0)
             summary = info.get('summary', {})
+            if not isinstance(summary, dict):
+                summary = {}
             files_changed = summary.get('files', 0)
             agent_type = info.get('agent', '')
-            model_id = info.get('model', {}).get('id', '')
+            model_info = info.get('model', {})
+            if not isinstance(model_info, dict):
+                model_info = {}
+            model_id = model_info.get('id', '')
 
             detail_cache[sid] = {
                 'updated': session_to_fetch['updated'],

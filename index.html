@@ -1911,7 +1911,7 @@ function renderDashboard(data) {
   });
 
   // ── SESSIONS GRID ──
-  const sessions = data.sessions || [];
+  const sessions = data.all_sessions || data.sessions || [];
   const grid = document.getElementById('sessionsGrid');
   grid.innerHTML = '';
 
@@ -2323,7 +2323,7 @@ global.schedulePoll = schedulePoll;
         <h3><img src="assets/icons/refresh-white.png" alt="Workflows" class="section-icon"> Workflows</h3>
         <div class="desc">Design multi-stage case workflows</div>
         <div class="inline-form" style="margin-bottom:12px">
-          <button class="btn btn-sm btn-primary" onclick="openWorkflowModal()" style="margin-left:auto">+ New Workflow</button>
+          <button class="btn btn-sm btn-primary" onclick="openWorkflowEditor(null)" style="margin-left:auto">+ New Workflow</button>
         </div>
         <div id="workflowsTabContent"><div style="font-size:12px;color:var(--text-dim)">Loading workflows...</div></div>
       </div>
@@ -2853,7 +2853,7 @@ function switchTab(tabId) {
   if (tabId === 'providers') renderProvidersTab();
   if (tabId === 'super-staff') renderSuperStaffTab();
   if (tabId === 'cron') { renderCronTab(); _cronRefreshTimer = setInterval(updateCronCountdowns, 1000); }
-  if (tabId === 'workflows') openWorkflowModal();
+  if (tabId === 'workflows') renderWorkflowsTab();
 }
 
 // ── SESSIONS TAB ──
@@ -3114,15 +3114,36 @@ function openNewSessionModal() {
   const wsSel = document.getElementById('newSessionWorkspace');
   wsSel.innerHTML = '<option value="">Default (home)</option>';
   fetch('data/status.json?_=' + Date.now()).then(r => r.json()).then(data => {
-    const dirs = [...new Set((data.all_sessions || []).map(s => s.directory).filter(Boolean))].sort();
-    dirs.forEach(d => {
+    const workspaces = Array.isArray(data.workspaces) && data.workspaces.length
+      ? data.workspaces
+      : Array.from(new Set((data.all_sessions || []).map(s => s.directory).filter(Boolean))).map(function(d) {
+          return { directory: d, worktree: d, name: d.split('/').pop() || d };
+        });
+    workspaces.forEach(ws => {
+      const d = ws.directory || ws.worktree || '';
+      if (!d) return;
       const opt = document.createElement('option');
       opt.value = d;
-      opt.textContent = d.split('/').pop() || d;
+      opt.textContent = ws.name || d.split('/').pop() || d;
       opt.title = d;
       wsSel.appendChild(opt);
     });
   }).catch(() => {});
+  // Populate workflows
+  const wfSel = document.getElementById('newSessionWorkflow');
+  if (wfSel) {
+    wfSel.innerHTML = '<option value="">None</option>';
+    fetch('/api/workflows').then(r => r.json()).then(data => {
+      if (data.ok && data.workflows) {
+        data.workflows.forEach(w => {
+          const opt = document.createElement('option');
+          opt.value = w.id;
+          opt.textContent = w.name || w.id;
+          wfSel.appendChild(opt);
+        });
+      }
+    }).catch(() => {});
+  }
 }
 
 async function startNewSession() {
@@ -3150,7 +3171,8 @@ async function startNewSession() {
 
   try {
     try {
-      const data = await sendQueued('new-session', { title, message: finalMessage, mode: finalMode, model: finalModel, directory, fresh: true }, function(d) {
+      const workflowId = document.getElementById('newSessionWorkflow').value;
+      const data = await sendQueued('new-session', { title, message: finalMessage, mode: finalMode, model: finalModel, directory, fresh: true, workflow_id: workflowId }, function(d) {
         if (d.status === 'processing' || d.status === 'queued') {
           var elapsed = Math.round((Date.now() - _nsStart) / 1000) + 's';
           var tMsg = document.getElementById('toastMessage');
@@ -3470,55 +3492,141 @@ async function renderTasksModal() {
   }
 }
 
-async function openWorkflowModal() {
-  const modal = document.getElementById('wfViewModal');
-  const body = document.getElementById('wfViewBody');
-  const title = document.getElementById('wfViewTitle');
-  title.textContent = 'Workflows';
-  body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">Loading workflows...</div>';
-  modal.style.display = 'flex';
+const wfEditor = {
+  state: null,
+  zoom: 1,
+  selectedNodeId: null,
+  init() {
+    this.state = this.state || { id: '', name: '', nodes: [], edges: [] };
+    this.render();
+  },
+  open(wf) {
+    this.state = wf ? JSON.parse(JSON.stringify(wf)) : { id: 'wf_' + Math.random().toString(36).slice(2, 12), name: '', nodes: [], edges: [] };
+    if (!Array.isArray(this.state.nodes)) this.state.nodes = [];
+    if (!Array.isArray(this.state.edges)) this.state.edges = [];
+    this.selectedNodeId = null;
+    document.getElementById('wfEditorTitle').value = this.state.name || '';
+    document.getElementById('wfListView').style.display = 'none';
+    document.getElementById('wfEditorView').style.display = 'block';
+    this.render();
+  },
+  close() {
+    document.getElementById('wfEditorView').style.display = 'none';
+    document.getElementById('wfListView').style.display = 'block';
+  },
+  async load() {
+    const data = await apiFetch('/api/workflows');
+    return (data && data.workflows) || [];
+  },
+  async render() {
+    const list = document.getElementById('wfListContent');
+    const editorTitle = document.getElementById('wfEditorTitle');
+    if (!this.state || !editorTitle) return;
+    editorTitle.value = this.state.name || '';
+    if (document.getElementById('wfEditorView').style.display !== 'none') {
+      const nodes = this.state.nodes || [];
+      const edges = this.state.edges || [];
+      document.getElementById('wfEditorStatus').textContent = `${nodes.length} nodes · ${edges.length} links`;
+      const canvas = document.getElementById('wfNodesLayer');
+      if (canvas) {
+        canvas.innerHTML = nodes.map(n => {
+          const left = (n.x || 0) + 'px';
+          const top = (n.y || 0) + 'px';
+          const active = this.selectedNodeId === n.id ? 'wf-node selected' : 'wf-node';
+          return `<div class="${active}" style="left:${left};top:${top}" onclick="wfEditor.selectNode('${n.id}', event)"><div style="font-size:10px;color:var(--text-dim)">${escapeHtml(n.node_type || 'io')}</div><div style="font-weight:600">${escapeHtml(n.name || 'Node')}</div><div style="font-size:10px;color:var(--text-dim);margin-top:4px;max-width:220px;white-space:pre-wrap">${escapeHtml(n.instructions || '')}</div></div>`;
+        }).join('');
+      }
+    }
+    if (list) {
+      const workflows = await this.load();
+      if (!workflows.length) {
+        list.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No workflows defined</div>';
+        return;
+      }
+      list.innerHTML = workflows.map(function(wf) {
+        return '<div class="admin-card" style="margin-bottom:12px">' +
+          '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center">' +
+            '<div><div style="font-size:13px;font-weight:600">' + escapeHtml(wf.name || wf.id || 'Workflow') + '</div>' +
+            '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">' + escapeHtml((wf.nodes || []).length + ' nodes · ' + (wf.edges || []).length + ' links') + '</div></div>' +
+            '<div style="display:flex;gap:6px">' +
+              '<button class="btn btn-sm" onclick="openWorkflowEditor(\'' + escapeHtml(wf.id || '') + '\')">Open</button>' +
+              '<button class="btn btn-sm btn-danger" onclick="deleteWorkflow(\'' + escapeHtml(wf.id || '') + '\')">Delete</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+  },
+  addNode(type) {
+    const id = 'n' + Math.random().toString(36).slice(2, 8);
+    const count = this.state.nodes.length;
+    this.state.nodes.push({ id, name: type === 'starter' ? 'Starter' : type === 'end' ? 'End' : 'Node', instructions: '', x: 40 + count * 220, y: 50 + (count % 2) * 120, node_type: type, staff_ic: '', mode: 'build', model: '' });
+    this.selectedNodeId = id;
+    this.render();
+  },
+  selectNode(id) { this.selectedNodeId = id; this.render(); },
+  deleteSelected() {
+    if (!this.selectedNodeId) return;
+    this.state.nodes = this.state.nodes.filter(n => n.id !== this.selectedNodeId);
+    this.state.edges = this.state.edges.filter(e => e.from !== this.selectedNodeId && e.to !== this.selectedNodeId);
+    this.selectedNodeId = null;
+    this.render();
+  },
+  zoomIn() { this.zoom = Math.min(2, this.zoom + 0.1); document.getElementById('wfZoomLabel').textContent = Math.round(this.zoom * 100) + '%'; },
+  zoomOut() { this.zoom = Math.max(0.5, this.zoom - 0.1); document.getElementById('wfZoomLabel').textContent = Math.round(this.zoom * 100) + '%'; },
+  resetZoom() { this.zoom = 1; document.getElementById('wfZoomLabel').textContent = '100%'; },
+  onInspectorChange() {},
+  async save() {
+    this.state.name = document.getElementById('wfEditorTitle').value.trim();
+    const data = await sendQueued('workflow-save', { workflow: this.state });
+    showToast(data.ok ? 'Workflow saved' : 'Failed to save workflow', data.ok ? 'success' : 'error');
+    if (data.ok) {
+      this.close();
+      await renderWorkflowsTab();
+    }
+  }
+};
+
+async function renderWorkflowsTab() {
+  const el = document.getElementById('wfListContent');
+  if (!el) return;
+  el.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">Loading workflows...</div>';
   try {
     const data = await apiFetch('/api/workflows');
     const workflows = (data && data.workflows) || [];
     if (!workflows.length) {
-      body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No workflows defined</div>';
+      el.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No workflows defined</div>';
       return;
     }
-    body.innerHTML = workflows.map(function(wf) {
+    el.innerHTML = workflows.map(function(wf) {
       return '<div class="admin-card" style="margin-bottom:12px">' +
         '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center">' +
           '<div><div style="font-size:13px;font-weight:600">' + escapeHtml(wf.name || wf.id || 'Workflow') + '</div>' +
           '<div style="font-size:10px;color:var(--text-dim);margin-top:4px">' + escapeHtml((wf.nodes || []).length + ' nodes · ' + (wf.edges || []).length + ' links') + '</div></div>' +
           '<div style="display:flex;gap:6px">' +
-            '<button class="btn btn-sm" onclick="viewWorkflow(\'' + escapeHtml(wf.id || '') + '\')">Open</button>' +
+            '<button class="btn btn-sm" onclick="openWorkflowEditor(\'' + escapeHtml(wf.id || '') + '\')">Open</button>' +
           '</div>' +
         '</div>' +
       '</div>';
     }).join('');
   } catch (e) {
-    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load workflows</div>';
+    el.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load workflows</div>';
   }
 }
 
-async function viewWorkflow(id) {
-  const modal = document.getElementById('wfViewModal');
-  const body = document.getElementById('wfViewBody');
-  const title = document.getElementById('wfViewTitle');
-  modal.style.display = 'flex';
-  title.textContent = 'Workflow Details';
-  try {
-    const data = await apiFetch('/api/workflows');
-    const wf = ((data && data.workflows) || []).find(function(w) { return w.id === id; });
-    if (!wf) {
-      body.innerHTML = '<div style="font-size:12px;color:var(--red)">Workflow not found</div>';
-      return;
-    }
-    title.textContent = wf.name || 'Workflow Details';
-    body.innerHTML = '<div class="admin-card"><div style="font-size:12px">Nodes: ' + (wf.nodes || []).length + '</div><div style="font-size:12px;margin-top:8px">Edges: ' + (wf.edges || []).length + '</div></div>';
-  } catch (e) {
-    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load workflow</div>';
-  }
+async function openWorkflowModal() { await renderWorkflowsTab(); }
+async function openWorkflowEditor(id) {
+  const data = await apiFetch('/api/workflows');
+  const workflows = (data && data.workflows) || [];
+  const wf = id ? workflows.find(function(w) { return w.id === id; }) : null;
+  if (!document.getElementById('wfListContent')) await renderWorkflowsTab();
+  wfEditor.open(wf);
 }
+
+function closeWorkflowEditor() { wfEditor.close(); }
+async function deleteWorkflow(id) { await sendQueued('workflow-delete', { id }); await renderWorkflowsTab(); }
+function closeWorkflowViewModal() { closeWorkflowEditor(); }
+async function viewWorkflow(id) { await openWorkflowEditor(id); }
 
 // ── SYSTEM TAB ──
 async function renderSystemTab() {
@@ -5010,7 +5118,7 @@ const _exports = {
   getBossName,
   renderModeOptions, showToast, copyToastMessage, dismissToast,
   closeViewModal, closeContinueModal, closeNewSessionModal,
-  closeTasksModal, closeWorkflowViewModal, openWorkflowModal, viewWorkflow,
+  closeTasksModal, closeWorkflowViewModal, openWorkflowModal, openWorkflowEditor, closeWorkflowEditor, renderWorkflowsTab, viewWorkflow, deleteWorkflow,
   renameSession, closeRenameModal, saveRename,
   formatDuration, formatExactTime, getCronCountdown, updateCronCountdowns,
   renderCronTab, openCronModal, onCronModeChange, closeCronModal,
