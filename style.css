@@ -560,7 +560,7 @@
     color: var(--text-dim);
   }
   .desk-card .desk-avatar {
-    width: 140px; height: 140px;
+    width: 70px; height: 70px;
     margin: 4px auto 6px;
     border-radius: 12px;
     display: flex;
@@ -581,7 +581,7 @@
     display: flex; justify-content: center; gap: 6px;
     font-size: 9px; color: var(--text-dim); margin-top: 3px;
   }
-  .desk-card .desk-img { width: 120px; height: 120px; border-radius: 8px; object-fit: cover; }
+  .desk-card .desk-img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; }
   .desk-card .desk-active-dot {
     position: absolute; top: 8px; right: 8px;
     width: 6px; height: 6px; border-radius: 50%;
@@ -1089,6 +1089,8 @@
   }
   .wf-inspector select:disabled { opacity: 0.5; cursor: not-allowed; }
   .wf-inspector textarea { min-height: 80px; resize: vertical; }
+  .ic { width: auto; height: 14px; vertical-align: middle; display: inline-block; }
+  .ic-sm { width: auto; height: 12px; vertical-align: middle; display: inline-block; }
   .wf-inspector-edges { margin-top: 16px; border-top: 1px solid var(--border); padding-top: 12px; }
 
   /* ── CARD INSIDE ADMIN ── */
