@@ -3505,9 +3505,12 @@ const wfEditor = {
     if (!Array.isArray(this.state.nodes)) this.state.nodes = [];
     if (!Array.isArray(this.state.edges)) this.state.edges = [];
     this.selectedNodeId = null;
-    document.getElementById('wfEditorTitle').value = this.state.name || '';
-    document.getElementById('wfListView').style.display = 'none';
-    document.getElementById('wfEditorView').style.display = 'block';
+    const titleEl = document.getElementById('wfEditorTitle');
+    const listView = document.getElementById('wfListView');
+    const editorView = document.getElementById('wfEditorView');
+    if (titleEl) titleEl.value = this.state.name || '';
+    if (listView) listView.style.display = 'none';
+    if (editorView) editorView.style.display = 'block';
     this.render();
   },
   close() {
@@ -3523,10 +3526,12 @@ const wfEditor = {
     const editorTitle = document.getElementById('wfEditorTitle');
     if (!this.state || !editorTitle) return;
     editorTitle.value = this.state.name || '';
-    if (document.getElementById('wfEditorView').style.display !== 'none') {
+    const editorView = document.getElementById('wfEditorView');
+    if (editorView && editorView.style.display !== 'none') {
       const nodes = this.state.nodes || [];
       const edges = this.state.edges || [];
-      document.getElementById('wfEditorStatus').textContent = `${nodes.length} nodes · ${edges.length} links`;
+      const statusEl = document.getElementById('wfEditorStatus');
+      if (statusEl) statusEl.textContent = `${nodes.length} nodes · ${edges.length} links`;
       const canvas = document.getElementById('wfNodesLayer');
       if (canvas) {
         canvas.innerHTML = nodes.map(n => {
@@ -3577,7 +3582,8 @@ const wfEditor = {
   resetZoom() { this.zoom = 1; document.getElementById('wfZoomLabel').textContent = '100%'; },
   onInspectorChange() {},
   async save() {
-    this.state.name = document.getElementById('wfEditorTitle').value.trim();
+    const titleEl = document.getElementById('wfEditorTitle');
+    this.state.name = titleEl ? titleEl.value.trim() : (this.state.name || '');
     const data = await sendQueued('workflow-save', { workflow: this.state });
     showToast(data.ok ? 'Workflow saved' : 'Failed to save workflow', data.ok ? 'success' : 'error');
     if (data.ok) {
