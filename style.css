@@ -1422,4 +1422,13 @@
   .chat-header { font-size: 10px; color: var(--text-dim); margin-bottom: 4px; display: flex; gap: 8px; }
   .chat-header .role-user { color: var(--blue); }
   .chat-header .role-assistant { color: var(--green); }
+  .chat-copy-btn {
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; font-size: 11px; padding: 0 4px; margin-left: auto;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .chat-bubble-user:hover .chat-copy-btn,
+  .chat-bubble-assistant:hover .chat-copy-btn,
+  .chat-bubble-system:hover .chat-copy-btn { opacity: 0.5; }
+  .chat-copy-btn:hover { opacity: 1 !important; }
 

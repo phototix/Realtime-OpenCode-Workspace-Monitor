@@ -393,7 +393,12 @@ function viewSessionChat(id) {
       var role = m.role === 'user' ? 'user' : (m.role === 'assistant' ? 'assistant' : 'system');
       var ts = m.time_created ? new Date(m.time_created).toLocaleTimeString() : '';
       html += '<div class="chat-bubble-' + role + '">';
-      html += '<div class="chat-header"><span class="role-' + role + '">' + role + '</span><span>' + ts + '</span></div>';
+      html += '<div class="chat-header"><span class="role-' + role + '">' + role + '</span><span>' + ts + '</span>';
+      if (m.text) {
+        var safeText = m.text.replace(/'/g, "\\'").replace(/\n/g, '\\n');
+        html += '<button class="chat-copy-btn" onclick="event.stopPropagation(); copyBubbleText(this)" data-text=\'' + safeText + '\' title="Copy text">\uD83D\uDCCB</button>';
+      }
+      html += '</div>';
       if (m.text) {
         html += renderMarkdown(m.text);
       } else if (m.tool) {
@@ -411,6 +416,15 @@ function viewSessionChat(id) {
 
 function closeChatModal() {
   document.getElementById('sessionChatModal').style.display = 'none';
+}
+
+function copyBubbleText(btn) {
+  var text = btn.getAttribute('data-text').replace(/\\n/g, '\n');
+  navigator.clipboard.writeText(text).then(function() {
+    btn.textContent = '\u2713';
+    btn.style.opacity = '1';
+    setTimeout(function() { btn.textContent = '\uD83D\uDCCB'; btn.style.opacity = ''; }, 1200);
+  }).catch(function() {});
 }
 
 function saveProjectInstruction() {
@@ -3684,7 +3698,7 @@ const _exports = {
   sha256, getUsers, saveUsers, getAuth, setAuth, clearAuth,
   initDefaultUsers, openLoginModal, closeLoginModal, closeAdminModal,
   handleLogin, handleLogout, updateLoginIndicator, openAdminModal,
-  switchTab, renderCasesTab, assignStaff, stopSession, viewSession, viewSessionChat, closeChatModal,
+  switchTab, renderCasesTab, assignStaff, stopSession, viewSession,   viewSessionChat, closeChatModal, copyBubbleText,
   continueSession, openNewSessionModal, startNewSession, loadModels,
   sessionInstructView, showQuestions, selectQuestionOption, sendAnswers,
   closeQuestionModal, closeTasksModal, showTasks, renderSystemTab, restartDaemon, killDaemon,
