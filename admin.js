@@ -277,6 +277,7 @@ async function renderCasesTab() {
             todoBadge(s) +
             questionBadge(s) +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
+            '<button class="view-btn" style="background:var(--blue)33;border-color:var(--blue)" onclick="viewSessionChat(\'' + s.id + '\')">\uD83D\uDCAC Chats</button> ' +
             '<button class="rename-btn" onclick="renameSession(\'' + s.id + '\',\'' + (s.title||'?').replace(/'/g,"\\'") + '\')">Rename</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\', event)">Stop</button>' : '') +
              (s.state !== 'thinking' && s.state !== 'running-tools' ? ' <button class="send-btn" data-sid="' + s.id + '" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +
@@ -370,6 +371,46 @@ function viewSession(id) {
     body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load case data</div>';
     modal.style.display = 'flex';
   });
+}
+
+function viewSessionChat(id) {
+  const modal = document.getElementById('sessionChatModal');
+  const body = document.getElementById('sessionChatBody');
+  document.getElementById('chatModalTitle').textContent = 'Chat History';
+  body.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-dim)">Loading messages...</div>';
+  modal.style.display = 'flex';
+  fetch('/api/chat?session_id=' + encodeURIComponent(id)).then(function(r){ return r.json(); }).then(function(data) {
+    if (!data.ok || !data.messages) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load messages</div>';
+      return;
+    }
+    if (data.messages.length === 0) {
+      body.innerHTML = '<div style="font-size:12px;color:var(--text-dim)">No messages</div>';
+      return;
+    }
+    var html = '<div style="margin-bottom:12px;font-size:11px;color:var(--text-dim)">' + data.messages.length + ' messages</div>';
+    data.messages.forEach(function(m) {
+      var role = m.role === 'user' ? 'user' : (m.role === 'assistant' ? 'assistant' : 'system');
+      var ts = m.time_created ? new Date(m.time_created).toLocaleTimeString() : '';
+      html += '<div class="chat-bubble-' + role + '">';
+      html += '<div class="chat-header"><span class="role-' + role + '">' + role + '</span><span>' + ts + '</span></div>';
+      if (m.text) {
+        html += renderMarkdown(m.text);
+      } else if (m.tool) {
+        html += '<span style="font-style:italic">\uD83D\uDD27 ran tool: ' + escapeHtml(m.tool) + '</span>';
+      } else {
+        html += '<span style="color:var(--text-dim)">(no text)</span>';
+      }
+      html += '</div>';
+    });
+    body.innerHTML = html;
+  }).catch(function() {
+    body.innerHTML = '<div style="font-size:12px;color:var(--red)">Failed to load messages</div>';
+  });
+}
+
+function closeChatModal() {
+  document.getElementById('sessionChatModal').style.display = 'none';
 }
 
 function saveProjectInstruction() {
@@ -3643,7 +3684,7 @@ const _exports = {
   sha256, getUsers, saveUsers, getAuth, setAuth, clearAuth,
   initDefaultUsers, openLoginModal, closeLoginModal, closeAdminModal,
   handleLogin, handleLogout, updateLoginIndicator, openAdminModal,
-  switchTab, renderCasesTab, assignStaff, stopSession, viewSession,
+  switchTab, renderCasesTab, assignStaff, stopSession, viewSession, viewSessionChat, closeChatModal,
   continueSession, openNewSessionModal, startNewSession, loadModels,
   sessionInstructView, showQuestions, selectQuestionOption, sendAnswers,
   closeQuestionModal, closeTasksModal, showTasks, renderSystemTab, restartDaemon, killDaemon,

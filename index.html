@@ -541,6 +541,17 @@
   </div>
 </div>
 
+<!-- Session Chat Modal -->
+<div class="modal-overlay" id="sessionChatModal" style="display:none">
+  <div class="login-modal" style="width:700px;max-height:85vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:16px">
+      <h2 style="font-size:18px" id="chatModalTitle">Chat History</h2>
+      <button class="admin-close" onclick="closeChatModal()">&times;</button>
+    </div>
+    <div id="sessionChatBody"></div>
+  </div>
+</div>
+
 <!-- Session Continue Modal -->
 <div class="modal-overlay" id="sessionContinueModal" style="display:none">
   <div class="login-modal" style="width:680px;max-height:85vh;overflow-y:auto">

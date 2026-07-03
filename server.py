@@ -11,6 +11,7 @@ import secrets
 from server_config import (
     DATA_DIR, STATIC_DIR, PID_FILE, NOTIFICATIONS_FILE,
     NOTIFICATION_PROVIDERS_FILE,
+    ACTIVITY_FILE,
     STAFF_FILE, ASSIGNMENTS_FILE, WORKFLOWS_FILE, WORKFLOW_INSTANCES_FILE,
     _get_api_key, log, _error_id, get_attach_url,
     _load_notifications, _load_notification_providers,
@@ -213,6 +214,19 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                 self._json({'ok': True, 'daemon_alive': daemon_alive, 'timestamp': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
                 return
 
+            if path == '/api/version':
+                vfile = os.path.join(STATIC_DIR, 'app-version.txt')
+                if os.path.exists(vfile):
+                    try:
+                        with open(vfile) as f:
+                            v = f.read().strip().removeprefix('version:')
+                        self._json({'ok': True, 'version': v, 'download_url': '/mydora-latest.apk'})
+                    except Exception as e:
+                        self._json({'ok': False, 'message': str(e)[:200]}, 500)
+                else:
+                    self._json({'ok': True, 'version': 'unknown', 'download_url': '/mydora-latest.apk'})
+                return
+
             if path == '/api/status':
                 status_path = os.path.join(DATA_DIR, 'status.json')
                 if os.path.exists(status_path):
@@ -372,6 +386,39 @@ class UnifiedHandler(http.server.SimpleHTTPRequestHandler):
                         })
                         return
                 self._json({'ok': False, 'message': 'Queue item not found'}, 404)
+                return
+
+            if path == '/api/chat':
+                if not self._check_api_key():
+                    self._json({'ok': False, 'message': 'Unauthorized'}, 401)
+                    return
+                import urllib.parse as _up
+                _qp = _up.parse_qs(parsed.query)
+                session_id = _qp.get('session_id', [''])[0]
+                if not session_id:
+                    self._json({'ok': False, 'message': 'Missing session_id'}, 400)
+                    return
+                try:
+                    import sqlite3, json as _jsn
+                    _db = os.path.expanduser('~/.local/share/opencode/opencode.db')
+                    _conn = sqlite3.connect(_db)
+                    _rows = _conn.execute("""
+                        SELECT m.id, m.time_created, json_extract(m.data, '$.role') as role,
+                               (SELECT json_extract(p.data, '$.text') FROM part p WHERE p.message_id = m.id AND json_extract(p.data, '$.type') = 'text' LIMIT 1) as text,
+                               (SELECT json_extract(p.data, '$.tool') FROM part p WHERE p.message_id = m.id AND json_extract(p.data, '$.type') = 'tool' LIMIT 1) as tool
+                        FROM message m WHERE m.session_id = ?
+                        ORDER BY m.time_created
+                    """, (session_id,)).fetchall()
+                    _conn.close()
+                    _msgs = []
+                    for _r in _rows:
+                        _m = {'id': _r[0], 'role': _r[2] or 'system', 'time_created': _r[1]}
+                        if _r[3]: _m['text'] = _r[3]
+                        if _r[4]: _m['tool'] = _r[4]
+                        _msgs.append(_m)
+                    self._json({'ok': True, 'messages': _msgs})
+                except Exception as e:
+                    self._json({'ok': False, 'message': str(e)[:200]}, 500)
                 return
 
             self._json({'ok': False, 'message': 'Not found'}, 404)

@@ -1416,4 +1416,10 @@
     transform: translateX(16px);
     background-color: white;
   }
+  .chat-bubble-user { background: #58a6ff22; border-left: 3px solid var(--blue); padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; font-size: 12px; line-height: 1.5; word-break: break-word; }
+  .chat-bubble-assistant { background: var(--surface2); border-left: 3px solid var(--green); padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; font-size: 12px; line-height: 1.5; word-break: break-word; }
+  .chat-bubble-system { background: var(--surface2); border-left: 3px solid var(--text-dim); padding: 10px 14px; border-radius: 8px; margin-bottom: 8px; font-size: 11px; line-height: 1.5; word-break: break-word; opacity:0.7; }
+  .chat-header { font-size: 10px; color: var(--text-dim); margin-bottom: 4px; display: flex; gap: 8px; }
+  .chat-header .role-user { color: var(--blue); }
+  .chat-header .role-assistant { color: var(--green); }
 
