@@ -277,7 +277,7 @@ async function renderCasesTab() {
             todoBadge(s) +
             questionBadge(s) +
             '<button class="view-btn" onclick="viewSession(\'' + s.id + '\')">View</button> ' +
-            '<button class="view-btn" style="background:var(--blue)33;border-color:var(--blue)" onclick="viewSessionChat(\'' + s.id + '\')">\uD83D\uDCAC Chats</button> ' +
+            '<button class="chat-btn" onclick="viewSessionChat(\'' + s.id + '\')">\uD83D\uDCAC Chats</button> ' +
             '<button class="rename-btn" onclick="renameSession(\'' + s.id + '\',\'' + (s.title||'?').replace(/'/g,"\\'") + '\')">Rename</button> ' +
             (isActive ? '<button class="stop-btn" onclick="stopSession(\'' + s.id + '\',\'' + jsonDir + '\', event)">Stop</button>' : '') +
              (s.state !== 'thinking' && s.state !== 'running-tools' ? ' <button class="send-btn" data-sid="' + s.id + '" onclick="continueSession(\'' + s.id + '\')">Continue</button>' : '') +

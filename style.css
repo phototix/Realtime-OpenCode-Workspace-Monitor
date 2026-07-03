@@ -1376,6 +1376,13 @@
   .send-btn:hover { background: var(--green); color: #fff; }
   .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+  .chat-btn {
+    font-size: 10px; padding: 3px 10px; border: none; border-radius: 4px;
+    cursor: pointer; font-weight: 500; transition: all 0.2s;
+    background: #58a6ff33; color: var(--blue);
+  }
+  .chat-btn:hover { background: var(--blue); color: #fff; }
+
   /* ── TOGGLE SWITCH ── */
   .toggle-switch {
     position: relative;
