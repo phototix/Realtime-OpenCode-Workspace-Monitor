@@ -1432,4 +1432,5 @@
   .chat-bubble-assistant:hover .chat-copy-btn,
   .chat-bubble-system:hover .chat-copy-btn { opacity: 0.5; }
   .chat-copy-btn:hover { opacity: 1 !important; }
+  .chat-copy-btn img { display: block; }
 

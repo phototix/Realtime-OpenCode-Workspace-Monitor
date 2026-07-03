@@ -396,7 +396,7 @@ function viewSessionChat(id) {
       html += '<div class="chat-header"><span class="role-' + role + '">' + role + '</span><span>' + ts + '</span>';
       if (m.text) {
         var safeText = m.text.replace(/'/g, "\\'").replace(/\n/g, '\\n');
-        html += '<button class="chat-copy-btn" onclick="event.stopPropagation(); copyBubbleText(this)" data-text=\'' + safeText + '\' title="Copy text">\uD83D\uDCCB</button>';
+        html += '<button class="chat-copy-btn" onclick="event.stopPropagation(); copyBubbleText(this)" data-text=\'' + safeText + '\' title="Copy text"><img src="assets/icons/copy-black.png" class="ic" height="12" alt="Copy"></button>';
       }
       html += '</div>';
       if (m.text) {
@@ -421,9 +421,9 @@ function closeChatModal() {
 function copyBubbleText(btn) {
   var text = btn.getAttribute('data-text').replace(/\\n/g, '\n');
   navigator.clipboard.writeText(text).then(function() {
-    btn.textContent = '\u2713';
+    btn.innerHTML = '\u2713';
     btn.style.opacity = '1';
-    setTimeout(function() { btn.textContent = '\uD83D\uDCCB'; btn.style.opacity = ''; }, 1200);
+    setTimeout(function() { btn.innerHTML = '<img src="assets/icons/copy-black.png" class="ic" height="12" alt="Copy">'; btn.style.opacity = ''; }, 1200);
   }).catch(function() {});
 }
 
