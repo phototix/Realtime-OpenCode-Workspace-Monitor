@@ -389,7 +389,7 @@ function viewSessionChat(id) {
       return;
     }
     var html = '<div style="margin-bottom:12px;font-size:11px;color:var(--text-dim)">' + data.messages.length + ' messages</div>';
-    data.messages.forEach(function(m) {
+    data.messages.slice().reverse().forEach(function(m) {
       var role = m.role === 'user' ? 'user' : (m.role === 'assistant' ? 'assistant' : 'system');
       var ts = m.time_created ? new Date(m.time_created).toLocaleTimeString() : '';
       html += '<div class="chat-bubble-' + role + '">';
