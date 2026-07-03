@@ -42,4 +42,6 @@ fi
 # Copy to dashboard public folder for download
 DASHBOARD_PUBLIC="$HOME/.opencode-dashboard"
 cp "$SRC" "$DASHBOARD_PUBLIC/mydora-latest.apk"
+VERSION_FILE="$(dirname "$(dirname "$(dirname "$(dirname "$SRC")")")")/app-version.txt"
+if [ -f "$VERSION_FILE" ]; then cp "$VERSION_FILE" "$DASHBOARD_PUBLIC/app-version.txt"; fi
 echo "Also saved to $DASHBOARD_PUBLIC/mydora-latest.apk"

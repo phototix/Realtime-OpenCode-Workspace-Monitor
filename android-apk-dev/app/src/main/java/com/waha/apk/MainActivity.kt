@@ -5,7 +5,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ClipData
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.core.app.ActivityCompat
@@ -248,6 +250,11 @@ private fun MonitorApp(vm: MonitorViewModel) {
         }
     }
 
+    LaunchedEffect(Unit) {
+        delay(3000)
+        vm.checkForUpdate()
+    }
+
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
 
@@ -262,6 +269,24 @@ private fun MonitorApp(vm: MonitorViewModel) {
                 NavigationDrawerItem(icon = { Icon(Icons.Filled.Notifications, null) }, label = { Text("Notifications") }, selected = tab == TabItem.Notifications, onClick = { tab = TabItem.Notifications; scope.launch { drawerState.close() } })
                 NavigationDrawerItem(icon = { Icon(Icons.Filled.Article, null) }, label = { Text("Logs") }, selected = tab == TabItem.Logs, onClick = { tab = TabItem.Logs; scope.launch { drawerState.close() } })
                 NavigationDrawerItem(icon = { Icon(Icons.Filled.Settings, null) }, label = { Text("Settings") }, selected = tab == TabItem.Settings, onClick = { tab = TabItem.Settings; scope.launch { drawerState.close() } })
+                Spacer(Modifier.weight(1f))
+                Divider()
+                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(BuildConfig.VERSION_NAME.take(11), fontSize = MaterialTheme.typography.labelSmall.fontSize, color = Color(0xFF8B949E))
+                        Text(BuildConfig.VERSION_NAME.drop(11), fontSize = MaterialTheme.typography.labelSmall.fontSize, color = Color(0xFF8B949E))
+                    }
+                }
+                state.latestVersion?.let { _ ->
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("Update available", fontSize = MaterialTheme.typography.labelSmall.fontSize, color = Color(0xFF58A6FF), modifier = Modifier.weight(1f))
+                        TextButton(onClick = {
+                            val uri = Uri.parse("${state.baseUrl.trimEnd('/')}/mydora-latest.apk")
+                            scope.launch { drawerState.close() }
+                            notifContext.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                        }) { Text("Download", fontSize = MaterialTheme.typography.labelSmall.fontSize) }
+                    }
+                }
             }
         }
     ) {
@@ -346,6 +371,23 @@ private fun MonitorApp(vm: MonitorViewModel) {
                         IconButton(onClick = { visible = false; vm.dismissNotification(ntf.id) }, modifier = Modifier.size(24.dp)) {
                             Icon(Icons.Filled.Clear, contentDescription = "Dismiss", tint = Color.White, modifier = Modifier.size(16.dp))
                         }
+                    }
+                }
+            }
+
+            state.latestVersion?.let { version ->
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(Color(0xFF1F6FEB)).padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Update available: $version", color = Color.White, modifier = Modifier.weight(1f), fontSize = MaterialTheme.typography.bodySmall.fontSize)
+                    TextButton(onClick = {
+                        val uri = Uri.parse("${state.baseUrl.trimEnd('/')}/${state.updateUrl ?: "mydora-latest.apk"}")
+                        val ctx = notifContext
+                        ctx.startActivity(Intent(Intent.ACTION_VIEW, uri))
+                    }) { Text("Download", color = Color.White, fontSize = MaterialTheme.typography.bodySmall.fontSize) }
+                    IconButton(onClick = { vm.dismissUpdate() }, modifier = Modifier.size(20.dp)) {
+                        Icon(Icons.Filled.Clear, contentDescription = "Dismiss", tint = Color.White, modifier = Modifier.size(14.dp))
                     }
                 }
             }
@@ -2049,7 +2091,9 @@ data class UiState(
     val workflows: List<WorkflowDto> = emptyList(),
     val summary: SummaryDto = SummaryDto(),
     val notificationEvent: NotificationEvent? = null,
-    val remoteNotifications: List<RemoteNotification> = emptyList()
+    val remoteNotifications: List<RemoteNotification> = emptyList(),
+    val latestVersion: String? = null,
+    val updateUrl: String? = null
 )
 
 data class StatusPayload(
@@ -2703,6 +2747,25 @@ class MonitorViewModel(private val prefs: AppPreferences) : ViewModel() {
             val updated = _uiState.value.remoteNotifications.filter { it.id != id }
             _uiState.value = _uiState.value.copy(remoteNotifications = updated)
         }
+    }
+
+    fun checkForUpdate() {
+        viewModelScope.launch {
+            val base = _uiState.value.baseUrl.trimEnd('/')
+            runCatching {
+                val api = createApi(_uiState.value.apiKey)
+                val resp = api.getJson("$base/api/version")
+                val latest = resp?.get("version")?.asString ?: return@launch
+                val url = resp?.get("download_url")?.asString ?: return@launch
+                if (latest != BuildConfig.VERSION_NAME) {
+                    _uiState.value = _uiState.value.copy(latestVersion = latest, updateUrl = url)
+                }
+            }
+        }
+    }
+
+    fun dismissUpdate() {
+        _uiState.value = _uiState.value.copy(latestVersion = null, updateUrl = null)
     }
 
     var cachedLogs: List<String> = emptyList()
