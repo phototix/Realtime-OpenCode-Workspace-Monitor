@@ -330,6 +330,23 @@ for s in completed:
         else:
             s['agents'].append(w)
 
+# Dedup: if multiple real agents run same session, keep top 2 by CPU
+import re as _re_dedup
+_session_cmd_counts = {}
+for _a in agent_list:
+    if _a.get('virtual') or _a['type'] == 'engine':
+        continue
+    _m = _re_dedup.search(r'-s\s+(\S+)', _a.get('command', ''))
+    if _m:
+        _sid = _m.group(1)
+        _session_cmd_counts.setdefault(_sid, []).append(_a)
+for _sid, _agents in _session_cmd_counts.items():
+    if len(_agents) > 3:
+        _agents.sort(key=lambda x: x.get('cpu', 0), reverse=True)
+        for _dup in _agents[2:]:
+            _dup['status'] = 'finished'
+            log_activity_py(f"Dedup: killed duplicate agent PID {_dup['pid']} for session {_sid[:16]}")
+
 # ── STEP 10: Standalone agents ──
 claimed_pids = {ma['pid'] for s in sessions for ma in s.get('agents', [])}
 pid_to_name = {a['pid']: a.get('name') for a in agent_list}

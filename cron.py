@@ -89,7 +89,14 @@ def _run_cron_job(job: dict) -> None:
         if proj_inst:
             message = proj_inst + '\n\n' + message
         cmd.append(message)
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=cwd)
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, text=True)
+        try:
+            stdout, stderr = proc.communicate(timeout=600)
+            r = subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
+            raise
         if r.returncode != 0:
             err = strip_ansi((r.stderr or '')[:200]).lower()
             if 'not found' in err and action.get('session_id'):
@@ -115,7 +122,14 @@ def _run_cron_job(job: dict) -> None:
                     elif action.get('mode'):
                         cmd2.extend(['--agent', action['mode']])
                     cmd2.append(message)
-                    r2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=600, cwd=cwd)
+                    proc2 = subprocess.Popen(cmd2, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=cwd, text=True)
+                    try:
+                        stdout2, stderr2 = proc2.communicate(timeout=600)
+                        r2 = subprocess.CompletedProcess(cmd2, proc2.returncode, stdout2, stderr2)
+                    except subprocess.TimeoutExpired:
+                        proc2.kill()
+                        proc2.wait()
+                        raise
                     if r2.returncode == 0:
                         log(f"Cron: fallback -c succeeded for '{job.get('name', '?')}'")
                         status = 'done'
@@ -160,7 +174,12 @@ def _cron_runner() -> None:
             # Reset stale _running flags from crashed runs
             _stale = False
             for job in jobs:
-                if job.get('_running') and job.get('last_run', 0) == 0:
+                if not job.get('_running'):
+                    continue
+                last_run = job.get('last_run', 0)
+                interval = job.get('interval_sec', 300)
+                # Stale if never ran, or if interval * 3 has elapsed since last_run (avoid re-firing while thread still running)
+                if last_run == 0 or (now - last_run > interval * 3):
                     job.pop('_running', None)
                     _stale = True
             if _stale:
