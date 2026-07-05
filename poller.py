@@ -103,7 +103,7 @@ for s in sessions:
     sid = s.get('id', '')
     cached = detail_cache.get(sid, {})
     s['slug'] = cached.get('slug', '')
-    s['state'] = cached.get('state', '')
+    s['state'] = cached.get('state') or s.get('state', '')
     s['last_user_prompt'] = cached.get('last_user_prompt', '')
     s['last_text'] = cached.get('last_text', '')
     s['tool_name'] = cached.get('tool_name', '')
@@ -157,7 +157,7 @@ for s in all_sessions:
         'directory': s.get('directory', ''),
         'agent': s.get('agent', ''),
         'slug': cached.get('slug', ''),
-        'state': cached.get('state', ''),
+        'state': cached.get('state') or s.get('state', ''),
         'last_user_prompt': cached.get('last_user_prompt', ''),
         'last_text': cached.get('last_text', ''),
         'tool_name': cached.get('tool_name', ''),
@@ -206,7 +206,8 @@ now_ms = int(datetime.now().timestamp() * 1000)
 five_min_ms = 5 * 60 * 1000
 removed_titles = {
     s['title'] for s in sessions
-    if s.get('state') == 'complete' and (now_ms - s.get('updated', 0)) > five_min_ms
+    if (s.get('state') == 'complete' or not s.get('state'))
+    and (now_ms - s.get('updated', 0)) > five_min_ms
 }
 sessions[:] = [s for s in sessions if s['title'] not in removed_titles]
 for r_title in removed_titles:

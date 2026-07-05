@@ -107,6 +107,7 @@ def build_active_sessions(all_sessions: list, agent_to_session: dict) -> list:
         sessions.append({
             'id': sid,
             'title': s.get('title', ''),
+            'state': s.get('state', ''),
             'updated': updated,
             'active': True,
             'directory': s.get('directory', ''),
