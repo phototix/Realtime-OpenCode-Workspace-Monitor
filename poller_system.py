@@ -62,7 +62,9 @@ def parse_ps_output(cpu_core_count: int) -> tuple:
 
         if 'grep' in cmd:
             continue
-        if 'daemon.sh' in cmd or '/poller.py' in cmd:
+        if 'daemon.sh' in cmd or '/poller.py' in cmd or '/gateway.py' in cmd:
+            continue
+        if 'opencode serve' in cmd or '/server.py' in cmd:
             continue
         if name in skip_utils:
             continue
