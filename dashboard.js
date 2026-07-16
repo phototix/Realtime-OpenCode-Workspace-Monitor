@@ -23,6 +23,9 @@
   };
 })();
 
+function toggleSidebar() {
+  document.querySelector('.sidebar').classList.toggle('collapsed');
+}
 const STATUS_URL = 'data/status.json';
 global.POLL_INTERVAL = 2000;
 global._pollTimer = null;
@@ -898,6 +901,7 @@ poll();
 schedulePoll();
 
 // Export functions used by onclick handlers
+global.toggleSidebar = toggleSidebar;
 global.toggleDisplay = toggleDisplay;
 global.switchContentTab = switchContentTab;
 
