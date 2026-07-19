@@ -26,6 +26,17 @@
 function toggleSidebar() {
   document.querySelector('.sidebar').classList.toggle('collapsed');
 }
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
+document.addEventListener('fullscreenchange', function() {
+  var btn = document.getElementById('fsBtn');
+  if (btn) btn.textContent = document.fullscreenElement ? '⛶' : '⛶';
+});
 const STATUS_URL = 'data/status.json';
 global.POLL_INTERVAL = 2000;
 global._pollTimer = null;
@@ -902,6 +913,7 @@ schedulePoll();
 
 // Export functions used by onclick handlers
 global.toggleSidebar = toggleSidebar;
+global.toggleFullscreen = toggleFullscreen;
 global.toggleDisplay = toggleDisplay;
 global.switchContentTab = switchContentTab;
 
