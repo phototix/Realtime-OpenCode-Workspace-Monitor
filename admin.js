@@ -257,11 +257,12 @@ async function renderCasesTab() {
         const jsonDir = (s.directory || '').replace(/'/g,"\\'");
         const escId = s.id.replace(/[^a-zA-Z0-9]/g,'_');
         var sTitle = escapeHtml(s.title || '?');
+        var sTitleShort = sTitle.length > 20 ? sTitle.slice(0,20) + '...' : sTitle;
         var sState = escapeHtml(s.state || 'active');
         var sModel = escapeHtml(s.model_id || '—');
         var sAssigned = escapeHtml(s.assigned_staff || '');
         html += '<tr>' +
-          '<td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + sTitle.replace(/"/g,'&quot;') + '">' + sTitle + '</td>' +
+          '<td style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + sTitle.replace(/"/g,'&quot;') + '">' + sTitleShort + '</td>' +
           '<td><span style="color:' + stateColor + '">' + sState + '</span></td>' +
           '<td>' + (s.last_mode ? '<span style="font-size:10px;padding:1px 6px;border-radius:3px;font-weight:500;background:' + (s.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33') + ';color:' + (s.last_mode === 'plan' ? '#bc8cff' : '#58a6ff') + '">' + s.last_mode + '</span>' : '—') + '</td>' +
           '<td style="font-size:10px;color:var(--text-dim)">' + sModel + '</td>' +
@@ -469,7 +470,7 @@ function continueSession(id) {
       showToast('This case is already active — wait for it to complete before continuing.', 'error');
       return;
     }
-    titleEl.textContent = 'Continue Case \u2014 ' + (s.title || '?');
+    titleEl.innerHTML = 'Continue Case \u2014 <span title="' + escapeHtml(s.title || '?') + '">' + escapeHtml((s.title||'?').slice(0,20)) + ((s.title||'').length > 20 ? '...' : '') + '</span>';
     const escId = s.id.replace(/[^a-zA-Z0-9]/g,'_');
     const dirEsc = (s.directory || '').replace(/'/g,"\\'");
     body.innerHTML = `
@@ -800,7 +801,7 @@ function showTasks(id) {
       return;
     }
     var done = s.todos.filter(function(t){ return t.status === 'completed'; }).length;
-    var html = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:16px">' + escapeHtml(s.title || '?') + '</div>';
+    var html = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:16px" title="' + escapeHtml(s.title || '?') + '">' + escapeHtml((s.title||'?').slice(0,20)) + ((s.title||'').length > 20 ? '...' : '') + '</div>';
     html += '<div style="font-size:11px;color:var(--text-dim);margin-bottom:12px">Tasks (' + done + '/' + s.todos.length + ')</div>';
     s.todos.forEach(function(t) {
       var isDone = t.status === 'completed';
@@ -884,7 +885,7 @@ function showQuestions(id) {
       return;
     }
     var hasUnanswered = s.pending_questions ? s.pending_questions.some(function(q){ return !q.answered; }) : false;
-    var html = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:16px">' + (s.title || '?') + '</div>';
+    var html = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:16px" title="' + escapeHtml(s.title || '?') + '">' + escapeHtml((s.title||'?').slice(0,20)) + ((s.title||'').length > 20 ? '...' : '') + '</div>';
 
     // Permission requests
     if (s.pending_permissions && s.pending_permissions.length > 0) {
@@ -2343,8 +2344,8 @@ async function openCronModal(jobId) {
       opt.value = s.id || '';
       const label = s.title || s.slug || s.id || '';
       const sub = s.directory ? ' (' + s.directory.split('/').pop() + ')' : '';
-      opt.textContent = label + sub;
-      opt.title = s.id || '';
+      opt.textContent = (label.length > 20 ? label.slice(0,20) + '...' : label) + sub;
+      opt.title = label;
       if (s.id === sidVal) opt.selected = true;
       sidSel.appendChild(opt);
     }
