@@ -51,9 +51,9 @@
   }
   .sidebar-toggle {
     background: none; border: none; cursor: pointer;
-    font-size: 14px; color: var(--text-dim); padding: 2px 8px;
-    border-radius: 4px; line-height: 1; flex-shrink: 0;
-    font-family: monospace; letter-spacing: -1px;
+    font-size: 18px; color: var(--text-dim); padding: 2px 6px;
+    border-radius: 4px; line-height: 1; vertical-align: middle;
+    font-family: monospace; letter-spacing: -2px;
   }
   .sidebar-toggle:hover { color: var(--text); background: var(--surface2); }
   .sidebar-header {

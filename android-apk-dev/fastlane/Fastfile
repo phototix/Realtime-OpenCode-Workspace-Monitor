@@ -1,0 +1,18 @@
+default_platform(:android)
+
+platform :android do
+  desc "Build and upload release AAB to Play Store"
+  lane :production do
+    gradle(task: "bundleRelease", print_command: false)
+
+    upload_to_play_store(
+      aab: "app/build/outputs/bundle/release/app-release.aab",
+      release_status: "completed",
+      track: "production",
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      json_key: "/Users/brandonchong/.opencode-dashboard/mydora-publisher-58e294ea9836.json"
+    )
+  end
+end

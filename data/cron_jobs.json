@@ -31,7 +31,7 @@
       "mode": "build",
       "model": "opencode-go/deepseek-v4-flash",
       "session_id": "ses_1244314eeffeJ84jDkYD5hQxSS",
-      "fork": false
+      "fork": true
     },
     "created": 1782065044.570118
   },
@@ -47,11 +47,8 @@
       "message": "Do complete check on website health, functions, consoles monitoring. Report if any issue.",
       "staff": "Ben Treynor Sloss (Google Server Engineer)",
       "mode": "build",
-      "model": "opencode-go/deepseek-v4-flash",
-      "session_id": "ses_100e69d38ffeItzaI8y76W94Qh",
-      "fork": false
+      "model": "opencode-go/deepseek-v4-flash"
     },
-    "created": 1782405411.216636,
-    "_running": true
+    "created": 1782405411.216636
   }
 ]

@@ -33,8 +33,18 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file(System.getenv("MYDORA_STORE_FILE") ?: "/dev/null")
+            storePassword = System.getenv("MYDORA_STORE_PASSWORD") ?: ""
+            keyAlias = System.getenv("MYDORA_KEY_ALIAS") ?: ""
+            keyPassword = System.getenv("MYDORA_KEY_PASSWORD") ?: ""
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

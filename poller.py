@@ -144,6 +144,18 @@ for s in sessions:
     if session_todos:
         s['todos'] = session_todos
 
+# Staleness override: sessions stuck in thinking/running-tools with unanswered
+# questions and no recent activity are shown as complete (display-only).
+_stale_now_ms = int(datetime.now().timestamp() * 1000)
+_stale_threshold_ms = 30 * 60 * 1000
+for s in sessions:
+    if s.get('state') in ('thinking', 'running-tools'):
+        pq = s.get('pending_questions', [])
+        has_unanswered = any(not q.get('answered', True) for q in pq)
+        if has_unanswered and (_stale_now_ms - s.get('updated', 0)) > _stale_threshold_ms:
+            s['state'] = 'complete'
+            log_activity_py(f"Stale session marked complete: {s.get('title', '')[:60]} (unanswered Q, idle >30m)")
+
 # Enrich all_sessions for admin panel
 known_sids = {s['id'] for s in sessions}
 all_sessions_enriched = []
@@ -171,6 +183,11 @@ for s in all_sessions:
         'pending_questions': cached.get('pending_questions', []),
         'active': sid in known_sids,
     }
+    if enriched.get('state') in ('thinking', 'running-tools'):
+        pq = enriched.get('pending_questions', [])
+        has_unanswered = any(not q.get('answered', True) for q in pq)
+        if has_unanswered and (_stale_now_ms - enriched.get('updated', 0)) > _stale_threshold_ms:
+            enriched['state'] = 'complete'
     pi_text = project_instructions.get(sid, '') or project_instructions.get('__default__', '')
     if not pi_text:
         try:

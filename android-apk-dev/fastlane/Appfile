@@ -1,0 +1,2 @@
+package_name("com.mydora.monitor")
+json_key_file("/Users/brandonchong/.opencode-dashboard/mydora-publisher-58e294ea9836.json")
