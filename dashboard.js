@@ -479,7 +479,7 @@ function renderDashboard(data) {
       <div class="desk-avatar ${isOccupied ? 'occupied' : 'vacant'}"><img src="${deskGif}" class="desk-img" alt=""></div>
       <div class="desk-name">${deskName}</div>
       ${isOccupied ? `
-        <div class="desk-session" style="background:${stateStyle.color}22;color:${stateStyle.color}"${sessionLabel ? ' title="' + escapeHtml(sessionLabel) + '"' : ''}>${worker.superStaff ? (sessionLabel.length > 20 ? sessionLabel.slice(0,20)+'...' : sessionLabel) : (isVirt ? (isActive ? '\u{1F4AD}' : '\u2713') + ' ' + stateStyle.label : sessionLabel.length > 20 ? sessionLabel.slice(0,20)+'...' : sessionLabel)}</div>
+        <div class="desk-session" style="background:${stateStyle.color}22;color:${stateStyle.color}"${sessionLabel ? ' title="' + escapeHtml(sessionLabel) + '"' : ''}>${worker.superStaff ? (sessionLabel.length > 30 ? sessionLabel.slice(0,30)+'...' : sessionLabel) : (isVirt ? (isActive ? '\u{1F4AD}' : '\u2713') + ' ' + stateStyle.label : sessionLabel.length > 30 ? sessionLabel.slice(0,30)+'...' : sessionLabel)}</div>
         <div class="desk-stats">
           ${isVirt ? (worker.superStaff && worker.staffMode ? `<span style="font-size:9px;padding:1px 6px;border-radius:3px;background:${worker.staffMode === 'plan' ? '#bc8cff33' : '#58a6ff33'};color:${worker.staffMode === 'plan' ? '#bc8cff' : '#58a6ff'}">${worker.staffMode}</span>` : '<span>virtual</span>') : `<span>CPU ${worker.cpu || 0}%</span>`}
           <span>${isVirt ? 'conversation' : 'MEM ' + (worker.mem_mb || 0) + 'MB'}</span>
@@ -515,7 +515,7 @@ function renderDashboard(data) {
         <div class="slot-active-dot"></div>
         <div class="slot-avatar occupied"><img src="assets/discuss-group-loop.gif" class="slot-img" alt="discussing"></div>
         <div class="slot-name">${name}</div>
-        <div class="slot-session" style="background:${stateStyle.color}22;color:${stateStyle.color}" title="${escapeHtml(worker.sessionTitle || '')}">${escapeHtml((worker.sessionTitle||'').slice(0,20))}${(worker.sessionTitle||'').length > 20 ? '...' : ''}</div>
+        <div class="slot-session" style="background:${stateStyle.color}22;color:${stateStyle.color}" title="${escapeHtml(worker.sessionTitle || '')}">${escapeHtml((worker.sessionTitle||'').slice(0,30))}${(worker.sessionTitle||'').length > 30 ? '...' : ''}</div>
         <div class="slot-stats">
           <span style="color:${stateStyle.color}">${stateStyle.label}</span>
           <span>${humanAgo(worker.sessionUpdated)}</span>
@@ -732,7 +732,7 @@ function renderDashboard(data) {
       <div class="sc-header">
         <div class="sc-icon ${ss.state || ''}">${state.icon}</div>
         <div style="flex:1;min-width:0">
-          <div class="sc-title" title="${escapeHtml(ss.title || '?')}">${escapeHtml((ss.title||'?').slice(0,20))}${(ss.title||'').length > 20 ? '...' : ''}</div>
+          <div class="sc-title" title="${escapeHtml(ss.title || '?')}">${escapeHtml((ss.title||'?').slice(0,30))}${(ss.title||'').length > 30 ? '...' : ''}</div>
           <div class="sc-meta">${ss.slug ? escapeHtml(ss.slug) + ' · ' : ''}${ss.last_mode ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:${ss.last_mode === 'plan' ? '#bc8cff33' : '#58a6ff33'};color:${ss.last_mode === 'plan' ? '#bc8cff' : '#58a6ff'}">${ss.last_mode}</span> ` : ''}${staffMap[ss.id] ? `<span style="font-size:9px;padding:1px 5px;border-radius:3px;font-weight:500;background:#2ea04322;color:#3fb950">${escapeHtml(staffMap[ss.id])}</span> ` : ''}${escapeHtml(ss.agent_type || '')} ${ss.model_id ? '· ' + escapeHtml(ss.model_id) : ''}</div>
         </div>
       </div>
@@ -807,7 +807,7 @@ function renderDashboard(data) {
       div.innerHTML = `
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
           <span class="status-dot" style="width:6px;height:6px;background:${state.color};animation:${state.dot === 'pulse' ? 'pulse 2s infinite' : 'none'};flex-shrink:0"></span>
-          <span style="font-weight:500;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(ss.title || '?')}">${escapeHtml((ss.title||'?').slice(0,20))}${(ss.title||'').length > 20 ? '...' : ''}</span>
+          <span style="font-weight:500;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(ss.title || '?')}">${escapeHtml((ss.title||'?').slice(0,30))}${(ss.title||'').length > 30 ? '...' : ''}</span>
         </div>
         <div style="display:flex;gap:4px;margin:2px 0 2px 12px;flex-wrap:wrap">
           <span style="font-size:9px;color:${state.color};background:${state.color}22;padding:1px 5px;border-radius:3px;font-weight:500">${state.label}</span>
