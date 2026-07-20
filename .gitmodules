@@ -1,0 +1,3 @@
+[submodule "lobby"]
+	path = lobby
+	url = https://github.com/phototix/Virtual-Office-Animated.git
