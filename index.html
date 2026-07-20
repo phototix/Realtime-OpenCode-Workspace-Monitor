@@ -37,7 +37,6 @@
     <p class="sub">Workspace Dashboard</p>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="enterDashboard()">Enter Dashboard</button>
-      <button class="btn btn-secondary" onclick="adminLogin()">Admin Login</button>
     </div>
   </div>
 </div>
@@ -45,7 +44,6 @@
 <script type="module" src="lobby/js/game.js?v=25"></script>
 <script>
 function enterDashboard() { window.location.href = 'dashboard.html'; }
-function adminLogin() { window.location.href = 'dashboard.html#login'; }
 fetch('data/boss_name.json').then(function(r){ return r.json(); }).then(function(d){
   if (d && d.name) { document.getElementById('lobbyName').textContent = d.name; document.title = d.name + ' — Dashboard'; }
 }).catch(function(){});
