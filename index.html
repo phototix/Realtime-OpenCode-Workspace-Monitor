@@ -7,13 +7,13 @@
 <link rel="icon" type="image/png" href="/assets/profile_photo.png">
 <link rel="stylesheet" href="lobby/css/style.css" />
 <style>
-.overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10; background: rgba(15,23,42,0.55); backdrop-filter: blur(6px); }
-.overlay-card { background: rgba(17,24,39,0.88); border: 1px solid #334155; border-radius: 20px; padding: 40px 48px; text-align: center; box-shadow: 0 24px 80px rgba(0,0,0,0.5); max-width: 420px; width: 90%; }
-.overlay-card .photo { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; border: 3px solid #38bdf8; margin-bottom: 16px; background: #111827; }
-.overlay-card h2 { margin: 0 0 4px; font-size: 1.6rem; font-weight: 600; color: #dbeafe; }
-.overlay-card .sub { color: #9ca3af; font-size: 0.95rem; margin: 0 0 24px; }
-.overlay-card .btn-row { display: flex; flex-direction: column; gap: 10px; }
-.overlay-card .btn { padding: 14px 24px; border-radius: 12px; border: none; font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.overlay { position: fixed; inset: 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 24px; z-index: 10; background: rgba(15,23,42,0.35); backdrop-filter: blur(1px); }
+.overlay-card { background: rgba(17,24,39,0.85); border: 1px solid #334155; border-radius: 14px; padding: 20px 28px; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,0.4); max-width: 320px; width: auto; }
+.overlay-card .photo { width: 56px; height: 56px; border-radius: 50%; object-fit: cover; border: 2px solid #38bdf8; margin-bottom: 8px; background: #111827; }
+.overlay-card h2 { margin: 0 0 2px; font-size: 1.1rem; font-weight: 600; color: #dbeafe; }
+.overlay-card .sub { color: #9ca3af; font-size: 0.8rem; margin: 0 0 12px; }
+.overlay-card .btn-row { display: flex; flex-direction: row; gap: 8px; }
+.overlay-card .btn { padding: 8px 16px; border-radius: 8px; border: none; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
 .overlay-card .btn-primary { background: #38bdf8; color: #0f172a; }
 .overlay-card .btn-primary:hover { background: #7dd3fc; transform: translateY(-1px); }
 .overlay-card .btn-secondary { background: transparent; color: #9ca3af; border: 1px solid #334155; }
@@ -42,7 +42,7 @@
   </div>
 </div>
 
-<script type="module" src="lobby/js/game.js?v=24"></script>
+<script type="module" src="lobby/js/game.js?v=25"></script>
 <script>
 function enterDashboard() { window.location.href = 'dashboard.html'; }
 function adminLogin() { window.location.href = 'dashboard.html#login'; }
