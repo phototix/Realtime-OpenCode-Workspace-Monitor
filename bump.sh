@@ -2,7 +2,7 @@
 set -e
 
 VERSION_FILE="$(dirname "$0")/version.txt"
-INDEX_FILE="$(dirname "$0")/index.html"
+INDEX_FILE="$(dirname "$0")/dashboard.html"
 
 OLD_VER=$(cat "$VERSION_FILE")
 NEW_VER=$((OLD_VER + 1))
