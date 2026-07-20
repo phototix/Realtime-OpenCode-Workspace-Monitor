@@ -23,8 +23,8 @@ const WALKING_FULL_CACHE_BUST = "v=20260717-02";
 const IDLE_CACHE_BUST = "v=20260720-01";
 const IDLE_STANDARD_CANVAS_SIZE = 1280;
 const IDLE_SHEET_CANDIDATES = [
-  "../assets/idle-drinking.png",
-  "../assets/idle-playphone.png",
+  "lobby/assets/idle-drinking.png",
+  "lobby/assets/idle-playphone.png",
 ];
 const MANUAL_PATH_BLOCKERS = [
   // sofa area
@@ -166,10 +166,10 @@ async function bootstrap() {
     const [idleSheets] = await Promise.all([loadIdleSheets()]);
 
     [officeEmptyImage, assetsSheetImage, officeReferenceImage, walkingSheet] = await Promise.all([
-      loadImage("../assets/office-empty.png"),
-      loadImage("../assets/assets.png"),
-      loadImage("../assets/office.png"),
-      loadImage(`../assets/walking-full.png?${WALKING_FULL_CACHE_BUST}`),
+      loadImage("lobby/assets/office-empty.png"),
+      loadImage("lobby/assets/assets.png"),
+      loadImage("lobby/assets/office.png"),
+      loadImage(`lobby/assets/walking-full.png?${WALKING_FULL_CACHE_BUST}`),
     ]);
     const idleAnimations = buildIdleAnimationConfig(idleSheets);
 
